@@ -44538,7 +44538,7 @@ function bkV2RenderTab2(){
     /* §btScroll · padding-top ต้องเป็น 0 · เนื้อที่ไถผ่านยังถูกวาดในเขต padding
        เศษแถวจะโผล่เหนือหัวตารางที่ตรึงไว้ */
     .t2-wrap{box-sizing:border-box;padding:0 8px 40px;overflow:auto;max-height:var(--bt-wraph,72vh);
-      overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+      overscroll-behavior:contain}
     .t2-trip{background:transparent;border:none;border-radius:0;margin-bottom:12px;overflow:visible}
     .t2-tripcard{background:var(--white);border:1px solid var(--border);border-left:5px solid var(--fam);border-radius:14px;overflow:hidden;margin-bottom:0}
     /* การ์ดหัวทริปว่างแล้ว (ชื่อทริปย้ายลงตาราง) · ไม่ต้องกินที่เป็นกล่องเปล่า */

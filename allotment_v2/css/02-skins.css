@@ -494,7 +494,7 @@ body.sb-collapsed .sidebar.sb-collapsed ~ #la-userbadge, body.sb-collapsed .la-u
    (#cost-dw อยู่นอก .main กฎเลื่อนตารางของ la-mobile จึงไม่ครอบมาถึง) */
 @media (max-width:820px){
   #cost-dw{width:100vw}
-  #cost-dw .cdb{padding:12px 12px 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  #cost-dw .cdb{padding:12px 12px 20px;overflow-x:auto;overscroll-behavior-x:contain}
   #cost-dw table{min-width:660px}
   #cost-dw .cdk > div{flex:1 1 calc(50% - 5px);min-width:0}
 }
@@ -649,7 +649,7 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
     height:auto !important;width:min(86vw,300px) !important;max-width:300px !important;z-index:200 !important;
     border-radius:0 20px 20px 0 !important;margin:0 !important;
     transform:translateX(-102%);transition:transform .22s ease !important;will-change:transform;
-    padding:calc(30px + env(safe-area-inset-top)) 10px calc(66px + env(safe-area-inset-bottom)) !important;-webkit-overflow-scrolling:touch;
+    padding:calc(30px + env(safe-area-inset-top)) 10px calc(66px + env(safe-area-inset-bottom)) !important;
     box-shadow:8px 0 30px rgba(20,30,50,.32) !important}
   .sidebar.sb-collapsed{width:min(86vw,300px) !important}          /* โหมดรางแคบไม่ใช้บนมือถือ */
   .sidebar.sb-collapsed .nav-item{font-size:13.5px !important;justify-content:flex-start !important;padding:11px 12px !important;gap:9px !important}
@@ -665,8 +665,12 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
      ถ้าปล่อยให้ body เลื่อน ทั้งหน้าจะกว้างตามตาราง แถบบน/ลิ้นชักหลุดจอไปด้วย
      → ขังการเลื่อนไว้ใน .main แทน แถบบนกับลิ้นชักอยู่กับที่เสมอ
      ตารางกว้างก็ปัดซ้าย-ขวาดูได้ตามที่ตกลงไว้ */
+  /* §pinchZoom · -webkit-overflow-scrolling:touch เคยสร้าง UIScrollView แยกให้ iOS Safari ก่อน iOS13
+     ตัวมันเองกินท่าทีสองนิ้ว (pinch) ไปเป็นการเลื่อนภายในกล่องแทนที่จะส่งให้เบราว์เซอร์ซูมทั้งจอ
+     .main กินพื้นที่เต็มจอมือถือ ผลคือซูมด้วยสองนิ้วไม่ได้เลยทั้งแอป · iOS13+ มี momentum scroll
+     ในตัว overflow:auto อยู่แล้วโดยไม่ต้องพึ่ง property นี้ · ตัดทิ้งได้ ไม่เสียความลื่นของการเลื่อน */
   .main,body.sb-collapsed .main{margin-left:0 !important;padding:12px 10px !important;width:100% !important;max-width:100% !important;
-    height:100vh;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    height:100vh;overflow:auto;overscroll-behavior:contain;
     padding-top:calc(30px + env(safe-area-inset-top)) !important}
   .app{min-height:0 !important}
   .view{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
@@ -677,8 +681,7 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
   button,.btn,.nav-item,[onclick]{-webkit-tap-highlight-color:rgba(15,110,86,.12)}
 
   /* ── ตารางกว้าง · เลื่อนแนวนอนในกล่องตัวเอง ไม่ดันทั้งหน้า ── */
-  .la-xscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
-  .main [style*="overflow-x:auto"],.main [style*="overflow:auto"]{-webkit-overflow-scrolling:touch}
+  .la-xscroll{overflow-x:auto;max-width:100%}
 
   /* ── กริดหลายคอลัมน์ที่เขียนไว้ใน style ตรง ๆ · บีบเหลือคอลัมน์เดียว ──
      §oneCol · เดิมเหลือ 2 คอลัมน์ในช่วง 521–820px · บนมือถือ 2 คอลัมน์แปลว่า
@@ -704,7 +707,6 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
 
   /* โมดัล · เต็มจอ อ่านง่ายกว่ากล่องลอย */
   .modal-box,.tm-modal,.aos-modal{max-width:100% !important;width:100% !important;max-height:88dvh}
-  .modal-body,.tm-modal-body,.aos-modal-body{-webkit-overflow-scrolling:touch}
 
   /* ป้ายมุมจอ · ยกให้พ้น home indicator */
   #la-viewonly{bottom:calc(8px + env(safe-area-inset-bottom)) !important;font-size:10px !important}
@@ -727,11 +729,11 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
     border-radius:11px !important; font-weight:600 }
   /* ปฏิทินเดือน · เลื่อนในการ์ดของตัวเอง ไม่ดันทั้งหน้าไปทางขวา
      หัววันต้องกว้างเท่าตัวตาราง ไม่งั้นเลื่อนแล้วหัวไม่ตรงช่อง */
-  .main .cal2-box{ overflow-x:auto !important; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; max-width:100% !important }
+  .main .cal2-box{ overflow-x:auto !important; overscroll-behavior-x:contain; max-width:100% !important }
   .main .cal2-box .cal2-wd,.main .cal2-box .cal2-grid,.main .cal2-box .cal2-mb{ min-width:600px }
   .main .cal2-box .cal2-grid{ overflow:visible !important }
   /* แถบปุ่มสลับแท็บที่ยาวกว่าจอ · เลื่อนในแถบตัวเอง */
-  .main .dr-pills,.main .bkv2-utabs,.main .fl-tabs{ overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100% }
+  .main .dr-pills,.main .bkv2-utabs,.main .fl-tabs{ overflow-x:auto; max-width:100% }
   /* §tapSize · พื้นขั้นต่ำของทุกอย่างที่กดได้ · 40px คือขนาดที่กดโดนโดยไม่ต้องเล็ง
      ตั้งรวมทีเดียวแทนการไล่ทีละคลาส · ปุ่มที่เพิ่มมาทีหลังจะได้ตามไปเอง */
   .main .view button,
@@ -743,7 +745,7 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
   .main .pj-pen{ width:36px !important; height:36px !important }
   /* ปฏิทินใน Booking · 7 ช่องกว้าง 600px ในกล่อง 372px ที่ overflow:hidden
      สามวันขวาสุดถูกตัดหายไปเลย · ให้กล่องเลื่อนได้เหมือนปฏิทินหน้าอื่น */
-  .main .bkv2-cal{ overflow-x:auto !important; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; max-width:100% }
+  .main .bkv2-cal{ overflow-x:auto !important; overscroll-behavior-x:contain; max-width:100% }
   .main .bkv2-bodycard{ overflow-x:visible !important }
 
   /* การ์ดที่ถูกวางไว้คอลัมน์ที่ 5 ของกริด · พอกริดเหลือ 1–2 คอลัมน์ มันจะยื่นออกนอกจอ
@@ -795,12 +797,15 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
      :has(> table) ให้กล่องแม่เป็นตัวเลื่อนแทน · ตารางข้างในคงความกว้างไว้ครบ */
   /* !important จำเป็น · การ์ดพวกนี้ถูกตั้ง overflow ไว้ด้วย selector ที่มี id
      (#vancheckin-host .ck-card) ซึ่งชนะ selector ที่มีแต่ class เสมอ */
-  .main .view *:has(> table){max-width:100% !important;overflow-x:auto !important;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  /* §pinchZoom · -webkit-overflow-scrolling:touch ตัดทิ้ง · นี่คือกล่องที่ห่อ "ทุกตารางกว้าง" ในแอป
+     รวม .t2-tblscroll ที่ห่อ table.t2-mtbl · property นี้เคยกินท่าทีสองนิ้ว (pinch) ไปเป็นการ
+     เลื่อนในกล่องแทนที่จะส่งให้เบราว์เซอร์ซูมทั้งจอ → ตารางซูมด้วยสองนิ้วไม่ได้เลย */
+  .main .view *:has(> table){max-width:100% !important;overflow-x:auto !important;overscroll-behavior-x:contain}
   /* เบราว์เซอร์เก่าที่ยังไม่รองรับ :has() · อย่างน้อยอย่าให้ตารางที่ไม่ได้ตั้ง min-width ดันจอ */
   .main .view table:not([style*="min-width"]){max-width:100%}
   /* การ์ดที่ห่อปฏิทิน/heatmap/ตาราง · ให้เลื่อนในการ์ด ไม่ลากทั้งหน้า */
   .main .bo-card,.main .cal2-card,.main .ts-card,.main .ck-card,
-  .main .fl-card,.main .bkv2-card,.main .card{overflow-x:auto !important;-webkit-overflow-scrolling:touch;max-width:100% !important}
+  .main .fl-card,.main .bkv2-card,.main .card{overflow-x:auto !important;max-width:100% !important}
   /* ปฏิทิน 7 ช่องบนจอแคบ · 600px คือเส้นต่ำสุดที่ยังอ่านชื่อเรือออก */
   .main .fc-grid,.main .cal2-grid,.main .bkv2-cal-grid{min-width:600px}
 
