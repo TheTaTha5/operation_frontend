@@ -44943,10 +44943,13 @@ function bkV2RenderTab2(){
        ให้หัวเลื่อนหายไปพร้อมหน้าเหมือนแอปมือถือทั่วไป ตารางได้พื้นที่เต็ม ไม่ต้องเลื่อนซ้อนกัน
        เดสก์ท็อปไม่แตะ (ยังตรึงเหมือนเดิม)
        ต้องอยู่หลังกฎ .bt-pkh/.t2-wrap ปกติเสมอ · ก่อนหน้านี้เคยแทรกไว้ก่อน กฎปกติที่มาทีหลัง
-       (specificity เท่ากัน) เลยชนะทับ media query ทิ้งไปเงียบ ๆ · อย่าย้ายขึ้นไปซ้ำอีก */
+       (specificity เท่ากัน) เลยชนะทับ media query ทิ้งไปเงียบ ๆ · อย่าย้ายขึ้นไปซ้ำอีก
+       §mobTblSize · overflow:visible (ก่อนหน้านี้) ปิดสกรอลล์แนวนอนของ .t2-wrap ไปด้วย ทำให้ตาราง
+       ที่กว้าง 1180px (table.t2-mtbl min-width) ถูกดันจนล้นเพจแทนที่จะปัดดูได้ในกรอบตัวเอง
+       เก็บ overflow-x:auto ไว้ · ตารางยังกว้างเท่าเดสก์ท็อปเป๊ะ ปัดซ้าย-ขวา/pinch-zoom ดูได้ */
     @media (max-width:820px){
       .bt-pkh{position:static}
-      .t2-wrap{max-height:none;overflow:visible}
+      .t2-wrap{max-height:none;overflow-x:auto;overflow-y:visible}
     }
     .bt-hdtop{position:relative;display:flex;align-items:center;gap:13px;padding:0 8px 7px}
     .bt-arw{width:27px;height:27px;flex:none;border:1px solid rgba(0,0,0,.13);background:#fff;border-radius:9px;
