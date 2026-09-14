@@ -16584,7 +16584,14 @@ function pckMealChips(b){
   var m = b.specialMeals || {}, out = [];
   PCK_MEALS.forEach(function(x){ if(+m[x.k] > 0) out.push({ t:x.l + ' ' + (+m[x.k]), c:x.c, bg:x.bg, bd:x.bd }); });
   var al = (typeof bkV2AllergyCount === 'function') ? bkV2AllergyCount(m) : ((String(m.allergies || '').trim()) ? 1 : 0);
-  if(al) out.push({ t:'⚠ แพ้อาหาร ' + al, c:'#A32D2D', bg:'#FCEBEB', bd:'#F0C9C9' });
+  /* §pckAlTip (2026-09-14) · ชิปบอกแต่ "แพ้อาหาร 2" ไม่เคยบอกว่าแพ้อะไร
+     ช่องในตารางแคบเกินจะพิมพ์ทั้งประโยค · แต่ปล่อยให้ไม่มีที่ดูเลยไม่ได้
+     ใส่รายละเอียดไว้ใน tooltip · จิ้มค้างที่ชิปก็อ่านได้ทันทีหน้าท่า */
+  if(al){
+    var _alT=(typeof bkV2AllergyText==='function')?bkV2AllergyText(m):String(m.allergies||'').trim();
+    out.push({ t:'⚠ แพ้อาหาร ' + al, c:'#A32D2D', bg:'#FCEBEB', bd:'#F0C9C9',
+               tip:(_alT?('แพ้อาหาร · '+_alT):'') });
+  }
   return out;
 }
 /* §pckSheet3 · ป้ายภาษาไกด์อย่างเดียว · ในตารางชีทไกด์เป็นคอลัมน์ของตัวเอง
@@ -16614,7 +16621,9 @@ function pckMealCell(b, date, noGuide, sheet){
       +'&#128483; ไกด์ '+gl.map(ckEsc).join('/')+'</span>';
   }
   var html = chips.map(function(c){
-    return '<span class="pck-mchip" style="background:' + c.bg + ';color:' + c.c + ';border-color:' + c.bd + '">' + ckEsc(c.t) + '</span>';
+    /* §pckAlTip · ชิปที่มีรายละเอียด (แพ้อาหาร) ห้อย tooltip ไว้ให้จิ้มอ่าน */
+    return '<span class="pck-mchip"' + (c.tip?(' title="'+ckEsc(c.tip)+'"'):'')
+      + ' style="background:' + c.bg + ';color:' + c.c + ';border-color:' + c.bd + '">' + ckEsc(c.t) + '</span>';
   }).join('');
   if(m.pierAt) html += '<span class="pck-mchip pier" title="เพิ่ม/แก้ที่หน้าท่า ' + ckEsc(m.pierAt) + (m.pierBy ? (' · ' + ckEsc(m.pierBy)) : '') + '">หน้างาน</span>';
   // §pierNote · เรื่องที่ลูกค้าแจ้งที่ท่า · ข้อความอิสระ แยกจากอาหารพิเศษที่เป็นตัวเลข
@@ -17785,7 +17794,15 @@ function pckJobNote(b, date){
   var veg=(+mm.veg||0)+(+mm.vegan||0);
   if(veg) out.push({w:1, t:'มังสวิรัติ '+veg});
   if(+mm.halal) out.push({w:1, t:'ฮาลาล '+(+mm.halal)});
-  var al=String(mm.allergies||'').trim();
+  /* §gdAlList (2026-09-14) · "จะโผล่ในใบงานไกด์ไหม"
+     ของเดิมอ่านแต่ mm.allergies (ข้อความอิสระ) · ไม่อ่าน allergyList เลย
+     แต่ทางหลักที่คนบันทึกอาการแพ้คือชิป — ปุ่ม + เพิ่ม และปุ่มสำเร็จรูป
+     (Peanut · Shellfish · ...) ทุกปุ่มสร้างชิปทั้งหมด
+     ผลคือ อาการแพ้ที่บันทึกด้วยวิธีหลัก ไม่เคยขึ้นใบงานไกด์เลยสักครั้ง
+     วัดแล้ว ใบที่มี Cashew nut ×2 · pckJobNote คืนอาร์เรย์ว่าง
+     bkV2AllergyText รวมทั้งสองแบบให้แล้ว (ชิป + ข้อความ) · ใช้ตัวนั้น */
+  var al=(typeof bkV2AllergyText==='function')?bkV2AllergyText(mm):String(mm.allergies||'').trim();
+  al=String(al||'').trim();
   if(al) out.push({w:1, t:'แพ้อาหาร: '+al});
   var sq=(typeof vanJobsSreqFinal==='function')?(vanJobsSreqFinal(b)||''):((b.notes||'').trim());
   if(sq) out.push({w:0, t:sq});
