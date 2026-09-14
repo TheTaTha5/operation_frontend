@@ -7185,7 +7185,15 @@ function bkV2CharterBoatHeal(date){
   (typeof SB_BOOKINGS!=='undefined'?SB_BOOKINGS:[]).forEach(b=>{ if(['cancelled','rejected','cancelled_weather'].includes(b.status))return;
     const t=(b.trips||[]).find(t=>(!date||(t.date||'')===date) && t.bookingMode==='charter' && t.charterBoatId);
     if(typeof bkBoatSplits==='function' && bkBoatSplits(b,date)) return;   // §boatSplit · แยกลำไว้แล้ว อย่าทับ
-    if(t && !bkOpsRead(b,date).boatId){ bkOpsFor(b,date).boatId=t.charterBoatId; healed++; }
+    if(!t) return;
+    /* §chOpsSync · เดิมเติมให้เฉพาะตอนช่องว่าง · ใบที่เคยเปลี่ยนลำก่อนมีตัว sync
+       จะค้างลำเก่าไว้ตลอด เปิดหน้ากี่ทีก็ไม่หาย · แก้ให้ตรงตอนรู้วันแน่ชัดเท่านั้น
+       (date ว่าง = เรียกรวมทุกวัน · t อาจเป็นของคนละวันกับ ops ที่อ่านมา ห้ามทับ) */
+    const _chO=bkOpsRead(b,date);
+    if(!_chO.boatId){ bkOpsFor(b,date).boatId=t.charterBoatId; healed++; return; }
+    if(date && (t.date||'')===date && _chO.boatId!==t.charterBoatId){
+      bkOpsFor(b,date).boatId=t.charterBoatId; healed++;
+    }
   });
   if(healed && typeof acctPersistBookings==='function') acctPersistBookings();
   return healed;
@@ -49129,6 +49137,44 @@ function bkV2CommitBooking(status){
     const _nt=(newBk.trips||[]).length;
     bkV2AddHistory(newBk,'create','Created booking · '+_nt+' trip(s) · ฿'+Math.round(newBk.total||0).toLocaleString()+(status==='confirmed'?' · confirmed':status==='pending_foc'?' · awaiting FOC':''),'Created');
   }
+  /* §chOpsSync (2026-09-14) · "Booking นี้มีการแก้ไขเปลี่ยนเรือ ใบ Edit ที่หน้า manifest ไม่เปลี่ยน"
+
+     ใบเหมาลำเก็บชื่อเรือไว้สองที่
+       t.charterBoatId · ฝั่งขาย · คนเลือกตอนจองและตอนแก้ใบ
+       ops.boatId      · ฝั่งปฏิบัติการ · ช่องที่ bkBoatIdOf อ่าน และทั้งแอปอ่านต่อจากนั้น
+
+     ตอนบันทึกแก้ไข ops ถูกคัดของเดิมมาทั้งก้อน (กันการจัดเรือ-รถหายตอนแก้ใบ)
+     และมีแต่ตอน "เปลี่ยนวันเดินทาง" เท่านั้นที่ล้าง boatId ให้
+     เปลี่ยนแค่ "ลำ" จึงไม่มีใครตามแก้
+
+     ผล · TRIPS ย้ายไปล็อกลำใหม่แล้ว แถบ CHARTER ก็ขึ้นลำใหม่ (สองที่นี้อ่าน charterBoatId)
+     แต่ ops.boatId ยังเป็นลำเก่า · ช่อง BOAT ในตาราง · Boat Operation · เช็คอินหน้าท่า
+     · ใบงานเรือ · Daily Fleet Log จึงยังส่งคนไปลำที่ไม่ได้ออก
+
+     ใบเหมาเปลี่ยนลำได้ทางเดียวคือแก้ที่ใบ (ช่องเรือในตารางถูกล็อกไว้)
+     charterBoatId จึงเป็นตัวจริง · ตรงนี้ทำให้ ops.boatId ตามเสมอ
+     ใบที่แยกคนลงหลายลำ (boatSplits) ไม่แตะ · ลำของมันอยู่ใน splits ไม่ใช่ boatId */
+  (function(){
+    try{
+      var _chMoved=[];
+      (newBk.trips||[]).forEach(function(t){
+        if(!t || t.bookingMode!=='charter' || !t.charterBoatId) return;
+        var O=(typeof bkOpsFor==='function')?bkOpsFor(newBk, t.date):null;
+        if(!O) return;
+        if(Array.isArray(O.boatSplits) && O.boatSplits.length) return;
+        if((O.boatId||'')===t.charterBoatId) return;
+        var was=O.boatId||'';
+        O.boatId=t.charterBoatId;
+        if(was) _chMoved.push({d:t.date, was:was, now:t.charterBoatId});
+      });
+      if(_chMoved.length){
+        var _bn=function(id){ var o=(typeof BOATS!=='undefined'?BOATS:[]).find(function(x){ return x.id===id; }); return (o&&o.name)||id; };
+        bkV2AddHistory(newBk,'edit','เปลี่ยนเรือเหมาลำ · '
+          +_chMoved.map(function(m){ return m.d+' '+_bn(m.was)+' → '+_bn(m.now); }).join(' · ')
+          +' · ย้ายการจัดเรือตามไปด้วย','Edited');
+      }
+    }catch(_e){}
+  })();
   if(_approvalReq){ bkV2AddHistory(newBk,'edit','Over company capacity +'+_approvalReq.totOver+' seat(s) → submitted for manager approval','Approval'); }
 
   // §altPickups phase-2 · auto-build/refresh van splits so each alt pickup point rides its own allocation
