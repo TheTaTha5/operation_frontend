@@ -8554,6 +8554,10 @@ function vbEdit(){
 function vbSave(){
   _vb.edit=0; _vb.snap=null; _vb.open={}; _vb.foc='';
   var st=vbState();
+  /* §vbSeen · กดบันทึก = ได้เห็นแถวชุดนี้แล้ว · เก็บไว้เทียบว่าคราวหน้ามีอะไรโผล่เพิ่ม
+     เก็บเฉพาะตอนกดบันทึกจริง ไม่เก็บตอนพิมพ์ทีละช่อง (vbStamp)
+     ไม่งั้นพิมพ์ช่องเดียวก็ปิดคำเตือนของแถวอื่นที่ยังไม่ได้ดูไปด้วย */
+  try{ st.seen=vbRows().map(function(r){ return vbRowKey(r); }); }catch(_){}
   st.by=(typeof laBy==='function')?laBy():''; st.at=new Date().toISOString();
   vbPersist(); renderVanBill();
   if(typeof flShowToast==='function') flShowToast('บันทึกใบวางบิลแล้ว');
@@ -8615,7 +8619,11 @@ function vbPeriod(){
    ของเดิมเลือกคันไหนก็ได้ใบคนละใบ · ตัวเลือกคันคือ "ตัวกรองสำหรับดู" ไม่ใช่คนละบิล
    (บิลออกให้เจ้าของรถ ไม่ได้ออกรายคัน · แต่ละแถวบอกคันอยู่แล้ว)
    ถ้ายังผูกกับคัน หน้าภาพรวมจะรวมเลขไม่ได้ เพราะเงินกระจายอยู่หลายคีย์
-   เปลี่ยนตอนนี้ไม่มีข้อมูลเสียหาย · หน้านี้เพิ่งเปิดใช้ ยังไม่มีใครกรอก */
+   ⚠ บรรทัดเดิมตรงนี้เขียนว่า "หน้านี้เพิ่งเปิดใช้ ยังไม่มีใครกรอก" — ไม่จริงแล้ว
+     ตรวจ backup_2026-09-14_1355: van_bill มี 14 ใบ · กรอกตัวเลขจริง 8 ใบ
+     โดย AP.Petch กับ admin · ใบล่าสุด 2026-09-14 03:17
+     เปลี่ยนรูปคีย์ตอนนี้ = ของที่กรอกไว้หลุดหายทั้งหมด เพราะอ่านด้วยคีย์ใหม่ไม่เจอ
+     จะเปลี่ยนต้องเขียน migration ย้ายคีย์เก่ามาคีย์ใหม่ก่อน ไม่ใช่เปลี่ยนเฉย ๆ */
 function vbKey(){ return _vb.sup+'|'+_vb.ym+'|'+_vb.per; }
 function vbState(){
   var k=vbKey();
@@ -9029,6 +9037,23 @@ function renderVanBill(){
   var P=vbPeriod(), st=vbState(), rows=vbRows(), codes=vbCodesIn(rows);
   var vg=function(id){ return myVans.filter(function(v){ return v.id===id; })[0]||{}; };
 
+  /* §vbNewRow · บิลที่มีคนกรอกและประทับเวลาไว้แล้ว ถ้าอยู่ ๆ มีแถวงานโผล่เพิ่ม
+     (เช่น จัดรถขากลับย้อนหลัง หรือโค้ดเริ่มมองเห็นงานที่เคยตกหล่นอย่าง §vbRetLeg)
+     ยอดเรียกเก็บจะขยับเองโดยไม่มีใครแตะ · เจ้าของรถทักมาแล้วไม่มีใครอธิบายได้
+     → ไม่แก้ยอดให้เอง แค่บอกว่ามีแถวไหนใหม่ · คนตัดสินใจเองว่าจะเก็บเพิ่มหรือไม่
+     เกณฑ์ "ใหม่" ต้องแคบ ไม่งั้นเตือนผิด: แถวที่คนตั้งใจปล่อยว่าง (ใช้เรตกลางจาก rateC)
+     ก็ไม่มีค่าใน st.rows เหมือนกัน แต่ไม่ใช่ของใหม่ — วัดจริงเจอเคสนี้ที่ใบ โกอู๊ด|2026-09|1
+     → ใบที่กด "บันทึก" ตั้งแต่มี §vbSeen แล้ว จะมี st.seen เก็บคีย์แถวที่เห็นตอนนั้นไว้
+       เทียบกับ st.seen ได้ตรง ๆ
+     → ใบเก่าที่บันทึกไว้ก่อนหน้านั้นไม่มี st.seen เทียบไม่ได้ จึงเตือนเฉพาะแถวขากลับ
+       ซึ่งเป็นงานกลุ่มเดียวที่โค้ดเพิ่งเริ่มมองเห็น (§vbRetLeg) · กลุ่มอื่นเงียบไว้ดีกว่าเตือนผิด */
+  var _vbNewRows=[];
+  if(st.at){
+    var _seen=Array.isArray(st.seen)?st.seen:null;
+    rows.forEach(function(r){ var k=vbRowKey(r);
+      if((st.rows||{})[k]) return;
+      if(_seen ? (_seen.indexOf(k)<0) : !!r.ret) _vbNewRows.push(r); });
+  }
   /* ── คิดเงินทีละแถว ── */
   var T={pax:0,bkPax:0,ad:0,chd:0,inf:0,foc:0,van:0,vanOut:0,ex:0,cut:0,bill:0,sale:0}, byCode={};
   var calc=rows.map(function(r){
@@ -9166,6 +9191,13 @@ function renderVanBill(){
        +'<button class="vb-btn ok" onclick="vbSave()">&#10003; บันทึก</button>')
       :('<button class="vb-btn" onclick="vbEdit()">&#9998; แก้ไข</button>'
        +'<button class="vb-btn pri" onclick="vbPrint()">&#128424; พิมพ์ใบวางบิล</button>'))+'</div>'
+   +(_vbNewRows.length
+      ? ('<div class="vb-newrow">&#9888;&#65039; <b>มี '+_vbNewRows.length+' แถวที่เพิ่งโผล่หลังจากกรอกบิลใบนี้ไปแล้ว</b>'
+         +'<span>('+e(_vbNewRows.slice(0,4).map(function(r){
+              return r.date.slice(8,10)+'/'+(+r.date.slice(5,7))+' '+((vg(r.vanId).name)||r.vanId)+(r.ret?' ขากลับ':'');
+            }).join(' · '))+(_vbNewRows.length>4?(' และอีก '+(_vbNewRows.length-4)):'')+')</span>'
+         +'<span class="m">ยอดเรียกเก็บจึงต่างจากตอนที่บันทึกไว้ · ตรวจก่อนส่งให้เจ้าของรถ</span></div>')
+      : '')
    +'<div class="vb-who"><div class="av">'+e((head&&head.name)||_vb.sup).slice(0,7)+'</div>'
      +'<div style="flex:1"><div class="n">'+e(whoName)+' <span style="font-weight:600;color:#6B7280">('+e(_vb.sup)+')</span></div>'
      +'<div class="m">'+e(whoMeta)+'</div></div>'
@@ -9258,7 +9290,7 @@ function vbCss(){
   +'.vb-mo button{border:none;background:#EFF1F6;border-radius:8px;width:24px;height:26px;cursor:pointer;color:#6b7280;font-size:14px;font-family:inherit}'
   +'.vb-btn{border:1px solid #DDE1E9;background:#fff;border-radius:11px;padding:8px 14px;font:600 12.5px inherit;color:#3F4654;cursor:pointer;font-family:inherit}'
   +'.vb-btn.pri{background:#16265C;border-color:#16265C;color:#fff;font-weight:700}'
-  +'.vb-who{display:flex;align-items:center;gap:12px;background:#FFFFFF;border:1px solid #E4E7EE;border-radius:13px;padding:11px 15px;margin-bottom:12px}'
+  +'.vb-newrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 10px;padding:9px 12px;border:1px solid #F0C98A;background:#FFF8EC;border-radius:10px;font-size:12px;color:#7A4E00;line-height:1.5}.vb-newrow span{font-size:11px;color:#946515}.vb-newrow span.m{flex-basis:100%;color:#8A6A2F}.vb-who{display:flex;align-items:center;gap:12px;background:#FFFFFF;border:1px solid #E4E7EE;border-radius:13px;padding:11px 15px;margin-bottom:12px}'
   +'.vb-who .av{min-width:44px;height:38px;padding:0 8px;border-radius:11px;background:#16265C;color:#fff;display:flex;align-items:center;justify-content:center;font:800 11px "DM Mono",monospace;flex:none}'
   +'.vb-who .n{font-size:14px;font-weight:800}.vb-who .m{font-size:11.5px;color:#6B7280;margin-top:2px;font-family:"DM Mono",monospace}'
   +'.vb-lab{font-size:10px;font-weight:800;letter-spacing:.06em;color:#A9AFB6;text-transform:uppercase}'
