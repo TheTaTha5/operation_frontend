@@ -8640,6 +8640,8 @@ function vbCodesIn(rows){
   out.sort(function(a,b){ return b.n-a.n; });
   return out;
 }
+/* §vbRetLeg · แถวขากลับเก็บเรตคนละช่องกับขาไป · เรตไป-กลับไม่จำเป็นต้องเท่ากัน */
+function vbRowKey(r){ return r.date+'~'+r.routeId+'~'+r.vanId+(r.ret?'~R':''); }
 /* อ่านอย่างเดียว · ห้ามสร้างระเบียนเปล่า ไม่งั้นแค่เปิดดูภาพรวมก็เกิดใบเปล่าทุกเจ้าทุกงวด */
 function vbStateOf(k){
   var st=VAN_BILL[k];
@@ -8694,6 +8696,22 @@ function vbRows(){
         }
         r.bk++;
         var a=String(b.pickupArea||'').trim(); if(a) r.areas[a]=1;
+      });
+      /* §vbRetLeg · ขากลับคือรถอีกเที่ยวหนึ่ง · ของเดิมอ่านแต่ ops.vanId
+         เจ้าของรถที่รับเฉพาะขากลับจึงไม่เคยขึ้นบิลเลยสักแถว
+         (วัดจาก backup_2026-09-14: ตกไป 22 เที่ยว · งวด 11-20 ก.ย. ภูเก็ตล่ำซำ ตก 4)
+         ⚠ pax=0 โดยตั้งใจ · เป็นลูกค้ากลุ่มเดิมที่ขายไปแล้วตอนขาไป
+           ใส่ pax เมื่อไหร่ ราคาขาย/กำไรเด้งเป็นสองเท่าทันที · คนจริงเก็บไว้ที่ retPax ไว้โชว์เฉย ๆ
+         returnSameVan (กลับคันเดิม) ไม่มี vanReturnId อยู่แล้ว จึงไม่เกิดแถวซ้ำ */
+      var rlegs=(Array.isArray(O.vanSplits)&&O.vanSplits.length)
+        ? O.vanSplits.map(function(x){ return x.vanReturnId; })
+        : [O.vanReturnId];
+      rlegs.forEach(function(vid){
+        if(!vid || !ok[vid]) return;
+        var k=ds+'~'+(t.routeId||'')+'~'+vid+'~R';
+        if(!map[k]) map[k]={date:ds, routeId:t.routeId||'', vanId:vid, ret:1,
+                            ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, retPax:0, bk:0, areas:{}};
+        map[k].retPax+=rlN; map[k].bk++;
       });
     });
   });
@@ -8863,7 +8881,7 @@ function vbAgg(){
             C.mix[mk].n+=n; } }
       };
       rows.forEach(function(r){
-        var m=(st.rows||{})[r.date+'~'+r.routeId+'~'+r.vanId]||{};
+        var m=(st.rows||{})[vbRowKey(r)]||{};
         g.bkPax+=(+r.bkPax||0);
         take((m.rate!=null?m.rate:vbRateOf(vbCode(r.routeId).c, st))||0, +m.ex||0, +m.cut||0,
              (m.per!=null?m.per:st.perPax)||0, r.pax, r.routeId, 1);
@@ -8999,14 +9017,14 @@ function renderVanBill(){
   var vg=function(id){ return myVans.filter(function(v){ return v.id===id; })[0]||{}; };
 
   /* ── คิดเงินทีละแถว ── */
-  var T={pax:0,bkPax:0,ad:0,chd:0,inf:0,foc:0,van:0,ex:0,cut:0,bill:0,sale:0}, byCode={};
+  var T={pax:0,bkPax:0,ad:0,chd:0,inf:0,foc:0,van:0,vanOut:0,ex:0,cut:0,bill:0,sale:0}, byCode={};
   var calc=rows.map(function(r){
-    var rk=r.date+'~'+r.routeId+'~'+r.vanId, m=st.rows[rk]||{};
+    var rk=vbRowKey(r), m=st.rows[rk]||{};
     var rate=(m.rate!=null?m.rate:vbRateOf(vbCode(r.routeId).c, st))||0, ex=+m.ex||0, cut=+m.cut||0;
     var per=(m.per!=null?m.per:st.perPax)||0;
     var bill=1*rate+ex-cut, sale=r.pax*per;
     T.pax+=r.pax; T.bkPax+=(+r.bkPax||0); T.ad+=r.ad; T.chd+=r.chd; T.inf+=r.inf; T.foc+=r.foc;
-    T.van+=1; T.ex+=ex; T.cut+=cut; T.bill+=bill; T.sale+=sale;
+    T.van+=1; T.vanOut+=(r.ret?0:1); T.ex+=ex; T.cut+=cut; T.bill+=bill; T.sale+=sale;
     var c=vbCode(r.routeId).c;
     if(!byCode[c]) byCode[c]={van:0,pax:0,bill:0,ex:0,cut:0,mix:{},col:vbCode(r.routeId).col};
     byCode[c].van+=1; byCode[c].pax+=r.pax; byCode[c].bill+=bill;
@@ -9018,10 +9036,12 @@ function renderVanBill(){
   });
   st.extra.forEach(function(x){
     var bill=(+x.van||0)*(+x.rate||0)+(+x.ex||0)-(+x.cut||0), sale=(+x.pax||0)*(+x.per||0);
-    T.van+=(+x.van||0); T.pax+=(+x.pax||0); T.ex+=(+x.ex||0); T.cut+=(+x.cut||0);
+    T.van+=(+x.van||0); T.vanOut+=(+x.van||0); T.pax+=(+x.pax||0); T.ex+=(+x.ex||0); T.cut+=(+x.cut||0);
     T.bill+=bill; T.sale+=sale;
   });
-  var pl=T.sale-T.bill, avg=T.van?(T.pax/T.van):0;
+  /* §vbRetLeg · เฉลี่ยคน/คัน หารด้วยเที่ยวขาไปเท่านั้น · แถวขากลับ pax=0 ตามตั้งใจ
+     ถ้าเอาไปหารด้วย จะดูเหมือนรถวิ่งเที่ยวเปล่าทั้งที่ไม่ใช่ */
+  var pl=T.sale-T.bill, avg=T.vanOut?(T.pax/T.vanOut):0;
   /* §vbMinus · ยอดติดลบต้องอ่านออกว่าเป็นลบ · '฿-150' อ่านยากกว่า '−฿150' */
   var B=function(n){ n=Math.round(n||0);
     return (n<0?'−฿':'฿')+Math.abs(n).toLocaleString(); };
@@ -9066,6 +9086,7 @@ function renderVanBill(){
      +'<td class="l"><span class="vb-code" style="background:'+C.col+'">'+C.c+'</span><span class="vb-rn">'+e(rn)+'</span>'
        +(function(){ var pr=vbPierOf(r.routeId), pc=VB_PIER_COL[pr];
           return pc?('<span class="vb-pier" style="background:'+pc.bg+';color:'+pc.c+'">'+e(VB_PIER_TH[pr]||pr)+'</span>'):''; })()
+       +(r.ret?'<span class="vb-pier" style="background:#FFF1E0;color:#9A5B00">&#8629; ขากลับ</span>':'')
        +(_vb.van?'':('<div style="font-size:10px;color:#98A2AD;margin-top:2px">'+e((vg(r.vanId).name)||r.vanId)+'</div>'))+'</td>'
      +'<td class="l">'+aHtml+'</td>'
      +'<td><b>'+r.ad+'</b></td><td>'+(r.chd||'<span class="vb-mut">·</span>')+'</td>'
@@ -9073,15 +9094,18 @@ function renderVanBill(){
      +'<td><b>1</b></td>'
      /* §vbPaxReal · เลขหลักคือคนที่ขึ้นรถจริง · ต่างจากยอดจองเมื่อไหร่ค่อยบอกใต้เลข
         แถวที่ตรงกันไม่ต้องรก · แถวที่ต่างต้องเห็นทันที ไม่ใช่ไปรู้ตอนลูกค้าทัก */
-     +'<td><b>'+r.pax+'</b>'+(((+r.bkPax||0)>r.pax)
+     +(r.ret
+        ? ('<td><span class="vb-mut">—</span><div class="vb-sub" title="ลูกค้ากลุ่มเดิมจากขาไป · คิดเฉพาะค่ารถ ไม่คิดฝั่งขายซ้ำ">'+(r.retPax||0)+' คนกลับ</div></td>')
+        : ('<td><b>'+r.pax+'</b>'+(((+r.bkPax||0)>r.pax)
         ? ('<div class="vb-cxl" title="ใบจอง '+r.bkPax+' คน · ไม่ได้ขึ้นรถ '+(r.bkPax-r.pax)+' คน">จอง '+r.bkPax+' · −'+(r.bkPax-r.pax)+'</div>')
-        : '')+'</td>'
+        : '')+'</td>'))
      +'<td>'+IN("vbSetRow('"+x.rk+"','rate',this.value)", x.rate||'', 58, 0, x.rk+'|rate')+'</td>'
      +'<td>'+IN("vbSetRow('"+x.rk+"','ex',this.value)", x.ex||'', 50, 0, x.rk+'|ex')+'</td>'
      +'<td>'+IN("vbSetRow('"+x.rk+"','cut',this.value)", x.cut||'', 52, 1, x.rk+'|cut')+'</td>'
      +'<td class="r"><b>'+B(x.bill)+'</b></td>'
      +'<td>'+IN("vbSetRow('"+x.rk+"','per',this.value)", x.per||'', 50, 0, x.rk+'|per')+'</td>'
-     +'<td class="r"><b>'+B(x.sale)+'</b><div class="vb-sub">'+r.pax+' × '+(x.per||0)+'</div></td>'
+     +'<td class="r">'+(r.ret ? '<span class="vb-mut">—</span><div class="vb-sub">ค่ารถอย่างเดียว</div>'
+        : ('<b>'+B(x.sale)+'</b><div class="vb-sub">'+r.pax+' × '+(x.per||0)+'</div>'))+'</td>'
      +'<td class="r" style="font-weight:800;color:'+((x.sale-x.bill)<0?'#A32D2D':'#0F6E56')+'">'
        +((x.sale-x.bill)<0?'−':'')+B(Math.abs(x.sale-x.bill))+'</td></tr>';
   }).join('');
