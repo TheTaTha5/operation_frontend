@@ -12,7 +12,10 @@
     "db:up": "node tools/dev-db.mjs up",
     "db:reset": "node tools/dev-db.mjs reset",
     "db:down": "node tools/dev-db.mjs down",
-    "db:psql": "node tools/dev-db.mjs psql"
+    "db:psql": "node tools/dev-db.mjs psql",
+    "test:smoke": "node test/ui/t_smoke.mjs",
+    "test:mobile": "node test/ui/t_mobile.mjs",
+    "test:ui": "node test/ui/t_smoke.mjs && node test/ui/t_mobile.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"
