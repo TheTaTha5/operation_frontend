@@ -467,7 +467,12 @@
 }
 /* แถบสีประจำคอลัมน์ · ไล่สายตาจากหัวลงมาได้ว่ากำลังอ่านทริปไหน
    ใช้ inset shadow ไม่ใช่ border-top เพราะ border-collapse ทำให้เส้นบนหาย */
-#view-costing .ct-pcol{box-shadow:inset 0 3px 0 var(--pc,transparent)}
+/* §ctTripBg · หัวคอลัมน์มีพื้นสีของตัวเอง · แยกทริปได้ตั้งแต่ชายตามอง
+   ไม่ลงสีไปถึงตัวตาราง เพราะกากบาทบอกตำแหน่ง (§ctCellNav) ต้องเด่นกว่าเสมอ */
+#view-costing .ct-pcol{box-shadow:inset 0 3px 0 var(--pc,transparent);
+  background:var(--pcbg,rgba(247,242,234,.85)) !important}
+#view-costing .ct-sheet .ct-otbl thead th.ct-pcol{background:var(--pcbg,#F8F4ED) !important}
+#view-costing .ct-sheet .ct-otbl thead th.ct-pcol.ct-colon{background:var(--b50) !important}
 #view-costing .ct-pdot{display:inline-block;width:7px;height:7px;border-radius:50%;
   background:var(--pc,#999);margin-right:6px;vertical-align:middle;flex:none}
 #view-costing .ct-pnm{display:flex;align-items:center;justify-content:center;gap:0}
@@ -485,6 +490,12 @@
 #view-costing .ct-otbl td.ct-stick{border-left:none;font-weight:500}
 #view-costing .ct-grow td{background:rgba(235,227,213,.6)}
 #view-costing .ct-gtd{font-weight:700;color:var(--es900)}
+/* §ctGrpFold · ชื่อหมวดกดได้ · ลูกศรหมุนบอกสถานะ */
+#view-costing td.ct-gtd.ct-stick{cursor:pointer;user-select:none}
+#view-costing .ct-gnm2{display:flex;align-items:center;gap:7px}
+#view-costing td.ct-gtd .ct-chev{font-size:9px;color:rgba(74,62,54,.45);transition:transform .15s ease;display:inline-block;flex:none}
+#view-costing td.ct-gtd.open .ct-chev{transform:rotate(90deg);color:var(--b500)}
+#view-costing td.ct-gtd.ct-stick:hover{color:var(--b600)}
 #view-costing .ct-ltd.dis{opacity:.35}
 #view-costing .ct-otbl tbody tr:not(.ct-grow):hover td{background:rgba(253,251,247,.8)}
 #view-costing .ct-cell{display:grid;grid-template-columns:22px 92px 1fr;align-items:center;gap:8px;max-width:272px;margin:0 auto}
@@ -513,8 +524,12 @@
 #view-costing .ct-lcell{display:flex;align-items:flex-start;gap:9px;max-width:330px;margin:0 auto}
 #view-costing .ct-lbody{flex:1;min-width:0}
 #view-costing .ct-peek{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:rgba(74,62,54,.5);cursor:pointer;min-height:22px;font-variant-numeric:tabular-nums}
-#view-costing .ct-peek b{font-size:12.5px;font-weight:600;color:var(--es900)}
-#view-costing .ct-peek b.ov{color:var(--mt700);font-weight:700}
+/* §ctDim · ค่าที่ยังไม่ได้แก้ = มาจากสูตรกลาง ไม่ต้องดึงสายตา ทำให้ซีด
+   ค่าที่ตั้งเองแล้ว = ของที่คนตัดสินใจใส่ไว้ ต้องเด่น เพราะเป็นสิ่งที่ต้องตรวจก่อนปิดยอด
+   ของเดิมกลับกัน: ค่าสูตรกลางเป็นสีเข้มสุด ค่าที่ตั้งเองเป็นเขียวธรรมดา */
+#view-costing .ct-peek b{font-size:12.5px;font-weight:500;color:rgba(74,62,54,.42)}
+#view-costing .ct-peek b.ov{color:var(--mt700);font-weight:700;background:var(--mt50);
+  border-radius:6px;padding:1px 7px;font-size:13px}
 #view-costing .ct-peek b.mut{color:var(--sd400);font-weight:400}
 #view-costing .ct-peek .n{font-size:9.5px;color:var(--mt700);font-weight:700}
 #view-costing .ct-dot{width:5px;height:5px;border-radius:50%;background:var(--mt500);display:inline-block;flex:0 0 5px}
@@ -526,7 +541,10 @@
 #view-costing .ct-part{display:flex;flex-direction:column;gap:3px}
 #view-costing .ct-pttl{font-size:9.5px;font-weight:700;letter-spacing:.05em;
   color:rgba(74,62,54,.45);text-transform:uppercase}
-#view-costing .ct-fg{display:grid;grid-template-columns:auto 1fr 1fr;gap:3px 6px;align-items:center}
+/* §ctEvenCell · ล็อกความสูงแถวในกริดให้เท่ากันทุกเซลล์ ไม่ให้ยืดตามเนื้อหา */
+#view-costing .ct-fg{display:grid;grid-template-columns:auto 1fr 1fr;gap:3px 6px;
+  align-items:center;grid-auto-rows:26px}
+#view-costing .ct-fg .ct-fgh{align-self:end}
 #view-costing .ct-fg:has(.ct-fgr:only-of-type){grid-template-columns:auto 1fr 1fr}
 #view-costing .ct-fgh{font-size:9.5px;font-weight:600;color:rgba(74,62,54,.5);text-align:center}
 #view-costing .ct-fgr{font-size:10px;color:rgba(74,62,54,.6);white-space:nowrap;text-align:right}
@@ -545,8 +563,11 @@
 
 #view-costing .ct-f{display:grid;grid-template-columns:1fr 76px;align-items:center;gap:9px}
 #view-costing .ct-flb{font-size:10.5px;color:rgba(74,62,54,.6);line-height:1.3}
-#view-costing .ct-in.fin{width:76px;font-size:11.5px;padding:2px 7px;text-align:right}
-#view-costing .ct-in.fin.on{border-color:var(--mt500);background:var(--mt50);font-weight:700;color:var(--mt700)}
+#view-costing .ct-in.fin{width:76px;font-size:11.5px;padding:2px 7px;text-align:right;
+  color:rgba(74,62,54,.42);border-color:var(--cr200)}          /* §ctDim · ยังไม่แก้ = ซีด */
+#view-costing .ct-in.fin::placeholder{color:rgba(74,62,54,.32)}
+#view-costing .ct-in.fin.on{border-color:var(--mt500);background:var(--mt50);font-weight:700;
+  color:var(--mt700);opacity:1}                                 /* ตั้งเองแล้ว = เด่น */
 #view-costing .ct-in.fin.unset{border-style:dashed;border-color:var(--sd300)}
 #view-costing .ct-fhint{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:6px;font-size:9.5px;color:rgba(74,62,54,.4);margin-top:-3px}
 #view-costing .ct-fhint s{color:var(--sd400);font-variant-numeric:tabular-nums}

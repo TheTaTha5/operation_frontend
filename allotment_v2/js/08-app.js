@@ -29217,6 +29217,9 @@ function ctCell(a, b, c){
    แผนคำนวณไม่ได้ผูก routeId (ผูกผ่าน famId) จึงยืมสีเส้นทางมาตรง ๆ ไม่ได้
    คิดจากลำดับคอลัมน์แทน · เสถียรตราบใดที่ลำดับแผนไม่เปลี่ยน และไม่ต้องแตะข้อมูล */
 var CT_PCOL = ['#C2410C','#0F6E56','#185FA5','#8A5B00','#7E22CE','#0E7490','#9F1239','#4D7C0F'];
+/* §ctTripBg · พื้นอ่อนคู่กับสีเข้มด้านบน · ผสมกับพื้นครีมของหน้านี้ไว้แล้ว
+   ใส่เป็นค่าตายตัวไม่ใช้ color-mix เพราะ Safari รุ่นที่สตาฟใช้ยังมีบางเครื่องไม่รองรับ */
+var CT_PBG  = ['#FBEDE6','#E7F1EE','#E8EFF6','#F6EFE2','#F1E9F8','#E6F0F3','#F8E9ED','#EDF2E4'];
 function ctOvrHtml(){
   var T = ctTpl(), P = ctPlans(), G = ctGroups(T);
   var pxf = function(pl, k, lb){
@@ -29230,7 +29233,8 @@ function ctOvrHtml(){
         var be = ctBreakEven(p, cap, T);
         var on = (p.id === _ct.pid);
         var pc = CT_PCOL[_i % CT_PCOL.length];   /* §ctSheet */
-        return '<th class="ct-pcol' + (on ? ' on' : '') + '" style="--pc:' + pc + '" data-col="' + _i + '">'
+        var pb = CT_PBG[_i % CT_PBG.length];     /* §ctTripBg */
+        return '<th class="ct-pcol' + (on ? ' on' : '') + '" style="--pc:' + pc + ';--pcbg:' + pb + '" data-col="' + _i + '">'
           + '<div class="ct-pnm"><i class="ct-pdot"></i>' + ctE(p.name) + '</div>'
           + '<div class="ct-psub">' + ctE(p.eng) + ' · จุ ' + (+p.cap || 0) + ' · ' + ctB(p.price) + '/หัว</div>'
           + '<div class="ct-pbe' + (be ? '' : ' warn') + '">' + (be ? ('คุ้มทุน ' + be + ' คน') : 'เต็มลำยังไม่คุ้ม') + '</div>'
@@ -29239,7 +29243,14 @@ function ctOvrHtml(){
 
   var body = '';
   G.forEach(function(g){
-    var cells = '<td class="ct-stick ct-gtd">' + ctE(g) + '</td>';
+    /* §ctGrpFold · ตั้งต้นหุบทุกหมวด · ตารางเปิดมาเห็นแค่ 5 หัวข้อใหญ่ ไม่ใช่ 22 แถวรวด
+       คลิกที่ชื่อหมวดค่อยกาง · ใส่ onclick ไว้ที่เซลล์ชื่อหมวดเท่านั้น ไม่ใช่ทั้งแถว
+       เพราะเซลล์อื่นในแถวมีติ๊กถูกกับช่อง % ของตัวเอง ถ้าใส่ที่แถวจะกดโดนกันเอง */
+    var gOpen = !!((_ct.gop || {})[g]);
+    var cells = '<td class="ct-stick ct-gtd' + (gOpen ? ' open' : '') + '"'
+              + ' title="คลิกเพื่อกาง / หุบหมวดนี้"'
+              + ' onclick="ctGrpOpen(\'' + ctE(g) + '\')"><span class="ct-gnm2">'
+              + '<i class="ct-chev">▶</i>' + ctE(g) + '</span></td>';
     P.forEach(function(pl, _pi){
       var c = ctGrpCfg(pl, g), pct = +c.pct || 0, sub = 0;
       if(!c.off){
@@ -29257,6 +29268,7 @@ function ctOvrHtml(){
     });
     body += '<tr class="ct-grow">' + cells + '</tr>';
 
+    if(!gOpen) return;                                  /* §ctGrpFold · หุบอยู่ ไม่ต้องวาดแถวย่อย */
     (T.lines || []).forEach(function(ln){
       if((ln.g || 'อื่นๆ') !== g) return;
       var exp = !!((_ct.exp || {})[ln.id]), KEYS = ctLineKeys(ln);
@@ -29308,7 +29320,7 @@ function ctOvrHtml(){
             var h = '<div class="ct-fg"><span></span>'
                   + colLb.map(function(c){ return '<span class="ct-fgh">' + ctE(c) + '</span>'; }).join('');
             rowLb.forEach(function(r, ri){
-              h += '<span class="ct-fgr">' + ctE(r) + '</span>'
+              h += '<span class="ct-fgr"' + (/⚠/.test(r) ? ' title="แผนนี้ตั้งคนไทย 0 คน · ค่าคนไทยยังไม่มีผลกับยอด"' : '') + '>' + ctE(r) + '</span>'
                  + keys[ri].map(function(k){ return fld(B[k]); }).join('');
             });
             return h + '</div>';
@@ -29316,7 +29328,8 @@ function ctOvrHtml(){
           var parts = pOrder.map(function(pi){
             var B = byPart[pi], ks = Object.keys(B), inner;
             if(B.u && B.uTH && B.uCh && B.uChTH){
-              inner = grid2(B, ['ผู้ใหญ่','เด็ก'], ['ต่างชาติ','ไทย'], [['u','uCh'], ['uTH','uChTH']]);
+              var thLb = 'ไทย' + ((noTH && val(B.uTH) != null) ? '\u2009⚠' : '');   /* §ctEvenCell */
+              inner = grid2(B, ['ผู้ใหญ่','เด็ก'], ['ต่างชาติ', thLb], [['u','uCh'], ['uTH','uChTH']]);
             } else if(B.u && B.q && B.u4 && B.q4){
               inner = grid2(B, ['ปกติ','4EN'], ['ราคา/หน่วย','จำนวน'], [['u','u4'], ['q','q4']]);
             } else if(B.q && B.q4 && ks.length === 2){
@@ -29329,13 +29342,16 @@ function ctOvrHtml(){
                   + ctE(kv.lb.replace(/^ส่วน \d+ · /, '')) + '</span>' + fld(kv) + '</span>';
               }).join('') + '</div>';
             }
-            var warn = (B.uTH && noTH && val(B.uTH) != null)
-              ? '<div class="ct-pwarn">แผนนี้ตั้งคนไทย 0 คน · ค่าคนไทยยังไม่มีผลกับยอด</div>' : '';
-            var newk = ks.some(function(k){ return B[k].unset; })
-              ? '<div class="ct-pnew">ช่องที่ขึ้น — คือสูตรกลางยังไม่ได้ตั้ง · ใส่เฉพาะเส้นทางนี้ได้</div>' : '';
+            /* §ctEvenCell · ของเดิมมีกล่องคำอธิบายสองแบบโผล่เฉพาะบางเซลล์
+               ("คนไทย 0 คน" กับ "สูตรกลางยังไม่ตั้ง") เซลล์ในแถวเดียวกันจึงสูงไม่เท่ากัน
+               แถวยืดตามเซลล์ที่สูงสุด เหลือที่ว่างเป็นหลุมในเซลล์อื่น อ่านยาก
+               → "สูตรกลางยังไม่ตั้ง" ตัดทิ้ง · ช่องที่ขึ้น — กับ tooltip บอกอยู่แล้ว
+                 และมันเป็นข้อความเดียวกันทุกเซลล์ที่มี ไม่ได้บอกอะไรเฉพาะเจาะจง
+               → "คนไทย 0 คน" ย่อเป็นเครื่องหมายเล็กท้ายหัวแถว "ไทย" พร้อม tooltip
+                 ยังเตือนอยู่ แต่ไม่กินความสูง ทุกเซลล์จึงโครงเดียวกันหมด */
             return '<div class="ct-part">'
               + (pOrder.length > 1 ? ('<div class="ct-pttl">ส่วน ' + (pi + 1) + '</div>') : '')
-              + inner + warn + newk + '</div>';
+              + inner + '</div>';
           }).join('');
           bd = '<div class="ct-flds">' + parts + '</div>';
         } else {
