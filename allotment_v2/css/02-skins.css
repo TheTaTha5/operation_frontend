@@ -865,3 +865,40 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
     .la-navdim{height:100dvh}
   }
 }
+
+/* ==== mob-unstick ==== */
+/* §mobUnstick · บนมือถือ ของที่ "ตรึงไว้" กินจอจนไม่เหลือที่ให้อ่านข้อมูล
+   วัดจริงที่ 375x812 ไล่ครบ 67 หน้า · พัง 7 หน้า อาการเดียวกันหมด:
+     piercheckin  .pkh        745px  -> เหลือพื้นที่ว่าง -32%  (ตรึงเกินความสูงจอ)
+     vancheckin   .ck-hd+.ck-unitbar 488px -> 4%
+     agents       .sb-side    752px  -> 7%
+     rate-types   .sb-side    728px  -> 10%
+     contract-tmpl  คอลัมน์ขวา 754px -> 10%
+     reconfirm    .rc-chrome+.rc-agh 367px -> 37%
+     settings     #prog-detail-mount 402px -> 50%
+   ต้นเหตุเดียวกัน: ของพวกนี้ออกแบบเป็น "คอลัมน์ข้าง/แถบหัว" ของจอกว้าง
+   พอจอแคบ layout ยุบเป็นคอลัมน์เดียว มันไปกองอยู่บนสุดแล้วยัง sticky อยู่
+   เลยตรึงเต็มจอ ส่วนรายการข้างล่างเลื่อนลอดอยู่ข้างหลัง = เลื่อนเท่าไหร่ก็ไม่เห็น
+   แก้ที่จอแคบอย่างเดียว จอกว้างไม่แตะ (ที่นั่นมันเป็นคอลัมน์ข้างจริง ๆ และทำงานถูก)
+   ⚠ หัวตาราง th / แถวกลุ่ม tr.ck-ghd (32-43px) ยัง sticky เหมือนเดิม อันนั้นมีประโยชน์จริง
+   ⚠ td.pcs-nm / td.pcs-vch เป็น sticky แนวนอน (ตรึงคอลัมน์ซ้าย) ห้ามแตะ */
+@media (max-width:820px){
+  /* คอลัมน์ข้างที่กลายเป็นบล็อกบนสุด */
+  .sb-side,
+  #view-agents .sb-side,
+  #view-rate-types .sb-side,
+  #view-settings #prog-detail-mount,
+  #cttv-wrap > div > div{
+    position:static !important;
+    max-height:none !important;
+  }
+  /* แถบหัวเรื่องสูง ๆ ที่ตรึงไว้ */
+  #piercheckin-host .pkh,
+  #vancheckin-host .ck-hd,
+  #vancheckin-host .ck-unitbar,
+  #reconfirm-host .rc-chrome,
+  #reconfirm-host .rc-agh,
+  #fl-inv-pink-wrap > div{
+    position:static !important;
+  }
+}
