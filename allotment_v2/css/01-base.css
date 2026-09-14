@@ -522,6 +522,7 @@
    4 ค่าของแต่ละส่วนคือ ผู้ใหญ่/เด็ก คูณ ต่างชาติ/ไทย อยู่แล้ว
    ชื่อชนิดอยู่ที่หัวแถว/หัวคอลัมน์ครั้งเดียว ไม่ต้องเขียนซ้ำทุกช่อง */
 #view-costing .ct-flds{display:flex;flex-direction:column;gap:7px;padding:1px 0 3px}
+#view-costing .ct-lunit{font-size:10px;color:rgba(74,62,54,.5);margin-top:1px;padding-left:17px;line-height:1.3}
 #view-costing .ct-part{display:flex;flex-direction:column;gap:3px}
 #view-costing .ct-pttl{font-size:9.5px;font-weight:700;letter-spacing:.05em;
   color:rgba(74,62,54,.45);text-transform:uppercase}

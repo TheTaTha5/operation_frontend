@@ -29239,9 +29239,16 @@ function ctOvrHtml(){
     (T.lines || []).forEach(function(ln){
       if((ln.g || 'อื่นๆ') !== g) return;
       var exp = !!((_ct.exp || {})[ln.id]), KEYS = ctLineKeys(ln);
+      /* §ctRowUnit · ป้ายหน่วย ("ผู้ใหญ่ · ต่างชาติ") มาจาก template ของบรรทัด ไม่ใช่ของแต่ละแผน
+         จึงเป็นข้อความเดียวกันเป๊ะทั้ง 8 คอลัมน์ · ของเดิมพิมพ์ซ้ำในทุกเซลล์
+         ย้ายมาไว้ใต้ชื่อแถวครั้งเดียว เซลล์เหลือแต่ตัวเลข อ่านเป็นคอลัมน์ตัวเลขได้จริง
+         ตอนกางไม่ต้องขึ้น เพราะกริดข้างในมีหัวแถว/หัวคอลัมน์บอกชนิดอยู่แล้ว
+         และตอนกางมีหลายหน่วย ป้ายเดียวที่หัวแถวจะกลายเป็นข้อมูลผิด */
+      var _u0 = (!exp && KEYS.length) ? String(KEYS[0].lb).replace(/^ส่วน \d+ · /, '') : '';
       var rc = '<td class="ct-stick ct-ltd"><div class="ct-lname' + (exp ? ' open' : '') + '"'
              + ' title="คลิกเพื่อกางค่าทั้งหมดของบรรทัดนี้ · กางพร้อมกันทุกแผน"'
-             + ' onclick="ctToggleExp(\'' + ctE(ln.id) + '\')"><i class="ct-chev">▶</i><span>' + ctE(ln.l) + '</span></div></td>';
+             + ' onclick="ctToggleExp(\'' + ctE(ln.id) + '\')"><i class="ct-chev">▶</i><span>' + ctE(ln.l) + '</span></div>'
+             + (_u0 ? ('<div class="ct-lunit">' + ctE(_u0) + '</div>') : '') + '</td>';
       P.forEach(function(pl, _pi){
         var grpOff = !!ctGrpCfg(pl, g).off, o = (pl.ovr || {})[ln.id] || {};
         var noTH = !(+pl.paxTH > 0);
@@ -29315,8 +29322,9 @@ function ctOvrHtml(){
           KEYS.forEach(function(kv){ if(val(kv) != null) nOvr++; });
           var main = (c0 != null) ? ('<b class="ov">' + c0 + '</b>')
                    : (m0.unset ? '<b class="mut">—</b>' : ('<b>' + m0.base + '</b>'));
+          /* §ctRowUnit · ป้ายหน่วยย้ายไปหัวแถวแล้ว · เซลล์เหลือตัวเลขกับจำนวนค่าที่ตั้งเอง
+             (ตัวหลังต่างกันไปตามแผน จึงยังต้องอยู่ในเซลล์) */
           bd = '<div class="ct-peek" onclick="ctToggleExp(\'' + ctE(ln.id) + '\')">' + main
-             + '<span class="ct-unit">' + ctE(m0.lb.replace(/^ส่วน \d+ · /, '')) + '</span>'
              + (nOvr ? ('<i class="ct-dot"></i><span class="n">ตั้งเอง ' + nOvr + ' ค่า</span>') : '') + '</div>';
         }
         rc += '<td class="ct-ltd' + (grpOff ? ' dis' : '') + '" data-col="' + _pi + '"'
