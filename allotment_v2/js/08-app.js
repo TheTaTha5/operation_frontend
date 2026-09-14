@@ -8652,7 +8652,7 @@ function vbRows(){
   var P=vbPeriod(), vans=vbVans().filter(function(v){
     return vbSupOf(v)===_vb.sup && (!_vb.van || v.id===_vb.van); });
   var ok={}; vans.forEach(function(v){ ok[v.id]=v; });
-  var map={};
+  var map={}, pendRet=[];
   (typeof SB_BOOKINGS!=='undefined'?SB_BOOKINGS:[]).forEach(function(b){
     if(['cancelled','rejected','cancelled_weather'].indexOf(b.status)>=0) return;
     (b.trips||[]).forEach(function(t){
@@ -8708,12 +8708,25 @@ function vbRows(){
         : [O.vanReturnId];
       rlegs.forEach(function(vid){
         if(!vid || !ok[vid]) return;
-        var k=ds+'~'+(t.routeId||'')+'~'+vid+'~R';
-        if(!map[k]) map[k]={date:ds, routeId:t.routeId||'', vanId:vid, ret:1,
-                            ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, retPax:0, bk:0, areas:{}};
-        map[k].retPax+=rlN; map[k].bk++;
+        /* พักไว้ก่อน · ตอนนี้ยังไม่รู้ว่าคันนี้มีขาไปในวันเดียวกันหรือเปล่า
+           (ใบที่จัดขาไปอาจมาทีหลังในลูป) */
+        pendRet.push({ds:ds, rid:t.routeId||'', vid:vid, pax:rlN});
       });
     });
+  });
+  /* §vbRetMerge · รถคันเดียววิ่งไปส่งแล้ววิ่งกลับ = เที่ยวเดียว ไม่ใช่สองเที่ยว
+     ของเดิม (§vbRetLeg รอบแรก) แยกแถวขากลับเสมอ · คันที่ไปส่งกรุ๊ปหนึ่งแล้วรับอีกกรุ๊ปกลับ
+     จึงถูกนับเป็น 2 คัน ทั้งที่รถวิ่งรอบเดียว = เรียกเก็บซ้ำ
+     วัด 2026-09-14: คีย์ขากลับ 13 · ซ้ำกับขาไป 9 · เป็นคันที่ไม่มีขาไปเลยจริง ๆ แค่ 4
+     → มีขาไปอยู่แล้ว = เอาคนกลับไปแปะแถวเดิม ไม่เพิ่มคัน
+       ไม่มีขาไป = คันนั้นมารับกลับอย่างเดียว ต้องมีแถวของตัวเอง (เช่น VAN3 14/9) */
+  pendRet.forEach(function(x){
+    var base=x.ds+'~'+x.rid+'~'+x.vid;
+    if(map[base]){ map[base].retPax=(map[base].retPax||0)+x.pax; map[base].retBk=(map[base].retBk||0)+1; return; }
+    var k=base+'~R';
+    if(!map[k]) map[k]={date:x.ds, routeId:x.rid, vanId:x.vid, ret:1,
+                        ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, retPax:0, bk:0, areas:{}};
+    map[k].retPax+=x.pax; map[k].bk++;
   });
   return Object.keys(map).sort().map(function(k){ return map[k]; });
 }
@@ -9087,6 +9100,7 @@ function renderVanBill(){
        +(function(){ var pr=vbPierOf(r.routeId), pc=VB_PIER_COL[pr];
           return pc?('<span class="vb-pier" style="background:'+pc.bg+';color:'+pc.c+'">'+e(VB_PIER_TH[pr]||pr)+'</span>'):''; })()
        +(r.ret?'<span class="vb-pier" style="background:#FFF1E0;color:#9A5B00">&#8629; ขากลับ</span>':'')
+       +((!r.ret&&r.retBk)?('<span class="vb-pier" style="background:#EEF4F9;color:#4A6274" title="คันนี้รับขากลับให้อีก '+r.retBk+' ใบด้วย · เป็นรอบเดียวกัน ไม่คิดเพิ่ม">&#8629; รับกลับด้วย '+(r.retPax||0)+' คน</span>'):'')
        +(_vb.van?'':('<div style="font-size:10px;color:#98A2AD;margin-top:2px">'+e((vg(r.vanId).name)||r.vanId)+'</div>'))+'</td>'
      +'<td class="l">'+aHtml+'</td>'
      +'<td><b>'+r.ad+'</b></td><td>'+(r.chd||'<span class="vb-mut">·</span>')+'</td>'
