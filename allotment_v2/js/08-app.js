@@ -39963,26 +39963,9 @@ function bkV2Render(){
          ขอบบนของกล่องนั้น ไม่ใช่จากขอบจอ · ไม่งั้นแถบ VANS ไปลอยกลางตาราง */
       vb.style.setProperty('--t2-vangroup-top', '0px');
       vb.style.setProperty('--t2-head-top', VANGROUP+'px');
-      /* §btScroll · ความสูงกล่องรายวัน = จอ ลบแถบแท็บ ลบหัวที่ตรึง ลบขอบล่างไว้หายใจ
-         ต้องอยู่หลัง TOP ถูกประกาศ ไม่งั้นชนกฎ let/const แล้วโยน ReferenceError เงียบ ๆ */
-      try{ const _wp=host.querySelector('.t2-wrap');
-        if(_wp){ const _vh=window.innerHeight||900;
-          /* วัดจากตำแหน่งจริงของกล่อง · บวกลบความสูงทีละชิ้นพลาดไป ~34px
-             (ขอบ/มาร์จินของการ์ดครอบที่ไม่ได้นับ) แล้วหน้าเลื่อนได้อีกนิดหน่อย
-             กลายเป็นสองตัวเลื่อนซ้อนกัน */
-          const _top=_wp.getBoundingClientRect().top + (window.scrollY||0);
-          let _hh=Math.max(280, _vh-_top-12);
-          vb.style.setProperty('--bt-wraph', _hh+'px');
-          /* ยังมีขอบล่างของ #view (64px) กับ main (22px) ที่ไม่ได้อยู่ในสายที่วัด
-             ดันให้หน้ายังเลื่อนได้อีกนิด กลายเป็นสองตัวเลื่อนซ้อนกัน
-             หดความสูงกล่องไม่ได้ เพราะจะเสียพื้นที่ตารางไป 86px เปล่า ๆ
-             ดึงขอบล่างนั้นกลับด้วย margin ติดลบแทน · กล่องได้ความสูงเต็ม หน้าไม่เลื่อน */
-          _wp.style.marginBottom='0px';
-          requestAnimationFrame(()=>{ try{
-            const _ov=document.documentElement.scrollHeight-(window.innerHeight||900);
-            if(_ov>1) _wp.style.marginBottom=(-_ov)+'px';
-          }catch(_){} });
-        } }catch(_){}
+      /* §btUnclamp (was §btScroll) · .t2-wrap เคยถูกจำกัดความสูงพอดีจอ + ดึงขอบล่างด้วย margin
+         ติดลบ เพื่อกันไม่ให้หน้าเลื่อนเกินกล่องที่ตรึงไว้ · ตอนนี้หัวไม่ตรึงแล้ว (§btHead) ทั้งหน้า
+         เลื่อนเป็นชิ้นเดียวตามปกติ ไม่ต้องคำนวณ/ดึงอะไรอีก ทิ้งไว้จะดึงเนื้อหาส่วนล่างของตารางหาย */
     }catch(_){} });
   }catch(e){
     console.error('[bkV2Render] render failed:', e);
@@ -44607,7 +44590,10 @@ function bkV2RenderTab2(){
        ตอนนี้หัวกับตารางเป็นพื้นสีเดียวกันแล้ว ระยะห่างที่ต้องมีคือขอบการ์ดอย่างเดียว */
     /* §btScroll · padding-top ต้องเป็น 0 · เนื้อที่ไถผ่านยังถูกวาดในเขต padding
        เศษแถวจะโผล่เหนือหัวตารางที่ตรึงไว้ */
-    .t2-wrap{box-sizing:border-box;padding:0 8px 40px;overflow:auto;max-height:var(--bt-wraph,72vh);
+    /* §btUnclamp · เดิมจำกัดความสูงไว้พอดีจอ (max-height:var(--bt-wraph)) เพราะหัวข้างบนตรึงอยู่
+       ตอนนี้หัวไม่ตรึงแล้ว (§btHead) จำกัดความสูงไว้ต่อจะกลายเป็นกล่องเลื่อนซ้อนอยู่กลางหน้าเปล่า ๆ
+       ปล่อยให้สูงเท่าที่ตารางต้องการจริง ทั้งหน้าเลื่อนเป็นชิ้นเดียว · เหลือแค่ overflow-x ไว้ปัดตารางกว้าง */
+    .t2-wrap{box-sizing:border-box;padding:0 8px 40px;overflow-x:auto;overflow-y:visible;
       overscroll-behavior:contain}
     .t2-trip{background:transparent;border:none;border-radius:0;margin-bottom:12px;overflow:visible}
     .t2-tripcard{background:var(--white);border:1px solid var(--border);border-left:5px solid var(--fam);border-radius:14px;overflow:hidden;margin-bottom:0}
@@ -45002,25 +44988,11 @@ function bkV2RenderTab2(){
     .t2-natl{font-size:10px;background:#E6F1FB;color:#185FA5;border-radius:5px;padding:1px 6px}
 
     /* ══ §btHead · หัวหน้า By-trip ══════════════════════════════════════════
-       ตรึงทั้งก้อนเหมือนหน้าท่า · ค่า top ของชั้นล่าง ๆ ถูกตั้งจาก JS หลัง render
-       (--bt-hd-h) เพราะความสูงจริงเปลี่ยนตามความกว้างจอ                        */
-    /* §btStick · เดิม top:-22px คือให้หัวไถขึ้นไป 22px ก่อนค่อยหยุด · ทำให้ขอบบน
-       ไม่ตรงกับขอบบนของแถบเมนูซ้าย · ชิดขอบเลย */
-    .bt-pkh{position:sticky;top:0;z-index:60;background:var(--btband,#E9E7E3);
+       เดิมตรึงทั้งก้อนเหมือนหน้าท่า (position:sticky) · ทั้งมือถือและเดสก์ท็อปเปลี่ยนใจ
+       ไม่เอาแบบตรึงแล้ว (เดิมกินพื้นที่ตลอด ดันตารางให้เหลือที่น้อย) ให้หัวเลื่อนหายไปพร้อมหน้า
+       เหมือนเนื้อหาปกติทั้งสองขนาดจอ */
+    .bt-pkh{position:static;background:var(--btband,#E9E7E3);
       padding:6px 6px 4px;margin-bottom:0}
-    /* §mobStick · จอมือถือแคบ · หัวที่ตรึงทั้งก้อน (Programmes/เรือ/ล็อค/Notice) กินที่เกือบครึ่งจอ
-       เหลือที่ให้ตารางทริปแค่เป็นกล่องเลื่อนในเลื่อนอีกที (double scroll) · ปลดสติ๊กกี้ออก
-       ให้หัวเลื่อนหายไปพร้อมหน้าเหมือนแอปมือถือทั่วไป ตารางได้พื้นที่เต็ม ไม่ต้องเลื่อนซ้อนกัน
-       เดสก์ท็อปไม่แตะ (ยังตรึงเหมือนเดิม)
-       ต้องอยู่หลังกฎ .bt-pkh/.t2-wrap ปกติเสมอ · ก่อนหน้านี้เคยแทรกไว้ก่อน กฎปกติที่มาทีหลัง
-       (specificity เท่ากัน) เลยชนะทับ media query ทิ้งไปเงียบ ๆ · อย่าย้ายขึ้นไปซ้ำอีก
-       §mobTblSize · overflow:visible (ก่อนหน้านี้) ปิดสกรอลล์แนวนอนของ .t2-wrap ไปด้วย ทำให้ตาราง
-       ที่กว้าง 1180px (table.t2-mtbl min-width) ถูกดันจนล้นเพจแทนที่จะปัดดูได้ในกรอบตัวเอง
-       เก็บ overflow-x:auto ไว้ · ตารางยังกว้างเท่าเดสก์ท็อปเป๊ะ ปัดซ้าย-ขวา/pinch-zoom ดูได้ */
-    @media (max-width:820px){
-      .bt-pkh{position:static}
-      .t2-wrap{max-height:none;overflow-x:auto;overflow-y:visible}
-    }
     .bt-hdtop{position:relative;display:flex;align-items:center;gap:13px;padding:0 8px 7px}
     .bt-arw{width:27px;height:27px;flex:none;border:1px solid rgba(0,0,0,.13);background:#fff;border-radius:9px;
       display:flex;align-items:center;justify-content:center;color:#7d7a74;font-size:14px;cursor:pointer;font-family:inherit;line-height:1}
