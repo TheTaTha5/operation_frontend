@@ -7051,9 +7051,27 @@ function bkOvnHealSpans(){
       (b.trips||[]).forEach(function(L){
         if(!L || !L.ovnLeg) return;
         if((L.date||'')!==t.ovnReturnDate || (L.routeId||'')!==(t.routeId||'')) return;
-        if(L.bookingMode==='charter' && L.charterBoatId) return;
+        /* §ovnBoatFollow (2026-09-14) · "วันที่ 18/9 ก็ยังเป็นบั๊คไหม" — ใช่
+           ของเดิมแปลงขากลับเป็นเหมาลำ "ครั้งเดียว" แล้วไม่แตะอีกเลย (เช็ค charterBoatId แล้ว return)
+           พอแก้ลำที่ขาไป ขากลับจึงค้างลำเก่าไว้ · วันกลับกลายเป็นจับเรือสองลำให้คนกลุ่มเดียว
+           กติกาเดียวกับบรรทัด "วันที่" ข้างบน · ขาไปคือช่องที่คนกรอก ขากลับเป็นของที่ระบบสร้าง
+           ลำบนขาไปจึงเป็นตัวตั้งเสมอ */
+        var _wasB=(L.bookingMode==='charter')?(L.charterBoatId||''):'';
+        if(L.bookingMode==='charter' && _wasB===t.charterBoatId) return;
         L.bookingMode='charter'; L.charterBoatId=t.charterBoatId;
-        fixed.push({date:L.date,boat:t.charterBoatId,bk:b.id,was:'ขากลับ seat → เหมาลำ'});
+        if(_wasB && _wasB!==t.charterBoatId){
+          /* คืนลำเก่าของวันกลับ · เฉพาะช่องที่เป็นของใบนี้ · ไม่ลบเรือออกจากตาราง
+             เปลี่ยนกลับเป็นรอบปกติเหมือน §ovnFree · ที่นั่งของวันนั้นจะได้ไม่หายทั้งลำ */
+          var _op=TRIPS[L.date] && TRIPS[L.date][_wasB];
+          if(_op && _op.charterBookingId===b.id
+             && !(b.trips||[]).some(function(x){ return x && x.date===L.date && x.charterBoatId===_wasB; })){
+            delete _op.charterBookingId; _op.type='normal';
+            fixed.push({date:L.date,boat:_wasB,bk:b.id,was:'คืนเรือขากลับลำเก่า'});
+          }
+          fixed.push({date:L.date,boat:t.charterBoatId,bk:b.id,was:'ขากลับตามลำขาไป'});
+        } else {
+          fixed.push({date:L.date,boat:t.charterBoatId,bk:b.id,was:'ขากลับ seat → เหมาลำ'});
+        }
       });
       /* §ovnFree · ของเดิม "จอง" เรือให้ครบช่วงอย่างเดียว ไม่เคยคืน
          พอย่นใบจาก 16–19 เหลือ 16–18 เรือยังถูกจับวันที่ 19 ค้างอยู่
@@ -7093,6 +7111,7 @@ function bkOvnHealSpans(){
        ตัวเลขที่นั่งไม่ได้พึ่งบรรทัดนี้แล้ว (ดู §ovnRead ใน getSeatsConsumed)
        แต่ข้อมูลที่เก็บไว้ต้องตรงกับความจริง ไม่งั้น export/รายงานฝั่งเซิร์ฟเวอร์ยังผิดอยู่ */
     var _legFix=fixed.some(function(f){ return f.was==='ขากลับ seat → เหมาลำ'
+      || f.was==='ขากลับตามลำขาไป'   /* §ovnBoatFollow · แก้ที่ SB_BOOKINGS ต้องถูกเซฟด้วย */
       || String(f.was||'').indexOf('ย้ายขากลับ')===0; });
     try{ var k=(typeof LS_KEY!=='undefined'?LS_KEY:'loveandaman_v2');
          var o=JSON.parse(localStorage.getItem(k)||'{}'); o.trips=TRIPS;
