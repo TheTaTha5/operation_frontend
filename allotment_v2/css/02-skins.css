@@ -902,3 +902,23 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
     position:static !important;
   }
 }
+
+/* ==== ios-dvh-modal ==== */
+/* §iosDvhModal · ต่อจากเลเยอร์ iOS ด้านบนที่ยิงผิดตัว
+   ของเดิมสั่ง max-height:88dvh ให้ .modal-box (ค้นทั้งหน้าไม่มีอยู่จริงสักตัว · selector ตาย)
+   กับ .tm-modal / .aos-modal ซึ่งเป็น "ฉากหลัง" ไม่ใช่ตัวที่ถูกจำกัดความสูง
+   ตัวที่คุมความสูงจริงคือการ์ดข้างใน (.tm-modal-card / .aos-modal-card) ซึ่งยังเป็น vh อยู่
+   บน iOS Safari 100vh = ความสูงตอนแถบ URL ยุบ ซึ่งสูงกว่าที่ตาเห็นจริงราว 60-90px
+   โมดัลจึงสูงเกินจอ และสิ่งที่ตกอยู่ใต้ขอบล่างคือ "แถวปุ่ม" = กดบันทึก/ยืนยันไม่ได้
+   dvh วัดจากพื้นที่ที่เห็นจริง · บนเดสก์ท็อป dvh เท่ากับ vh เป๊ะ จอใหญ่จึงไม่ขยับสักพิกเซล
+   ⚠ ตั้งใจไม่แตะ body{min-height:100vh} กับ .app{min-height:calc(100vh - var(--topbar))}
+     min-height ที่เป็น dvh จะคำนวณใหม่ตลอดตอนแถบ URL ยุบ-ขยาย ทำให้หน้ากระตุกระหว่างเลื่อน
+     สองตัวนั้นสูงเกินไปเฉย ๆ (เลื่อนเกินนิดหน่อย) ไม่ได้บังอะไร จึงไม่คุ้มแลกกับอาการกระตุก */
+@supports (height:100dvh){
+  .modal{max-height:88dvh}
+  .tm-modal-card,
+  #view-addonsvc .aos-modal-card,
+  #view-agents .ag-edit-card{max-height:90dvh}
+  #view-agents .ct-wiz-card{max-height:92dvh}
+  .ct-doc-card{height:92dvh}
+}
