@@ -28176,17 +28176,38 @@ function ctPaintTabs(){
     b.className = 'ct-tab' + ((b.getAttribute('data-t') === _ct.tab) ? ' on' : '');
   });
 }
+/* §ctKeepScroll · กดกางหมวด/รายการแล้วหน้าเด้งกลับไปข้างบน
+   ต้นเหตุคือ host.innerHTML = ... ที่บรรทัดล่าง · ระหว่างที่เนื้อหาถูกล้าง ความสูงเหลือ ~0
+   เบราว์เซอร์จึงหนีบ scrollTop ของตัวเลื่อนลงเป็น 0 แล้วค่าเดิมก็หายไปเลย
+   (CLAUDE.md §6 "Scroll-jump on re-render" เตือนเรื่องนี้ไว้แล้ว เคยโดนที่หน้าอื่นมาก่อน)
+   §ctSheet ทำให้มีตัวเลื่อนสองชั้นต้องเก็บ: ตัวหน้า (.main) กับกล่องตาราง (.ct-sheet)
+   ⚠ el.focus() เฉย ๆ จะเลื่อนช่องนั้นเข้ามาในจอเอง กลายเป็นเด้งซ้ำรอบสอง
+     ต้องใช้ preventScroll แล้วคืนตำแหน่งเองทั้งสองชั้น */
 function ctRender(){
   var host = document.getElementById('ct-body'); if(!host) return;
   var a = document.activeElement, fk = (a && a.getAttribute) ? a.getAttribute('data-fk') : null;
   var ss = (a && a.selectionStart != null) ? a.selectionStart : null;
+  var sheet = host.querySelector('.ct-sheet');
+  var sT = sheet ? sheet.scrollTop : 0, sL = sheet ? sheet.scrollLeft : 0;
+  var main = document.querySelector('.main');
+  var mT = main ? main.scrollTop : (window.pageYOffset || 0);
   ctPaintTabs();
   host.innerHTML = (_ct.tab === 'tpl') ? ctTplHtml()
                  : (_ct.tab === 'ovr') ? ctOvrHtml()
                  : (_ct.tab === 'real') ? ctRealHtml()      /* §plCost */
                  : (_ct.tab === 'match') ? ctMatchHtml()    /* §ctMatch */
                  : ctPlanHtml();
-  if(fk){ var el = host.querySelector('[data-fk="' + fk + '"]'); if(el){ el.focus(); try{ el.setSelectionRange(ss, ss); }catch(_){ } } }
+  var restore = function(){
+    var s2 = host.querySelector('.ct-sheet');
+    if(s2){ if(sT) s2.scrollTop = sT; if(sL) s2.scrollLeft = sL; }
+    if(main){ if(mT) main.scrollTop = mT; } else if(mT) window.scrollTo(0, mT);
+  };
+  restore();
+  if(fk){ var el = host.querySelector('[data-fk="' + fk + '"]');
+    if(el){ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+      try{ el.setSelectionRange(ss, ss); }catch(_){ }
+      restore();   /* เผื่อ focus ยังขยับ · คืนอีกรอบหลังโฟกัสเสร็จ */
+    } }
 }
 function ctNum(v, fk, oninput, w){
   return '<input class="ct-in" data-fk="' + fk + '" value="' + (v == null ? '' : v) + '" oninput="' + oninput
