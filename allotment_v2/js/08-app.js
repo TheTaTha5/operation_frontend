@@ -44962,6 +44962,10 @@ function bkV2RenderTab2(){
     .bt-brand{position:absolute;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;
       letter-spacing:.46em;padding-left:.46em;color:#1F2124;white-space:nowrap;pointer-events:none;
       max-width:44%;overflow:hidden;text-overflow:ellipsis}
+    /* §mobBrandDup · จอแคบ .bt-hdtop ไม่มีที่พอให้ตัวหนังสือนี้ (กว้าง 44% ของแถวที่ล้นอยู่แล้ว)
+       ตัวอักษรเลยไปทับ/แทรกกับ "Monday" ข้าง ๆ อ่านไม่ออก · มือถือมีแถบแบรนด์ลอยบนจอแยกอยู่แล้ว
+       (body::before ใน la-mobile skin) → ซ่อนอันนี้ทิ้งไปเลยบนจอแคบ กันซ้ำ/กันทับ */
+    @media (max-width:820px){ .bt-brand{display:none} }
     .bt-hgrid{display:grid;grid-template-columns:minmax(0,1.28fr) minmax(0,0.92fr) minmax(0,1.9fr);
       gap:9px;padding:0 8px;align-items:stretch}
     /* §cityTourView · Transfer/City Tour never has a boat to assign · drop the middle column

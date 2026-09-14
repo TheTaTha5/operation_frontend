@@ -619,6 +619,16 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
      · .topbar ตั้ง pointer-events:none) → ปุ่มเมนูไปอยู่ในกลุ่มปุ่มลอยชุดเดียวกัน */
   .la-burger{display:inline-flex}
   .topbar{padding:calc(9px + env(safe-area-inset-top)) 12px 9px !important;gap:8px}
+  /* §mobBrand · topbar-float-skin ซ่อน .topbar-brand ทิ้งไปทั้งก้อน (ชื่อแบรนด์เดิมยาว
+     ไม่พอที่ข้างปุ่มลอย) → เอากลับมาเป็นแถบบางลอยกลางบนจอ ไม่ชนปุ่มลอยมุมขวา (z-index ต่ำกว่า .topbar)
+     revert = ลบบล็อกนี้ทิ้ง แล้วลด padding-top ของ .main/.sidebar กลับ */
+  body::before{content:'LOVE ANDAMAN';position:fixed;top:0;left:0;right:0;
+    padding:calc(7px + env(safe-area-inset-top)) 90px 6px 14px;
+    font:800 11px 'DM Sans',sans-serif;letter-spacing:.22em;text-align:center;
+    color:#0f1f2e;background:rgba(250,249,245,.92);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+    border-bottom:1px solid rgba(0,0,0,.06);
+    z-index:120;pointer-events:none}
   /* §mobHead · ปุ่มลอยมุมขวาบน (เมนู + เครื่องมือ) กว้างราว 98px สูง 54px
      หัวหน้าที่ขึ้นไปชิดขอบบนจะถูกมันทับ · เว้นที่ให้เท่าที่วัดมาจริง
      ทำเฉพาะหัวที่วัดแล้วโดนทับ · ไม่ไปดันหน้าที่ปกติดีอยู่แล้ว */
@@ -639,7 +649,7 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
     height:auto !important;width:min(86vw,300px) !important;max-width:300px !important;z-index:200 !important;
     border-radius:0 20px 20px 0 !important;margin:0 !important;
     transform:translateX(-102%);transition:transform .22s ease !important;will-change:transform;
-    padding:calc(12px + env(safe-area-inset-top)) 10px calc(66px + env(safe-area-inset-bottom)) !important;-webkit-overflow-scrolling:touch;
+    padding:calc(30px + env(safe-area-inset-top)) 10px calc(66px + env(safe-area-inset-bottom)) !important;-webkit-overflow-scrolling:touch;
     box-shadow:8px 0 30px rgba(20,30,50,.32) !important}
   .sidebar.sb-collapsed{width:min(86vw,300px) !important}          /* โหมดรางแคบไม่ใช้บนมือถือ */
   .sidebar.sb-collapsed .nav-item{font-size:13.5px !important;justify-content:flex-start !important;padding:11px 12px !important;gap:9px !important}
@@ -657,7 +667,7 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
      ตารางกว้างก็ปัดซ้าย-ขวาดูได้ตามที่ตกลงไว้ */
   .main,body.sb-collapsed .main{margin-left:0 !important;padding:12px 10px !important;width:100% !important;max-width:100% !important;
     height:100vh;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
-    padding-top:calc(12px + env(safe-area-inset-top)) !important}
+    padding-top:calc(30px + env(safe-area-inset-top)) !important}
   .app{min-height:0 !important}
   .view{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 
