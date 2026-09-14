@@ -45262,6 +45262,27 @@ function bkV2RenderTab2(){
     .bt-ncb .t2-hd-warnico{color:#B4560A}
     .bt-ncb .t2-hd-warntxt{color:#7A4A00}
     .bt-ncb > div[style*="F1F8F5"]{margin-top:0 !important}
+    /* §mobTblFit · ตาราง t2-mtbl มี 17+ คอลัมน์ (Voucher/Agency/Customer/AD/CHD/INF/FOC/Time/Pickup/Room/
+       Zone/Send back/Add-on/Special request/Pay/Total/Boat/…) · ไม่มีทางพอจอมือถือ 390px แน่นอน
+       แต่บีบให้แคบที่สุดเท่าที่ยังอ่านออกได้ ลดฟอนต์/แพดดิ้ง + เพดานความกว้างคอลัมน์ที่กินที่มาก
+       (ลูกค้า/จุดรับ/Agency/โซน/หมายเหตุ) ยังต้องปัดซ้าย-ขวาดูคอลัมน์ท้าย ๆ อยู่บ้าง (3 คอลัมน์แรก
+       ยังตรึงซ้ายเหมือนเดิม) แต่ตารางรวมแคบลงมากจากเดิม ~1800-2200px
+       ต้องอยู่หลังกฎ .t2-mtbl/.t2-pk/.t2-cu/... ปกติทั้งหมดเสมอ (บทเรียนจาก §mobStick) */
+    @media (max-width:820px){
+      table.t2-mtbl{font-size:10.5px;min-width:0}
+      table.t2-mtbl th{padding:5px 6px;font-size:8.5px}
+      table.t2-mtbl td{padding:4px 6px;font-size:10.5px}
+      .t2-mtbl th.t2-pk,.t2-mtbl td.t2-pk{min-width:110px;max-width:110px}
+      .t2-mtbl td.t2-cu,.t2-mtbl th.t2-cu{max-width:130px;width:130px}
+      .t2-mtbl td.t2-ag,.t2-mtbl th.t2-ag{max-width:84px;width:84px}
+      .t2-mtbl td.t2-zn,.t2-mtbl th.t2-zn{max-width:70px;width:70px}
+      .t2-mtbl th.t2-gwrap,.t2-mtbl td.t2-gwrap{width:110px;max-width:110px}
+      .t2-pickcell{max-width:106px;min-width:60px;font-size:10.5px}
+      .t2-lead{max-width:120px}
+      .t2-agency,.t2-agf,.t2-mtbl td.t2-ag .agf{max-width:78px}
+      .t2-allerg,.t2-note{max-width:80px;font-size:9.5px}
+      .t2-zonetag{max-width:64px}
+    }
   </style>`;
 
   /* §btOther · คำนวณก่อน mainBody · ข้อความ "ไม่มีทริป" ต้องรู้ว่าข้างล่างมีใบหรือไม่ */
