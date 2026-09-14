@@ -41249,8 +41249,29 @@ function bkV2RenderDietaryLuggageSection(){
       <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">
         ${['Peanut','Tree nuts','Shellfish','Fish','Egg','Milk/Lactose','Gluten','Soy'].map(p=>`<button type="button" onclick="bkV2AllergyAddPreset('${p}')" style="font-size:10.5px;color:#7a4a4a;background:#FBF1F1;border:1px solid #EAD2D2;border-radius:11px;padding:3px 9px;cursor:pointer;font-family:inherit">+ ${p}</button>`).join('')}
       </div>
+      ${/* §bkAlFree (2026-09-14) · ช่องข้อความอิสระเรื่องอาหาร (specialMeals.allergies)
+           ช่องนี้มีมานานแล้ว · ครัวกับใบพิมพ์อ่านมันอยู่ และหน้าเช็คอินหน้าท่าเขียนลงช่องนี้ได้
+           แต่ในใบจองไม่เคยมีช่องให้เห็นหรือแก้เลย · ของที่หน้าท่าใส่ไว้จึงอ่านไม่ได้จากตรงนี้
+           และคนที่อยากโน้ตเป็นประโยค (ไม่ใช่ชื่อวัตถุดิบ) ไม่มีที่ให้ลง
+           ชิปข้างบนไว้ของที่นับจำนวนคนได้ · ช่องนี้ไว้รายละเอียดที่นับไม่ได้ */''}
+      <div style="margin-top:8px">
+        <label class="bkv2-nb-label" style="display:flex;align-items:center;gap:7px">รายละเอียดเพิ่มเติมเรื่องอาหาร
+          <em style="font-weight:600;font-style:normal;color:var(--ink-soft);font-size:10px">ประโยคที่ครัวกับไกด์ต้องอ่าน · ขึ้นบนใบพิมพ์</em>
+          ${(m.pierBy||m.pierAt)?`<em style="font-weight:700;font-style:normal;color:#0C6285;background:#E4F2F8;border-radius:9px;padding:1px 8px;font-size:9.5px">หน้าท่าบันทึก${m.pierBy?(' · '+escapeHTML(m.pierBy)):''}${m.pierAt?(' · '+escapeHTML(m.pierAt)):''}</em>`:''}
+        </label>
+        <textarea id="bkv2-allerg-free" rows="2" placeholder="เช่น เด็ก 1 คนไม่กินเผ็ด · ขอข้าวสวยเพิ่ม 2 ที่ · ห้ามใส่ถั่วทุกจาน"
+          oninput="bkV2SetMealNote(this.value)"
+          style="width:100%;box-sizing:border-box;margin-top:5px;border:1px solid ${(m.allergies||'').trim()?'#F0C9C9':'var(--border)'};background:${(m.allergies||'').trim()?'#FFFBFB':'var(--white)'};border-radius:8px;padding:7px 9px;font-size:12px;font-family:inherit;line-height:1.45;resize:vertical">${escapeHTML(m.allergies||'')}</textarea>
+      </div>
     </div>
   `;
+}
+/* §bkAlFree · เขียนลง draft ทันทีที่พิมพ์ · ไม่ต้องกดปุ่มอะไรเพิ่ม
+   ไม่เรียก bkV2Render เพราะจะทำให้เคอร์เซอร์กระเด็นออกจากช่องกลางคัน */
+function bkV2SetMealNote(v){
+  const d=_bkV2.newBooking; if(!d) return;
+  const sm=d.specialMeals||(d.specialMeals={veg:0,vegan:0,halal:0,allergies:''});
+  sm.allergies=String(v==null?'':v);
 }
 
 // ── Cash on Tour ──
@@ -48641,6 +48662,39 @@ function bkV2CommitBooking(status){
   if(typeof window.laGuardEdit==='function' && !window.laGuardEdit('operations')) return;
   if(!_bkV2.newBooking) return;
   const d = _bkV2.newBooking;
+  /* §bkAlFlush (2026-09-14) · "โน๊ตรายละเอียดไว้ แต่รายละเอียดหาย · เรื่องอาหาร"
+
+     ช่อง "เพิ่มสิ่งที่แพ้" เป็นช่องพิมพ์ที่ต้องกด + เพิ่ม (หรือ Enter) ถึงจะเข้า allergyList
+     ตอนบันทึก ระบบสร้างใบใหม่จาก _bkV2.newBooking ล้วน ๆ ไม่เคยอ่านช่องนี้เลย
+     คนที่พิมพ์แล้วกด Save ต่อเลย · ข้อความหายเงียบ ไม่มีเตือนสักตัว
+     วัดแล้ว พิมพ์ "แพ้กุ้ง 2 คน ..." แล้วกด Save · allergyList ว่าง allergies ว่าง
+
+     ที่นี่เก็บของที่ยังค้างในช่องให้ก่อน เหมือนคนกด + เพิ่ม เอง
+     เป็นข้อความที่เขาพิมพ์เองและยังเห็นอยู่ตรงหน้า การเก็บให้จึงตรงกับเจตนา
+     ปลอดภัยกว่าทิ้ง · เรื่องแพ้อาหารพลาดแล้วเป็นเรื่องความปลอดภัยของลูกค้า */
+  try{
+    var _alN=document.getElementById('bkv2-allerg-name');
+    var _alWas=_alN?String(_alN.value||'').trim():'';
+    if(_alWas){
+      /* ช่องนี้เป็นช่อง "ชื่อสิ่งที่แพ้" (placeholder บอกว่า เช่น Peanut) ชิปจะถูกนับเป็นจำนวนคน
+         แต่คนมักพิมพ์เป็นประโยคยาวลงไปด้วย · ประโยคยาวทำชิปพัง และนับเป็น "1 ราย" ไม่ได้ความ
+         ยาวเกินชื่อวัตถุดิบ หรือมีตัวคั่นประโยค → ลงช่องรายละเอียด ซึ่งพิมพ์ออกใบเหมือนกัน
+         สั้นแบบชื่อวัตถุดิบ → เข้าชิปเหมือนกดปุ่ม + เพิ่ม เพื่อให้ยังนับจำนวนคนได้
+         ทั้งสองทางถูกพิมพ์ลงใบและถูกนับโดย bkV2AllergyText/Count · ไม่มีทางไหนที่ข้อความหาย */
+      var _alLong = _alWas.length>28 || _alWas.indexOf('\u00b7')>=0 || /[.\n]/.test(_alWas);
+      if(_alLong){
+        var _sm=d.specialMeals||(d.specialMeals={veg:0,vegan:0,halal:0,allergies:''});
+        _sm.allergies=[String(_sm.allergies||'').trim(), _alWas].filter(Boolean).join(' \u00b7 ');
+      } else if(typeof bkV2AllergyAdd==='function'){
+        bkV2AllergyAdd();
+      }
+      _alN=document.getElementById('bkv2-allerg-name');
+      if(_alN) _alN.value='';
+      if(typeof bkV2AddHistory==='function')
+        bkV2AddHistory(d,'edit','เก็บข้อความเรื่องอาหารที่ยังค้างในช่องพิมพ์ตอนกดบันทึก'
+          +(_alLong?' (ลงช่องรายละเอียด)':' (ลงเป็นรายการที่แพ้)')+': '+_alWas,'Edited');
+    }
+  }catch(_e){}
   // Normalize hotel names against existing spellings so typos/spacing don't spawn duplicates
   if(typeof bkV2CanonicalHotel==='function'){
     if(d.hotelName) d.hotelName = bkV2CanonicalHotel(d.hotelName);
@@ -48941,7 +48995,11 @@ function bkV2CommitBooking(status){
     notes: d.notes || '',
     paxType: d.paxType,
     passengers: Array.isArray(d.passengers) ? d.passengers.filter(p => (p.name||'').trim()).map(p => ({ name: p.name, nationality: p.nationality||'', type: p.type||'AD', foc: !!p.foc })) : [],
-    specialMeals: { veg: d.specialMeals?.veg||0, vegan: d.specialMeals?.vegan||0, halal: d.specialMeals?.halal||0, allergies: d.specialMeals?.allergies||'', allergyList: Array.isArray(d.specialMeals?.allergyList) ? d.specialMeals.allergyList.filter(a=>a&&a.name).map(a=>({name:String(a.name), qty:Math.max(1,Math.floor(+a.qty||1))})) : [] },
+    /* §bkAlKeep · pierAt/pierBy = หน้าท่าเป็นคนบันทึกเรื่องอาหารไว้ ตอนกี่โมง
+       ของเดิมสร้าง specialMeals ใหม่จาก 5 ช่อง · สองช่องนี้หายทุกครั้งที่มีคนกดบันทึกใบ
+       ข้อความยังอยู่แต่ไม่เหลือว่าใครแจ้ง · เรื่องแพ้อาหารต้องตามคนแจ้งได้ */
+    specialMeals: { veg: d.specialMeals?.veg||0, vegan: d.specialMeals?.vegan||0, halal: d.specialMeals?.halal||0, allergies: d.specialMeals?.allergies||'', allergyList: Array.isArray(d.specialMeals?.allergyList) ? d.specialMeals.allergyList.filter(a=>a&&a.name).map(a=>({name:String(a.name), qty:Math.max(1,Math.floor(+a.qty||1))})) : [],
+      pierAt: d.specialMeals?.pierAt||undefined, pierBy: d.specialMeals?.pierBy||undefined },
     largeLuggage: d.largeLuggage || 0,
     cashOnTour: d.cashOnTour ? { amount: d.cashOnTour.amount||0, currency: d.cashOnTour.currency||'THB', handling: d.cashOnTour.handling||'deduct', note: (d.cashOnTour.note||'').trim() } : null,
     trips: d.trips.filter(t => t.routeId && t.date).map(t => ({
