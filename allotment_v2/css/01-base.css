@@ -403,6 +403,46 @@
 #view-costing .ct-del{text-align:center;padding-top:12px!important}
 
 /* แท็บ 3 · เมทริกซ์ */
+/* ══ §ctSheet · ตารางเทียบต้นทุนหลายทริป · ใช้งานแบบชีต ═══════════════════════
+   ปัญหาเดิม: ตารางสูง 2,524px บนจอ 900px (เลื่อนเกือบ 3 จอ) และกว้างเกินจอด้วย
+   แต่ไม่มี position:sticky สักบรรทัดในหน้านี้ — คลาสชื่อ .ct-stick มีแต่ชื่อ ตั้งแค่ความกว้าง
+   พอเลื่อนลง หัวคอลัมน์ (ชื่อทริป) หายไปทันที เหลือแต่ตัวเลขที่ไม่รู้ว่าของทริปไหน
+   เลื่อนข้างก็เสียคอลัมน์ชื่อรายการต้นทุนไปอีก
+   แก้: ให้กล่องตารางเป็นตัวเลื่อนเอง (สูงเท่าที่เหลือบนจอ) แล้วตรึงหัวกับคอลัมน์แรก
+        เหมือน freeze panes ในสเปรดชีต
+   ⚠ เฉพาะจอกว้าง · บนมือถือคอลัมน์แรกกว้าง 250px จะกินเกือบทั้งจอ และหัวสูง ~230px
+     จะบังข้อมูลจนไม่เหลืออะไรให้อ่าน (บทเรียนเดียวกับ §mobUnstick) จอแคบจึงเลื่อนปกติ
+   ⚠ ช่องที่ตรึงต้องมีพื้นทึบ ไม่งั้นเนื้อหาที่เลื่อนอยู่ข้างหลังทะลุขึ้นมา
+     ค่าที่ใช้คือสีเดิมผสมกับพื้นขาวแล้ว (rgba(247,242,234,.85) -> #F8F4ED
+     และ rgba(235,227,213,.6) -> #F3EEE6) หน้าตาจึงเหมือนเดิมทุกประการ */
+@media (min-width:821px){
+  #view-costing .ct-sheet{max-height:calc(100dvh - 200px);overflow:auto}
+  #view-costing .ct-sheet .ct-otbl thead th{position:sticky;top:0;z-index:3;background:#F8F4ED}
+  #view-costing .ct-sheet .ct-otbl th.ct-stick{left:0;z-index:5}
+  #view-costing .ct-sheet .ct-otbl td.ct-stick{position:sticky;left:0;z-index:2;background:#fff}
+  #view-costing .ct-sheet .ct-otbl .ct-grow td.ct-stick{background:#F3EEE6}
+  /* เส้นแบ่งของคอลัมน์ที่ตรึง · ใช้เงาแทน border เพราะ border ของ cell ที่ sticky
+     จะเลื่อนหลุดไปกับตาราง ไม่ติดอยู่กับที่ */
+  #view-costing .ct-sheet .ct-otbl th.ct-stick,
+  #view-costing .ct-sheet .ct-otbl td.ct-stick{box-shadow:1px 0 0 var(--sd200)}
+  /* หัวคอลัมน์เตี้ยลงหน่อย · ของเดิม 233px จาก 700px = กินจอไปเกือบหนึ่งในสาม
+     พอตรึงไว้ ความสูงของหัวคือพื้นที่ที่หายไปตลอดเวลา ไม่ใช่แค่ตอนเปิดหน้า
+     ที่บีบได้โดยไม่เสียข้อมูล: ช่องคนทั้งหมด/คนไทย เดิมตกบรรทัดเป็นสองแถว (69px)
+     บังคับให้อยู่แถวเดียว + ลดระยะห่างบรรทัดของบรรทัดรอง */
+  #view-costing .ct-sheet .ct-otbl th{padding:9px 12px}
+  #view-costing .ct-sheet .ct-paxbar{flex-wrap:nowrap;gap:4px;margin-top:6px}
+  #view-costing .ct-sheet .ct-paxf{padding:2px 3px 2px 6px;gap:3px}
+  #view-costing .ct-sheet .ct-paxf span{font-size:9px}
+  #view-costing .ct-sheet .ct-in.px{width:38px;height:20px}
+  #view-costing .ct-sheet .ct-psub{line-height:1.25;margin-top:1px}
+  #view-costing .ct-sheet .ct-pbe{margin-top:2px}
+}
+/* แถบสีประจำคอลัมน์ · ไล่สายตาจากหัวลงมาได้ว่ากำลังอ่านทริปไหน
+   ใช้ inset shadow ไม่ใช่ border-top เพราะ border-collapse ทำให้เส้นบนหาย */
+#view-costing .ct-pcol{box-shadow:inset 0 3px 0 var(--pc,transparent)}
+#view-costing .ct-pdot{display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--pc,#999);margin-right:6px;vertical-align:middle;flex:none}
+#view-costing .ct-pnm{display:flex;align-items:center;justify-content:center;gap:0}
 #view-costing .ct-otbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;min-width:640px}
 #view-costing .ct-otbl th{background:rgba(247,242,234,.85);padding:13px 14px;text-align:left;border-bottom:1px solid var(--sd200);vertical-align:top}
 #view-costing .ct-otbl th.ct-stick{width:250px;font-size:10.5px;font-weight:600;color:var(--es800);text-transform:uppercase;letter-spacing:.04em}

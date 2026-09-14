@@ -29115,6 +29115,10 @@ function ctToggleExp(lineId){ _ct.exp = _ct.exp || {}; if(_ct.exp[lineId]) delet
 function ctCell(a, b, c){
   return '<div class="ct-cell"><div class="c1">' + (a || '') + '</div><div class="c2">' + (b || '') + '</div><div class="c3">' + (c || '') + '</div></div>';
 }
+/* §ctSheet · สีประจำคอลัมน์ · 8 สีวนซ้ำ · คุมโทนให้เข้ากับพื้นครีมของหน้านี้
+   แผนคำนวณไม่ได้ผูก routeId (ผูกผ่าน famId) จึงยืมสีเส้นทางมาตรง ๆ ไม่ได้
+   คิดจากลำดับคอลัมน์แทน · เสถียรตราบใดที่ลำดับแผนไม่เปลี่ยน และไม่ต้องแตะข้อมูล */
+var CT_PCOL = ['#C2410C','#0F6E56','#185FA5','#8A5B00','#7E22CE','#0E7490','#9F1239','#4D7C0F'];
 function ctOvrHtml(){
   var T = ctTpl(), P = ctPlans(), G = ctGroups(T);
   var pxf = function(pl, k, lb){
@@ -29123,11 +29127,13 @@ function ctOvrHtml(){
       + ' oninput="ctPlanSetOn(\'' + pl.id + '\',\'' + k + '\',this.value)"></label>';
   };
   var head = '<tr><th class="ct-stick">รายการต้นทุน / หมวดหมู่</th>'
-    + P.map(function(p){
+    + P.map(function(p, _i){
         var cap = Math.max(1, (+p.cap || 65) * Math.max(1, +p.boats || 1));
         var be = ctBreakEven(p, cap, T);
         var on = (p.id === _ct.pid);
-        return '<th class="ct-pcol' + (on ? ' on' : '') + '"><div class="ct-pnm">' + ctE(p.name) + '</div>'
+        var pc = CT_PCOL[_i % CT_PCOL.length];   /* §ctSheet */
+        return '<th class="ct-pcol' + (on ? ' on' : '') + '" style="--pc:' + pc + '">'
+          + '<div class="ct-pnm"><i class="ct-pdot"></i>' + ctE(p.name) + '</div>'
           + '<div class="ct-psub">' + ctE(p.eng) + ' · จุ ' + (+p.cap || 0) + ' · ' + ctB(p.price) + '/หัว</div>'
           + '<div class="ct-pbe' + (be ? '' : ' warn') + '">' + (be ? ('คุ้มทุน ' + be + ' คน') : 'เต็มลำยังไม่คุ้ม') + '</div>'
           + '<div class="ct-paxbar">' + pxf(p, 'pax', 'คนทั้งหมด') + pxf(p, 'paxTH', 'คนไทย') + '</div></th>';
@@ -29205,7 +29211,7 @@ function ctOvrHtml(){
     + '<span class="ct-sub">' + ctIcon('info', 12) + ' <em class="fix">แถวหัวหมวด</em> ปิดทั้งหมวด หรือใส่ ±% คูณทุกบรรทัดในหมวด · '
     + '<em class="var">คลิกชื่อรายการ</em> เพื่อกางค่าทั้งหมดของบรรทัดนั้น · ทุกค่าทับได้ แม้สูตรกลางยังไม่ได้ตั้ง · ว่าง = ใช้ค่าจากสูตรกลาง</span></div>'
     + '<div class="ct-bar2r"><span class="ct-hint">1 คอลัมน์ = 1 แผนคำนวณ</span></div></div>'
-    + '<div class="ct-card ct-tblcard"><div class="ct-scroll"><table class="ct-otbl"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
+    + '<div class="ct-card ct-tblcard"><div class="ct-scroll ct-sheet"><table class="ct-otbl"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
 }
 
 // ── mutators ────────────────────────────────────────────────────────────────────────────────────
