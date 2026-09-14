@@ -2857,7 +2857,14 @@ function renderCal(){
     low:     {bg:'#E8F5D8', border:'#C8E29A', color:FOREST,     subColor:LIME_DARK, label:'Almost full · selling'},
     closed:  {bg:'#F1EFE8', border:'#D8D5CC', color:'#888',     subColor:'#888',    label:'Closed / no trips'}
   };
-  const routeCards=ROUTES.filter(rt=>calPier==='all' || rt.pier===calPier).map(rt=>{
+  /* §calMarine · Calendar พูดเรื่องที่นั่งเรือกับท่าเรือล้วน ๆ · รับเฉพาะโปรแกรมฝั่งเรือ
+     ของเดิม calPier==='all' ปล่อยผ่านทุกอย่าง · ทัวร์บกกับรถรับส่ง (ไม่มีท่า) จึงไหลเข้ามาด้วย
+     ขึ้นเป็นการ์ด "undefined · No trips" เต็มหน้า และดันเส้นทางที่วิ่งจริงหลุดออกนอกจอ
+     วัด backup_2026-09-14: routes 57 = บก 43 + เรือ 14 (tublamu 6 · panwa 6 · ranong 2)
+     ไม่มีเส้นทางเรือสักเส้นที่ pier อยู่นอก 3 ท่า → กรองด้วย laIsLandRoute ได้ผลเท่ากับ
+     "เอาเฉพาะ 3 ท่า" เป๊ะ แต่ถามผ่านจุดเดียวตามที่ §routeKind กำหนดไว้
+     (เลือกท่าเจาะจงอยู่แล้วทัวร์บกก็ไม่เข้าอยู่ดี เพราะไม่มี pier · ที่พังคือโหมด all) */
+  const routeCards=ROUTES.filter(rt=>!laIsLandRoute(rt) && (calPier==='all' || rt.pier===calPier)).map(rt=>{
     // Check all-closed-this-month
     let allClosed=true;
     for(let d=1;d<=daysInMonth;d++){
@@ -2924,7 +2931,8 @@ function renderCal(){
   const _hidRt=_calGetHiddenRoutes();
   //   เส้นทางที่มีเที่ยวออกขึ้นก่อน เรียงตามเวลาเรือออก · ที่ไม่ออกเลยไปต่อท้าย
   //   (ไม่งั้นเส้นทางนอกฤดูดันเส้นทางที่ใช้จริงหลุดออกนอกจอ)
-  const _rtSorted=ROUTES.filter(rt=>calPier==='all'||rt.pier===calPier).slice().sort((a,b)=>{
+  /* §calMarine · เช่นเดียวกับการ์ดด้านบน */
+  const _rtSorted=ROUTES.filter(rt=>!laIsLandRoute(rt) && (calPier==='all'||rt.pier===calPier)).slice().sort((a,b)=>{
     const da=(routeStat[a.id]&&routeStat[a.id].days.size)?0:1;
     const db=(routeStat[b.id]&&routeStat[b.id].days.size)?0:1;
     if(da!==db) return da-db;
@@ -3419,7 +3427,8 @@ function renderCal(){
   let matrixGrid = '';
   {
     const hiddenRoutes = _calGetHiddenRoutes();
-    const matrixRoutesAll = ROUTES.filter(rt => calPier==='all' || rt.pier===calPier);
+    /* §calMarine · เช่นเดียวกับการ์ดด้านบน · ตัวเลข "N / M routes" จึงนับเฉพาะฝั่งเรือ */
+    const matrixRoutesAll = ROUTES.filter(rt => !laIsLandRoute(rt) && (calPier==='all' || rt.pier===calPier));
     const matrixRoutes = matrixRoutesAll.filter(rt => !hiddenRoutes.has(rt.id));
     const hiddenInScope = matrixRoutesAll.filter(rt => hiddenRoutes.has(rt.id));
     // Build day-of-week labels for header
@@ -6066,7 +6075,9 @@ function bop2AssignRangeForm(){
   //   เปิดหน้าอยู่เดือน ต.ค. แต่กล่องเด้งมาเป็นวันนี้ ต้องแก้มือทุกครั้ง
   //   และรายชื่อเรือด้านล่างก็จะโหลดผิดวันตามไปด้วย
   const today = (typeof _bop2 !== 'undefined' && _bop2.selDate) || TODAY_STR;
-  const activeRoutes = ROUTES.filter(r => r.active !== false);
+  /* §calMarine · Boat Operation เป็นหน้าฝั่งเรือ · §routeKind ระบุชื่อหน้านี้ไว้ตรง ๆ
+     ว่าทัวร์บกห้ามเข้า แต่ฟอร์มนี้ไม่เคยกรอง · วัด 2026-09-14 ได้ 57 เส้นทาง (บก 43) */
+  const activeRoutes = ROUTES.filter(r => r.active !== false && !laIsLandRoute(r));
   const initialRoute = activeRoutes[0];
   const initialPier = initialRoute?.pier || 'tublamu';
   const routeOpts = activeRoutes.map(r => '<option value="'+r.id+'" data-pier="'+r.pier+'">'+r.name+' · '+bop2PierAbbr(r.pier)+'</option>').join('');   // §bopBulkDate
@@ -6353,7 +6364,9 @@ function bop2UpdateWeekdayBoatOpts(){
 function bop2WeekdayPatternForm(){
   const today = (typeof _bop2 !== 'undefined' && _bop2.selDate) || TODAY_STR;   // §bopBulkDate
   const next = fmt(addDays(new Date(today), 30));
-  const activeRoutes = ROUTES.filter(r => r.active !== false);
+  /* §calMarine · Boat Operation เป็นหน้าฝั่งเรือ · §routeKind ระบุชื่อหน้านี้ไว้ตรง ๆ
+     ว่าทัวร์บกห้ามเข้า แต่ฟอร์มนี้ไม่เคยกรอง · วัด 2026-09-14 ได้ 57 เส้นทาง (บก 43) */
+  const activeRoutes = ROUTES.filter(r => r.active !== false && !laIsLandRoute(r));
   const initialPier = activeRoutes[0]?.pier || 'tublamu';
   const boatOpts = bop2AssignBoatOptsFor(initialPier, today);
   const routeOpts = activeRoutes.map(r => '<option value="'+r.id+'" data-pier="'+r.pier+'">'+r.name+' · '+bop2PierAbbr(r.pier)+'</option>').join('');   // §bopBulkDate
