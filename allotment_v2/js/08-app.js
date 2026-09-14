@@ -29234,11 +29234,19 @@ function ctOvrHtml(){
         var on = (p.id === _ct.pid);
         var pc = CT_PCOL[_i % CT_PCOL.length];   /* §ctSheet */
         var pb = CT_PBG[_i % CT_PBG.length];     /* §ctTripBg */
+        /* §ctHdAlign · ห่อเนื้อในหัวคอลัมน์เป็นกล่องเดียว เพื่อจัดให้ชิดล่าง
+           ชื่อทริปยาวไม่เท่ากัน (วัดจริง 20px ถึง 98px = 1 ถึง 5 บรรทัด)
+           ของเดิมไล่จากบนลงมา บรรทัดสเปค/คุ้มทุน/ช่องกรอกคนจึงเลื่อนตามชื่อ
+           คลาดเคลื่อนกันสูงสุด 78px อ่านเทียบข้ามคอลัมน์ไม่ได้
+           แก้โดยให้ชื่อยืดขึ้นข้างบน ส่วนที่เหลือเกาะพื้นล่างเสมอ — ไม่ต้องตัดชื่อทิ้ง */
         return '<th class="ct-pcol' + (on ? ' on' : '') + '" style="--pc:' + pc + ';--pcbg:' + pb + '" data-col="' + _i + '">'
-          + '<div class="ct-pnm"><i class="ct-pdot"></i>' + ctE(p.name) + '</div>'
+          + '<div class="ct-phd">'
+          + '<div class="ct-pnm" title="' + ctE(p.name) + '"><i class="ct-pdot"></i>' + ctE(p.name) + '</div>'
+          + '<div class="ct-pfoot">'
           + '<div class="ct-psub">' + ctE(p.eng) + ' · จุ ' + (+p.cap || 0) + ' · ' + ctB(p.price) + '/หัว</div>'
           + '<div class="ct-pbe' + (be ? '' : ' warn') + '">' + (be ? ('คุ้มทุน ' + be + ' คน') : 'เต็มลำยังไม่คุ้ม') + '</div>'
-          + '<div class="ct-paxbar">' + pxf(p, 'pax', 'คนทั้งหมด') + pxf(p, 'paxTH', 'คนไทย') + '</div></th>';
+          + '<div class="ct-paxbar">' + pxf(p, 'pax', 'คนทั้งหมด') + pxf(p, 'paxTH', 'คนไทย') + '</div>'
+          + '</div></div></th>';
       }).join('') + '</tr>';
 
   var body = '';
