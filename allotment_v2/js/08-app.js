@@ -44539,14 +44539,6 @@ function bkV2RenderTab2(){
        เศษแถวจะโผล่เหนือหัวตารางที่ตรึงไว้ */
     .t2-wrap{box-sizing:border-box;padding:0 8px 40px;overflow:auto;max-height:var(--bt-wraph,72vh);
       overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-    /* §mobStick · จอมือถือแคบ · หัวที่ตรึงทั้งก้อน (Programmes/เรือ/ล็อค/Notice) กินที่เกือบครึ่งจอ
-       เหลือที่ให้ตารางทริปแค่เป็นกล่องเลื่อนในเลื่อนอีกที (double scroll) · ปลดสติ๊กกี้ออก
-       ให้หัวเลื่อนหายไปพร้อมหน้าเหมือนแอปมือถือทั่วไป ตารางได้พื้นที่เต็ม ไม่ต้องเลื่อนซ้อนกัน
-       เดสก์ท็อปไม่แตะ (ยังตรึงเหมือนเดิม) */
-    @media (max-width:820px){
-      .bt-pkh{position:static}
-      .t2-wrap{max-height:none;overflow:visible}
-    }
     .t2-trip{background:transparent;border:none;border-radius:0;margin-bottom:12px;overflow:visible}
     .t2-tripcard{background:var(--white);border:1px solid var(--border);border-left:5px solid var(--fam);border-radius:14px;overflow:hidden;margin-bottom:0}
     /* การ์ดหัวทริปว่างแล้ว (ชื่อทริปย้ายลงตาราง) · ไม่ต้องกินที่เป็นกล่องเปล่า */
@@ -44946,6 +44938,16 @@ function bkV2RenderTab2(){
        ไม่ตรงกับขอบบนของแถบเมนูซ้าย · ชิดขอบเลย */
     .bt-pkh{position:sticky;top:0;z-index:60;background:var(--btband,#E9E7E3);
       padding:6px 6px 4px;margin-bottom:0}
+    /* §mobStick · จอมือถือแคบ · หัวที่ตรึงทั้งก้อน (Programmes/เรือ/ล็อค/Notice) กินที่เกือบครึ่งจอ
+       เหลือที่ให้ตารางทริปแค่เป็นกล่องเลื่อนในเลื่อนอีกที (double scroll) · ปลดสติ๊กกี้ออก
+       ให้หัวเลื่อนหายไปพร้อมหน้าเหมือนแอปมือถือทั่วไป ตารางได้พื้นที่เต็ม ไม่ต้องเลื่อนซ้อนกัน
+       เดสก์ท็อปไม่แตะ (ยังตรึงเหมือนเดิม)
+       ต้องอยู่หลังกฎ .bt-pkh/.t2-wrap ปกติเสมอ · ก่อนหน้านี้เคยแทรกไว้ก่อน กฎปกติที่มาทีหลัง
+       (specificity เท่ากัน) เลยชนะทับ media query ทิ้งไปเงียบ ๆ · อย่าย้ายขึ้นไปซ้ำอีก */
+    @media (max-width:820px){
+      .bt-pkh{position:static}
+      .t2-wrap{max-height:none;overflow:visible}
+    }
     .bt-hdtop{position:relative;display:flex;align-items:center;gap:13px;padding:0 8px 7px}
     .bt-arw{width:27px;height:27px;flex:none;border:1px solid rgba(0,0,0,.13);background:#fff;border-radius:9px;
       display:flex;align-items:center;justify-content:center;color:#7d7a74;font-size:14px;cursor:pointer;font-family:inherit;line-height:1}
