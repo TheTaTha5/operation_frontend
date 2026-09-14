@@ -688,10 +688,11 @@ function mapB2CItemBooking(item, isFirstLine, findArea, paxRows, addonCat, progC
   //                  This is what resolves to one of the 37 ops pickup areas. Now a required
   //                  dropdown on B2C, so new rows always carry one; older rows may hold a typed
   //                  address, which simply won't match and leaves the area unassigned.
-  //   pickupHotel    the hotel itself, free text, never linked to a hotels table.
+  //   pickupHotel    the hotel itself, free text, never linked to a hotels table. §b2cNoHotel
+  //                  (2026-09-14): ops does not want it, so it is never read below at all.
   //
   // Feeding the hotel into findArea cannot work — 'Blu Monkey Hub Hotel Phuket' matches no area,
-  // while 'Phuket Town' matches exactly. Match on the area, store the hotel.
+  // while 'Phuket Town' matches exactly. Match on the area, store the area (never the hotel).
   // hotelName/pickupZone/pickupSelf are B2C-owned (refreshed every sync); pickupAreaId is matched
   // best-effort against sb_pickup_areas and preserved on conflict (pickupareaid is NOT in B2C_OWN_BK).
   let det = h.details;
@@ -760,10 +761,10 @@ function mapB2CItemBooking(item, isFirstLine, findArea, paxRows, addonCat, progC
   const vehType = isTransfer ? String(det.vehicleType || '').trim().toLowerCase() : '';
   const vehDir  = isTransfer ? String(det.direction || '').trim() : '';
   const pickupArea  = String(det.pickupLocation || '').trim();   // area name  → matches sb_pickup_areas
-  const pickupHotel = String(det.pickupHotel || '').trim();      // hotel      → hotelName
-  // Rows predating the pickupHotel field carry only pickupLocation, so fall back to it rather than
-  // showing ops an empty pickup.
-  const pickupLoc  = pickupHotel || pickupArea;
+  // §b2cNoHotel (2026-09-14): ops does not want the guest's hotel name synced in at all, only the
+  // area — det.pickupHotel is deliberately never read here. hotelName below is really "pickup area
+  // name", kept as that field for backward compat with every existing ops reader of bk.hotelName.
+  const pickupLoc  = pickupArea;
   const noTransfer = det.noTransfer === true;
   const pickupZone = noTransfer ? 'NoTransfer' : String(det.pickupZone || '').trim();
   const areaHit = (typeof findArea === 'function') ? findArea(pickupArea, pickupZone) : null;
@@ -784,7 +785,8 @@ function mapB2CItemBooking(item, isFirstLine, findArea, paxRows, addonCat, progC
   // Pier" → "Visit Panwa Pier"). Trusting those would raise 24 false "returns elsewhere, no return van
   // arranged" alerts. Require a genuinely different place before telling ops the return leg differs.
   const _dnorm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  const dropoffRaw = String(det.dropoffHotel || det.dropoffLocation || '').trim();
+  // §b2cNoHotel (2026-09-14): same as pickup — det.dropoffHotel is deliberately never read.
+  const dropoffRaw = String(det.dropoffLocation || '').trim();
   const dropoffSep = det.dropoffSame === false && !noTransfer && !!dropoffRaw
     && _dnorm(dropoffRaw) !== _dnorm(pickupLoc) && _dnorm(dropoffRaw) !== _dnorm(pickupArea);
   const dropoffLoc = dropoffSep ? dropoffRaw : '';
@@ -796,8 +798,9 @@ function mapB2CItemBooking(item, isFirstLine, findArea, paxRows, addonCat, progC
   const dropAreaHit = (dropoffSep && typeof findArea === 'function')
     ? (findArea(dropoffLoc, pickupZone) || findArea(dropoffLoc, '')) : null;
   const dropAreaId = dropAreaHit ? dropAreaHit.id : null;
-  // Unlike pickupArea this does NOT fall back to the raw text: that text is a hotel, not an area, and
-  // it would print a hotel name in the ops Zone column. dropoffHotelName already carries it.
+  // Unlike pickupArea this does NOT fall back to the raw text: dropoffLoc is free-text place text, not
+  // a matched area, and it would print raw customer text in the ops Zone column. dropoffHotelName
+  // already carries it (§b2cNoHotel: that raw text is never the guest's hotel now, just the location).
   const dropAreaName = dropAreaHit ? dropAreaHit.name : '';
   const trip = {
     id: 'b2c_' + h.booking_id + '_' + h.line_no + '_t0',

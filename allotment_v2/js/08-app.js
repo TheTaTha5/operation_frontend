@@ -33118,7 +33118,12 @@ function rtModalRender(){
   ).join('');
 
   // Routes chips (selected vs available)
-  const routesChips = ROUTES_ARR.map(r => {
+  // §b2cNoRateType · a B2C-origin route (carries extId, see bkV2Routes' §b2cNoRateVisible) already
+  // shows on the calendar with no rate type at all and never needs one to bill, so an agent picking a
+  // rate type's routes must not be offered it here. Only exception: it was already toggled on before
+  // this rule existed — keep that chip visible (still ✓, still clickable to remove) so nobody's
+  // existing pricing silently vanishes off the modal; just stop it from being ADDED going forward.
+  const routesChips = ROUTES_ARR.filter(r => !r.extId || (d.routes||[]).includes(r.id)).map(r => {
     const on = (d.routes||[]).includes(r.id);
     return `<span onclick="rtDraftToggleRoute('${r.id}')" style="background:${on?tint:'#fafaf8'};color:${on?sel:'var(--fd-ink-soft)'};border:1px solid ${on?sel:'var(--fd-line)'};padding:5px 11px;border-radius:999px;font-size:11px;font-weight:${on?'600':'500'};cursor:pointer;display:inline-flex;align-items:center;gap:5px;line-height:1.3">
       <span style="font-variant-numeric:tabular-nums;font-size:9px;opacity:.65">${r.id}</span>${r.name}
