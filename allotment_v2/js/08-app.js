@@ -39624,6 +39624,13 @@ function bkV2Routes(){
       ids.add(bk.programId);
     }
   });
+  // §b2cNoRateVisible · a route created via /api/b2c/routes carries extId (b2c-catalog.js record.extId)
+  // — that alone marks it as a B2C-origin product, so it shows on the calendar even with no ops rate
+  // type attached (B2C prices its own orders and never needs one — see that file's §Pricing comment).
+  // A staff-made route from Config has no extId and still needs a rate type or a booking to appear.
+  if(typeof ROUTES !== 'undefined' && Array.isArray(ROUTES)){
+    ROUTES.forEach(r => { if(r.extId) ids.add(r.id); });
+  }
   // Map to {id, short, full} via ROUTES (source of truth)
   if(typeof ROUTES === 'undefined') return [];
   const out = [];
