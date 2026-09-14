@@ -1654,7 +1654,7 @@ async function relSyncB2C(singleExtId = null) {
       //    Idempotent: re-applied every sync until capacity covers demand; dates with no deployment
       //    (capacity 0 — e.g. far-future advance bookings) are skipped so normal bookings aren't flagged.
       _phase = 'oversell flag';
-      const NUL = ' ';
+      const NUL = '\0';
       const affPairs = [...new Set((tables['sb_bookings__trips'] || [])
         .filter(t => t.bookingmode === 'seat' && t.routeid && t.date)
         .map(t => t.routeid + NUL + t.date))];
