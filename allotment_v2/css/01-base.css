@@ -417,10 +417,15 @@
 #view-costing .ct-navkeys kbd{font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;
   border:1px solid var(--sd300);border-bottom-width:2px;border-radius:5px;padding:0 5px;
   background:#fff;color:var(--es700)}
-#view-costing .ct-otbl td.ct-cellon{box-shadow:inset 0 0 0 2px var(--b500);
+/* เห็นชัดเป็นอันดับแรกคือ "แถบส้มด้านซ้ายของเซลล์" · เซลล์ตอนกางสูงได้ถึง 476px
+   กรอบรอบเซลล์ทั้งใบจึงอยู่นอกสายตา แต่แถบซ้ายวิ่งยาวตลอดความสูง มองเห็นแน่นอน
+   ของเดิม .ct-in:focus เป็นเงาส้มจาง 12% ซึ่งจมหายไปกลางช่องกรอกหลายสิบช่อง */
+#view-costing .ct-otbl td.ct-cellon{box-shadow:inset 4px 0 0 var(--b500), inset 0 0 0 1px var(--b300);
   background:var(--b50) !important;position:relative;z-index:1}
+#view-costing .ct-sheet .ct-otbl td.ct-cellon input.ct-in:focus{border-color:var(--b500);
+  box-shadow:0 0 0 3px rgba(255,76,0,.35);background:#fff}
 #view-costing .ct-otbl td.ct-colon,
-#view-costing .ct-otbl td.ct-rowon{background:#fffaf7 !important}
+#view-costing .ct-otbl td.ct-rowon{background:#fff6f1 !important}
 #view-costing .ct-otbl th.ct-colon{background:var(--b50) !important}
 #view-costing .ct-otbl td.ct-rowon{color:var(--b600);font-weight:700}
 /* คอลัมน์แรกที่ตรึงไว้ต้องทึบเสมอ ไม่งั้นไฮไลต์ทำให้เนื้อหาข้างหลังทะลุ */
@@ -513,7 +518,30 @@
 #view-costing .ct-peek b.mut{color:var(--sd400);font-weight:400}
 #view-costing .ct-peek .n{font-size:9.5px;color:var(--mt700);font-weight:700}
 #view-costing .ct-dot{width:5px;height:5px;border-radius:50%;background:var(--mt500);display:inline-block;flex:0 0 5px}
-#view-costing .ct-flds{display:flex;flex-direction:column;gap:5px;padding:1px 0 3px}
+/* §ctFldGrid · ช่องกรอกตอนกาง · เป็นตาราง ไม่ใช่รายการเรียงลงมา
+   4 ค่าของแต่ละส่วนคือ ผู้ใหญ่/เด็ก คูณ ต่างชาติ/ไทย อยู่แล้ว
+   ชื่อชนิดอยู่ที่หัวแถว/หัวคอลัมน์ครั้งเดียว ไม่ต้องเขียนซ้ำทุกช่อง */
+#view-costing .ct-flds{display:flex;flex-direction:column;gap:7px;padding:1px 0 3px}
+#view-costing .ct-part{display:flex;flex-direction:column;gap:3px}
+#view-costing .ct-pttl{font-size:9.5px;font-weight:700;letter-spacing:.05em;
+  color:rgba(74,62,54,.45);text-transform:uppercase}
+#view-costing .ct-fg{display:grid;grid-template-columns:auto 1fr 1fr;gap:3px 6px;align-items:center}
+#view-costing .ct-fg:has(.ct-fgr:only-of-type){grid-template-columns:auto 1fr 1fr}
+#view-costing .ct-fgh{font-size:9.5px;font-weight:600;color:rgba(74,62,54,.5);text-align:center}
+#view-costing .ct-fgr{font-size:10px;color:rgba(74,62,54,.6);white-space:nowrap;text-align:right}
+#view-costing .ct-fw{position:relative;display:flex;align-items:center}
+#view-costing .ct-fw .ct-in.fin{width:100%;min-width:0;text-align:right;padding-right:20px}
+#view-costing .ct-fw .ct-undo{position:absolute;right:4px;opacity:.55}
+#view-costing .ct-fw .ct-undo:hover{opacity:1}
+#view-costing .ct-fnone{font-size:11px;color:rgba(74,62,54,.25);text-align:center}
+#view-costing .ct-fline{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+#view-costing .ct-fi{display:flex;align-items:center;gap:4px}
+#view-costing .ct-fi .ct-fgr{text-align:left}
+#view-costing .ct-fi .ct-fw{width:64px}
+#view-costing .ct-pwarn{font-size:9px;color:#b45309;background:#fef6e7;border-radius:5px;padding:1px 6px}
+#view-costing .ct-pnew{font-size:9px;color:rgba(74,62,54,.5);background:var(--sd100);
+  border:1px dashed var(--sd400);border-radius:5px;padding:1px 6px}
+
 #view-costing .ct-f{display:grid;grid-template-columns:1fr 76px;align-items:center;gap:9px}
 #view-costing .ct-flb{font-size:10.5px;color:rgba(74,62,54,.6);line-height:1.3}
 #view-costing .ct-in.fin{width:76px;font-size:11.5px;padding:2px 7px;text-align:right}

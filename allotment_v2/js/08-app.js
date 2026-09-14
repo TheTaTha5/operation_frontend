@@ -29252,24 +29252,64 @@ function ctOvrHtml(){
         if(o.off){ bd = '<span class="ct-off">ปิด</span>'; }
         else if(!KEYS.length){ bd = ''; }
         else if(exp){
-          bd = '<div class="ct-flds">' + KEYS.map(function(kv){
+          /* §ctFldGrid · ของเดิมวางช่องกรอกเรียงลงมาทีละแถว แถวละหนึ่งค่า
+             พร้อมป้ายยาว ("ส่วน 1 · ผู้ใหญ่ · ต่างชาติ") และคำอธิบายใต้ช่องอีกบรรทัด
+             บรรทัดเดียวที่กางออกจึงสูงเกิน 8 แถวย่อย x 8 คอลัมน์ = อ่านไม่ไหว
+             ค่าพวกนี้จริง ๆ เป็นตารางอยู่แล้ว: ผู้ใหญ่/เด็ก คูณ ต่างชาติ/ไทย
+             วางเป็นตาราง 2x2 จึงสั้นลงครึ่งหนึ่งและหาช่องที่จะกรอกได้เร็วกว่ามาก
+             ป้ายบอกชนิดย้ายไปเป็นหัวแถว/หัวคอลัมน์ ไม่ต้องเขียนซ้ำทุกช่อง */
+          var byPart = {}, pOrder = [];
+          KEYS.forEach(function(kv){
+            if(!byPart[kv.i]){ byPart[kv.i] = {}; pOrder.push(kv.i); }
+            byPart[kv.i][kv.k] = kv;
+          });
+          var fld = function(kv){
+            if(!kv) return '<span class="ct-fnone">—</span>';
             var cv = val(kv), has = (cv != null);
-            var hint = '';
-            if(has){
-              hint = '<s>' + (kv.unset ? '—' : kv.base) + '</s>'
-                   + '<button class="ct-undo" title="คืนค่าสูตรกลาง" onclick="ctOvrSet(\'' + pl.id + '\',\'' + ctE(ln.id) + '\',' + kv.i + ',\'' + kv.k + '\',\'\')">' + ctIcon('undo', 11) + '</button>';
-              if(kv.k === 'uTH' && noTH) hint += '<span class="ct-warn">แผนนี้ตั้งคนไทย 0 คน · ยังไม่มีผลกับยอด</span>';
-            } else if(kv.unset){
-              hint = '<span class="ct-newk">สูตรกลางยังไม่ตั้ง · ใส่เฉพาะเส้นทางนี้ได้</span>';
-            }
-            return '<div class="ct-f"><span class="ct-flb">' + ctE(kv.lb) + '</span>'
+            return '<span class="ct-fw">'
               + '<input class="ct-in fin' + (has ? ' on' : (kv.unset ? ' unset' : '')) + '"'
               + ' data-fk="o.' + pl.id + '.' + ln.id + '.' + kv.i + '.' + kv.k + '"'
               + ' value="' + (has ? cv : '') + '" placeholder="' + (kv.unset ? '—' : kv.base) + '"' + (grpOff ? ' disabled' : '')
-              + ' title="' + (kv.unset ? 'สูตรกลางยังไม่ได้ตั้งค่านี้' : ('ว่าง = ใช้ค่าจากสูตรกลาง (' + kv.base + ')')) + '"'
+              + ' title="' + ctE(kv.lb) + (kv.unset ? ' · สูตรกลางยังไม่ได้ตั้งค่านี้' : (' · ว่าง = ใช้ค่าจากสูตรกลาง (' + kv.base + ')')) + '"'
               + ' oninput="ctOvrSet(\'' + pl.id + '\',\'' + ctE(ln.id) + '\',' + kv.i + ',\'' + kv.k + '\',this.value)">'
-              + (hint ? ('<span class="ct-fhint">' + hint + '</span>') : '') + '</div>';
-          }).join('') + '</div>';
+              + (has ? ('<button class="ct-undo" title="คืนค่าสูตรกลาง (' + (kv.unset ? '—' : kv.base) + ')" onclick="ctOvrSet(\'' + pl.id + '\',\'' + ctE(ln.id) + '\',' + kv.i + ',\'' + kv.k + '\',\'\')">' + ctIcon('undo', 10) + '</button>') : '')
+              + '</span>';
+          };
+          var grid2 = function(B, colLb, rowLb, keys){
+            /* keys = [[แถว1คอล1, แถว1คอล2], [แถว2คอล1, แถว2คอล2]] */
+            var h = '<div class="ct-fg"><span></span>'
+                  + colLb.map(function(c){ return '<span class="ct-fgh">' + ctE(c) + '</span>'; }).join('');
+            rowLb.forEach(function(r, ri){
+              h += '<span class="ct-fgr">' + ctE(r) + '</span>'
+                 + keys[ri].map(function(k){ return fld(B[k]); }).join('');
+            });
+            return h + '</div>';
+          };
+          var parts = pOrder.map(function(pi){
+            var B = byPart[pi], ks = Object.keys(B), inner;
+            if(B.u && B.uTH && B.uCh && B.uChTH){
+              inner = grid2(B, ['ผู้ใหญ่','เด็ก'], ['ต่างชาติ','ไทย'], [['u','uCh'], ['uTH','uChTH']]);
+            } else if(B.u && B.q && B.u4 && B.q4){
+              inner = grid2(B, ['ปกติ','4EN'], ['ราคา/หน่วย','จำนวน'], [['u','u4'], ['q','q4']]);
+            } else if(B.q && B.q4 && ks.length === 2){
+              inner = grid2(B, ['ปกติ','4EN'], ['ลิตร/ลำ'], [['q','q4']]);
+            } else {
+              /* ชุดที่ไม่ใช่ตาราง (ขั้นบันได ฯลฯ) · เรียงแนวนอนแถวเดียว */
+              inner = '<div class="ct-fline">' + ks.map(function(k){
+                var kv = B[k];
+                return '<span class="ct-fi"><span class="ct-fgr">'
+                  + ctE(kv.lb.replace(/^ส่วน \d+ · /, '')) + '</span>' + fld(kv) + '</span>';
+              }).join('') + '</div>';
+            }
+            var warn = (B.uTH && noTH && val(B.uTH) != null)
+              ? '<div class="ct-pwarn">แผนนี้ตั้งคนไทย 0 คน · ค่าคนไทยยังไม่มีผลกับยอด</div>' : '';
+            var newk = ks.some(function(k){ return B[k].unset; })
+              ? '<div class="ct-pnew">ช่องที่ขึ้น — คือสูตรกลางยังไม่ได้ตั้ง · ใส่เฉพาะเส้นทางนี้ได้</div>' : '';
+            return '<div class="ct-part">'
+              + (pOrder.length > 1 ? ('<div class="ct-pttl">ส่วน ' + (pi + 1) + '</div>') : '')
+              + inner + warn + newk + '</div>';
+          }).join('');
+          bd = '<div class="ct-flds">' + parts + '</div>';
         } else {
           var m0 = KEYS[0], c0 = val(m0), nOvr = 0;
           KEYS.forEach(function(kv){ if(val(kv) != null) nOvr++; });
