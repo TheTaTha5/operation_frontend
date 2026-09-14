@@ -29112,6 +29112,83 @@ function ctLineKeys(ln){
   return out;
 }
 function ctToggleExp(lineId){ _ct.exp = _ct.exp || {}; if(_ct.exp[lineId]) delete _ct.exp[lineId]; else _ct.exp[lineId] = 1; ctRender(); }
+/* ══ §ctCellNav · เดินตารางด้วยลูกศรแบบสเปรดชีต ═══════════════════════════
+   ตารางนี้กว้าง 8 คอลัมน์ ทุกคอลัมน์หน้าตาเหมือนกันหมด ต่างกันแค่ตัวเลข
+   ปัญหาจริงจึงไม่ใช่แค่ "มองไม่เห็นหัว" แต่คือ "กรอกผิดช่องแล้วไม่รู้ตัว"
+   → ช่องที่โฟกัสอยู่มีกรอบ · แถวกับคอลัมน์ของมันสว่างเป็นกากบาท
+     และแถบบนบอกเป็นตัวหนังสือว่ากำลังอยู่ที่ทริปไหน รายการอะไร
+
+   ผูกที่ document ด้วย event delegation ครั้งเดียว ไม่ต้องผูกใหม่ทุกครั้งที่วาดตาราง
+   (ctOvrHtml ถูกเรียกใหม่ทุกครั้งที่แก้ค่าสักช่อง ถ้าไปผูกที่ตัวตารางจะหลุดทุกรอบ)
+
+   ⚠ ลูกศรซ้าย/ขวาใน input ต้องเลื่อนเคอร์เซอร์ตามปกติ ห้ามยึดไปใช้หมด
+     ไม่งั้นแก้เลขกลางช่องไม่ได้เลย · จึงข้ามคอลัมน์เฉพาะตอนเคอร์เซอร์อยู่สุดขอบแล้ว
+     (ซ้ายสุดแล้วกดซ้ายอีก = ข้ามไปทริปก่อนหน้า) เหมือนที่สเปรดชีตทำ */
+var _ctNavFk = null;      /* จำช่องล่าสุดไว้ด้วย data-fk · หลังวาดใหม่จะกลับไปโฟกัสช่องเดิมได้ */
+
+function ctNavCells(col){
+  /* ช่องที่คีย์ได้จริงในคอลัมน์นั้น เรียงตามลำดับบนลงล่าง */
+  var sel = '.ct-sheet .ct-otbl td[data-col="' + col + '"] input.ct-in';
+  return [].slice.call(document.querySelectorAll(sel)).filter(function(n){
+    return !n.disabled && n.offsetParent !== null;
+  });
+}
+function ctNavMark(inp){
+  var td = inp && inp.closest ? inp.closest('td[data-col]') : null;
+  document.querySelectorAll('.ct-sheet .ct-cellon,.ct-sheet .ct-colon,.ct-sheet .ct-rowon')
+    .forEach(function(n){ n.classList.remove('ct-cellon','ct-colon','ct-rowon'); });
+  var ref = document.getElementById('ct-navref'), val = document.getElementById('ct-navval');
+  if(!td){ if(ref) ref.textContent = 'คลิกช่องไหนก็ได้ แล้วใช้ลูกศรเดินต่อ'; if(val) val.textContent = ''; return; }
+  _ctNavFk = inp.getAttribute('data-fk') || null;
+  td.classList.add('ct-cellon');
+  var col = td.getAttribute('data-col');
+  document.querySelectorAll('.ct-sheet .ct-otbl [data-col="' + col + '"]')
+    .forEach(function(n){ if(n !== td) n.classList.add('ct-colon'); });
+  var tr = td.parentElement;
+  if(tr){ var h = tr.querySelector('td.ct-stick'); if(h) h.classList.add('ct-rowon'); }
+  if(ref) ref.textContent = (td.getAttribute('data-trip') || '') + '  ·  ' + (td.getAttribute('data-line') || '');
+  if(val) val.textContent = inp.value === '' ? (inp.placeholder ? ('ใช้สูตรกลาง · ' + inp.placeholder) : '') : inp.value;
+}
+document.addEventListener('focusin', function(e){
+  var inp = e.target;
+  if(!inp || inp.tagName !== 'INPUT' || !inp.classList.contains('ct-in')) return;
+  if(!inp.closest('.ct-sheet')) return;
+  ctNavMark(inp);
+});
+document.addEventListener('input', function(e){
+  var inp = e.target, val = document.getElementById('ct-navval');
+  if(val && inp && inp.classList && inp.classList.contains('ct-in') && inp.closest('.ct-sheet')) val.textContent = inp.value;
+});
+document.addEventListener('keydown', function(e){
+  var inp = e.target;
+  if(!inp || inp.tagName !== 'INPUT' || !inp.classList.contains('ct-in')) return;
+  var td = inp.closest ? inp.closest('td[data-col]') : null;
+  if(!td || !inp.closest('.ct-sheet')) return;
+  var K = e.key, down = (K === 'ArrowDown' || K === 'Enter'), up = (K === 'ArrowUp');
+  var left = (K === 'ArrowLeft'), right = (K === 'ArrowRight');
+  if(!down && !up && !left && !right) return;
+  if(e.altKey || e.ctrlKey || e.metaKey) return;
+
+  if(left || right){
+    /* ยังเลื่อนเคอร์เซอร์ในช่องได้อยู่ · ข้ามคอลัมน์เฉพาะตอนสุดขอบแล้วเท่านั้น */
+    var st = inp.selectionStart, en = inp.selectionEnd;
+    if(st !== en) return;
+    if(left  && st !== 0) return;
+    if(right && st !== String(inp.value).length) return;
+    var col = +td.getAttribute('data-col') + (left ? -1 : 1);
+    var sib = td.parentElement ? td.parentElement.querySelector('td[data-col="' + col + '"] input.ct-in') : null;
+    if(!sib || sib.disabled) return;
+    e.preventDefault(); sib.focus(); sib.select(); ctNavMark(sib);
+    return;
+  }
+  var list = ctNavCells(td.getAttribute('data-col'));
+  var i = list.indexOf(inp);
+  if(i < 0) return;
+  var next = list[i + (down ? 1 : -1)];
+  if(!next) return;
+  e.preventDefault(); next.focus(); next.select(); ctNavMark(next);
+});
+
 function ctCell(a, b, c){
   return '<div class="ct-cell"><div class="c1">' + (a || '') + '</div><div class="c2">' + (b || '') + '</div><div class="c3">' + (c || '') + '</div></div>';
 }
@@ -29132,7 +29209,7 @@ function ctOvrHtml(){
         var be = ctBreakEven(p, cap, T);
         var on = (p.id === _ct.pid);
         var pc = CT_PCOL[_i % CT_PCOL.length];   /* §ctSheet */
-        return '<th class="ct-pcol' + (on ? ' on' : '') + '" style="--pc:' + pc + '">'
+        return '<th class="ct-pcol' + (on ? ' on' : '') + '" style="--pc:' + pc + '" data-col="' + _i + '">'
           + '<div class="ct-pnm"><i class="ct-pdot"></i>' + ctE(p.name) + '</div>'
           + '<div class="ct-psub">' + ctE(p.eng) + ' · จุ ' + (+p.cap || 0) + ' · ' + ctB(p.price) + '/หัว</div>'
           + '<div class="ct-pbe' + (be ? '' : ' warn') + '">' + (be ? ('คุ้มทุน ' + be + ' คน') : 'เต็มลำยังไม่คุ้ม') + '</div>'
@@ -29142,7 +29219,7 @@ function ctOvrHtml(){
   var body = '';
   G.forEach(function(g){
     var cells = '<td class="ct-stick ct-gtd">' + ctE(g) + '</td>';
-    P.forEach(function(pl){
+    P.forEach(function(pl, _pi){
       var c = ctGrpCfg(pl, g), pct = +c.pct || 0, sub = 0;
       if(!c.off){
         var pax = Math.max(1, +pl.pax || 1), th2 = Math.min(Math.max(0, +pl.paxTH || 0), pax);
@@ -29154,7 +29231,8 @@ function ctOvrHtml(){
       var mid = c.off ? '<span class="ct-off">ปิดทั้งหมวด</span>'
         : '<span class="ct-pctwrap' + (pct ? ' on' : '') + '"><input class="ct-in pct" data-fk="gp.' + pl.id + '.' + g + '" value="' + (pct || '') + '" placeholder="0"'
           + ' title="คูณทุกบรรทัดในหมวดนี้ · แพงกว่า 20% ใส่ 20" oninput="ctGrpPct(\'' + pl.id + '\',\'' + ctE(g) + '\',this.value)"><i>%</i></span>';
-      cells += '<td class="ct-gtd">' + ctCell(tick, mid, c.off ? '' : '<b class="ct-gsum">' + ctB(sub) + '</b>') + '</td>';
+      cells += '<td class="ct-gtd" data-col="' + _pi + '" data-trip="' + ctE(pl.name) + '" data-line="ทั้งหมวด · ' + ctE(g) + '">'
+        + ctCell(tick, mid, c.off ? '' : '<b class="ct-gsum">' + ctB(sub) + '</b>') + '</td>';
     });
     body += '<tr class="ct-grow">' + cells + '</tr>';
 
@@ -29164,7 +29242,7 @@ function ctOvrHtml(){
       var rc = '<td class="ct-stick ct-ltd"><div class="ct-lname' + (exp ? ' open' : '') + '"'
              + ' title="คลิกเพื่อกางค่าทั้งหมดของบรรทัดนี้ · กางพร้อมกันทุกแผน"'
              + ' onclick="ctToggleExp(\'' + ctE(ln.id) + '\')"><i class="ct-chev">▶</i><span>' + ctE(ln.l) + '</span></div></td>';
-      P.forEach(function(pl){
+      P.forEach(function(pl, _pi){
         var grpOff = !!ctGrpCfg(pl, g).off, o = (pl.ovr || {})[ln.id] || {};
         var noTH = !(+pl.paxTH > 0);
         var val = function(kv){ var v = ((o.p || [])[kv.i] || {})[kv.k]; return (v == null || v === '') ? null : v; };
@@ -29201,7 +29279,9 @@ function ctOvrHtml(){
              + '<span class="ct-unit">' + ctE(m0.lb.replace(/^ส่วน \d+ · /, '')) + '</span>'
              + (nOvr ? ('<i class="ct-dot"></i><span class="n">ตั้งเอง ' + nOvr + ' ค่า</span>') : '') + '</div>';
         }
-        rc += '<td class="ct-ltd' + (grpOff ? ' dis' : '') + '"><div class="ct-lcell">' + tick + '<div class="ct-lbody">' + bd + '</div></div></td>';
+        rc += '<td class="ct-ltd' + (grpOff ? ' dis' : '') + '" data-col="' + _pi + '"'
+           + ' data-trip="' + ctE(pl.name) + '" data-line="' + ctE(ln.l) + '">'
+           + '<div class="ct-lcell">' + tick + '<div class="ct-lbody">' + bd + '</div></div></td>';
       });
       body += '<tr>' + rc + '</tr>';
     });
@@ -29211,6 +29291,9 @@ function ctOvrHtml(){
     + '<span class="ct-sub">' + ctIcon('info', 12) + ' <em class="fix">แถวหัวหมวด</em> ปิดทั้งหมวด หรือใส่ ±% คูณทุกบรรทัดในหมวด · '
     + '<em class="var">คลิกชื่อรายการ</em> เพื่อกางค่าทั้งหมดของบรรทัดนั้น · ทุกค่าทับได้ แม้สูตรกลางยังไม่ได้ตั้ง · ว่าง = ใช้ค่าจากสูตรกลาง</span></div>'
     + '<div class="ct-bar2r"><span class="ct-hint">1 คอลัมน์ = 1 แผนคำนวณ</span></div></div>'
+    + '<div class="ct-navbar" id="ct-navbar"><span class="ct-navref" id="ct-navref">คลิกช่องไหนก็ได้ แล้วใช้ลูกศรเดินต่อ</span>'
+    + '<span class="ct-navval" id="ct-navval"></span><span class="ct-navsp"></span>'
+    + '<span class="ct-navkeys"><kbd>&uarr;</kbd><kbd>&darr;</kbd> ข้ามแถว <kbd>&larr;</kbd><kbd>&rarr;</kbd> ข้ามทริป <kbd>Enter</kbd> ลงแถวถัดไป</span></div>'
     + '<div class="ct-card ct-tblcard"><div class="ct-scroll ct-sheet"><table class="ct-otbl"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
 }
 

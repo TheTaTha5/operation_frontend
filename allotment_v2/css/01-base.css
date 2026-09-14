@@ -403,6 +403,29 @@
 #view-costing .ct-del{text-align:center;padding-top:12px!important}
 
 /* แท็บ 3 · เมทริกซ์ */
+/* ══ §ctCellNav · เดินตารางด้วยลูกศร · กากบาทบอกว่ากำลังอยู่ช่องไหน ══════════
+   สีที่ใช้คือส้มแบรนด์ชุดเดิมของหน้านี้ (--b*) ไม่ได้เพิ่มสีใหม่เข้าระบบ
+   ความเข้มไล่ลงมาสามชั้น: ช่องที่โฟกัส > แถว/คอลัมน์เดียวกัน > ที่เหลือ */
+#view-costing .ct-navbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin:0 0 8px;padding:7px 13px;border:1px solid var(--sd200);border-radius:10px;
+  background:var(--sd50);font-size:12px;color:var(--es700);min-height:38px}
+#view-costing .ct-navref{font-weight:700;color:var(--es900)}
+#view-costing .ct-navval{font-family:'DM Mono',ui-monospace,monospace;font-size:12.5px;
+  font-weight:500;color:var(--b600);background:var(--b50);border-radius:6px;padding:2px 9px}
+#view-costing .ct-navsp{flex:1}
+#view-costing .ct-navkeys{display:flex;align-items:center;gap:5px;font-size:11px;color:#8a7a6d}
+#view-costing .ct-navkeys kbd{font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;
+  border:1px solid var(--sd300);border-bottom-width:2px;border-radius:5px;padding:0 5px;
+  background:#fff;color:var(--es700)}
+#view-costing .ct-otbl td.ct-cellon{box-shadow:inset 0 0 0 2px var(--b500);
+  background:var(--b50) !important;position:relative;z-index:1}
+#view-costing .ct-otbl td.ct-colon,
+#view-costing .ct-otbl td.ct-rowon{background:#fffaf7 !important}
+#view-costing .ct-otbl th.ct-colon{background:var(--b50) !important}
+#view-costing .ct-otbl td.ct-rowon{color:var(--b600);font-weight:700}
+/* คอลัมน์แรกที่ตรึงไว้ต้องทึบเสมอ ไม่งั้นไฮไลต์ทำให้เนื้อหาข้างหลังทะลุ */
+#view-costing .ct-sheet .ct-otbl td.ct-stick.ct-rowon{background:#fff5ef !important}
+
 /* ══ §ctSheet · ตารางเทียบต้นทุนหลายทริป · ใช้งานแบบชีต ═══════════════════════
    ปัญหาเดิม: ตารางสูง 2,524px บนจอ 900px (เลื่อนเกือบ 3 จอ) และกว้างเกินจอด้วย
    แต่ไม่มี position:sticky สักบรรทัดในหน้านี้ — คลาสชื่อ .ct-stick มีแต่ชื่อ ตั้งแค่ความกว้าง
