@@ -25601,6 +25601,30 @@ function ctRentSpan(RN, d0, d1){
   return { from:s, to:e, calDays:n, perCalDay:RN.perCalDay,
            due:RN.perCalDay * n, opDays:n * (RN.runDays / RN.days) };
 }
+/* §ctFactLong · ไล่เดือนปฏิทินที่สัญญาพาดผ่าน · ['2026-10','2026-11',...]
+   คิดเป็นเดือนปฏิทินไม่ใช่ "ทุก 30 วัน" เพราะคนวางแผนคิดเป็นเดือน
+   และเดือนแรก/เดือนสุดท้ายมักไม่เต็มเดือน ต้องคิดตามวันที่ครอบคลุมจริง */
+function ctMonthsIn(a, b){
+  var out = [], y = +String(a).slice(0, 4), m = +String(a).slice(5, 7);
+  var ey = +String(b).slice(0, 4), em = +String(b).slice(5, 7);
+  if(!y || !m || !ey || !em) return out;
+  var guard = 0;
+  while((y < ey || (y === ey && m <= em)) && guard++ < 120){
+    out.push(y + '-' + String(m).padStart(2, '0'));
+    m++; if(m > 12){ m = 1; y++; }
+  }
+  return out;
+}
+function ctMonthEdges(ym){
+  var y = +String(ym).slice(0, 4), m = +String(ym).slice(5, 7);
+  var last = new Date(y, m, 0).getDate();
+  return { a:ym + '-01', b:ym + '-' + String(last).padStart(2, '0'), days:last };
+}
+var CT_MON_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function ctMonLabel(ym){
+  var y = +String(ym).slice(0, 4), m = +String(ym).slice(5, 7);
+  return (CT_MON_TH[m - 1] || ym) + ' ' + String(y + 543).slice(2);
+}
 /* ค่าเช่าที่ "ลงไปแล้ว" เทียบกับที่ "ต้องจ่ายจริง" · ส่วนต่าง = ค่าเช่าวันที่เรือไม่ได้วิ่ง
    due ว่าง = คิดเต็มหนึ่งงวด · ส่งมาเมื่อรายงานครอบคลุมไม่เต็มงวด (ต้นเดือน · สัญญาเริ่มกลางเดือน) */
 function ctRentIdle(RN, tripsRan, due){
@@ -28686,6 +28710,148 @@ function ctFactSheet(pl){
       + '<td colspan="2">' + ctN(odRev * (1 - R)) + '</td></tr></tbody></table>';
   }
 
+  /* ══ §ctTier · ราคา 5 ระดับ ══════════════════════════════════════════════
+     คำถามตอนตั้งราคาไม่ใช่ "ราคานี้กำไรเท่าไหร่" แต่คือ "ขยับราคาแล้วอะไรเปลี่ยนบ้าง"
+     ระดับล่างสุดยึดจากราคาเท่าทุน ไม่ใช่ลดจากราคาปัจจุบันลอย ๆ
+     เพราะตัวที่ต้องรู้ก่อนต่อราคาคือ "ต่ำกว่านี้ไม่ได้แล้ว" ไม่ใช่ "ลด 10% เป็นเท่าไหร่"
+     ราคาเด็กขยับตามสัดส่วนเดิมเสมอ · ไม่งั้นเทียบข้ามระดับไม่ได้ */
+  var r50 = function(v){ return Math.round(v / 50) * 50; };
+  var chRatio = (pAd > 0) ? (pCh / pAd) : 1;
+  var tierAt = function(price){
+    var q = {}; for(var k in pl) q[k] = pl[k];
+    q.price = price; q.priceCh = Math.round(price * chRatio);
+    return q;
+  };
+  var TL = [];
+  (function(){
+    var floorP = (minAd == null) ? null : Math.ceil(minAd / 50) * 50;
+    var cand = [
+      { l:'ราคาเท่าทุน',   p:floorP, why:'ที่ ' + pax + ' คน · ต่ำกว่านี้ขาดทุนทันที' },
+      { l:'เจาะตลาด',      p:r50(pAd * 0.9),  why:'ลด 10% จากราคาปัจจุบัน' },
+      { l:'ราคาปัจจุบัน',  p:pAd,             why:'ที่ตั้งไว้ในแผนนี้' },
+      { l:'ตั้งเป้า',      p:r50(pAd * 1.1),  why:'ขึ้น 10%' },
+      { l:'พรีเมียม',      p:r50(pAd * 1.2),  why:'ขึ้น 20%' }
+    ];
+    var seen = {};
+    cand.forEach(function(c){
+      if(c.p == null || !(c.p > 0) || seen[c.p]) return;
+      seen[c.p] = 1; TL.push(c);
+    });
+    TL.sort(function(a, b){ return a.p - b.p; });
+  })();
+  var tierRows = TL.map(function(c){
+    var q = tierAt(c.p);
+    var X = ctProfitAt(q, pax, T), bq = ctBreakEven(q, cap, T);
+    var below = (minAd != null && c.p < minAd);
+    var dNd = null;
+    if(RN && RN.amt > 0){
+      var pe = X.p + RN.perTrip * (1 - (RN.vat ? R : 0));
+      dNd = (pe > 0) ? Math.ceil((RN.amt * (1 - (RN.vat ? R : 0))) / (pe * RN.trips)) : null;
+    }
+    return '<tr class="' + (below ? 'dim' : (c.p === pAd ? 'be' : '')) + '">'
+      + '<td class="l">' + e(c.l) + (c.p === pAd ? ' <span class="fs-tag">ตอนนี้</span>' : '')
+        + '<div style="font-size:9.5px;color:#a39c93">' + e(c.why) + '</div></td>'
+      + '<td>' + ctN(c.p) + '</td><td>' + ctN(Math.round(c.p * chRatio)) + '</td>'
+      + '<td>' + (bq ? (bq + ' คน') : 'ไม่ถึง') + '</td>'
+      + '<td>' + (X.p < 0 ? '−' : '+') + ctN(Math.abs(X.p)) + '</td>'
+      + '<td>' + (X.rev ? Math.round(X.p / X.rev * 100) : 0) + '%</td>'
+      + '<td>' + (RN && RN.amt > 0 ? (dNd == null ? 'ไม่คุ้ม' : (dNd + ' วัน')) : '—') + '</td></tr>';
+  }).join('');
+  var tier = '<div class="fs-h2">ราคา 5 ระดับ <em>ที่ ' + pax + ' คน/ทริป · ราคาเด็กขยับตามสัดส่วนเดิม</em></div>'
+    + '<table class="fs-t"><thead><tr><th class="l">ระดับ</th><th>ผู้ใหญ่</th><th>เด็ก</th>'
+    + '<th>จุดคุ้มทุน</th><th>กำไร/ทริป</th><th>Margin</th>'
+    + '<th>' + (RN && RN.amt > 0 ? 'ต้องวิ่ง/งวด' : '—') + '</th></tr></thead><tbody>' + tierRows
+    + '</tbody></table>'
+    + '<div class="fs-note">แถวที่<b>ซีด</b>คือราคาที่ต่ำกว่าจุดเท่าทุนที่ ' + pax + ' คน · '
+    + 'รับได้เฉพาะตอนที่มั่นใจว่าจะได้คนมากกว่านี้'
+    + (RN && RN.amt > 0 ? ' · ช่องขวาสุดคือจำนวนวันที่ต้องวิ่งในหนึ่งงวดเพื่อคืนค่าเช่าทั้งก้อน' : '')
+    + '</div>';
+
+  /* ══ §ctFactLong · ทั้งสัญญา · รายเดือน + best/base/worst ════════════════
+     ขึ้นเฉพาะตอนเป็นเรือเช่าและระบุช่วงสัญญาไว้ — เพราะ "ต้องหาลูกค้ากี่คนต่อเดือน"
+     จะมีความหมายก็ต่อเมื่อมีต้นทุนก้อนที่จ่ายรายงวดไม่ว่าจะวิ่งหรือไม่
+     เรือของบริษัทไม่มีก้อนนั้น ทุกทริปที่เกินจุดคุ้มทุนคือกำไรล้วน ไม่ต้องมีโควตารายเดือน */
+  var longRun = '';
+  if(RN && RN.amt > 0 && RN.from && RN.to && RN.to >= RN.from){
+    var rNetTripL = RN.perTrip * (1 - (RN.vat ? R : 0));
+    var MS = ctMonthsIn(RN.from, RN.to);
+    var totCal = 0, totOp = 0, totDue = 0;
+    var monRows = MS.map(function(ym){
+      var E = ctMonthEdges(ym), SP = ctRentSpan(RN, E.a, E.b);
+      if(!SP) return '';
+      var opD = Math.round(SP.opDays);
+      totCal += SP.calDays; totOp += opD; totDue += SP.due;
+      var pEx = cur.p + rNetTripL;
+      var need = (pEx > 0) ? Math.ceil((SP.due * (1 - (RN.vat ? R : 0))) / (pEx * RN.trips)) : null;
+      var ok = (need != null && need <= opD);
+      var part = (SP.calDays < E.days);
+      return '<tr class="' + (ok ? '' : 'dim') + '"><td class="l">' + e(ctMonLabel(ym))
+        + (part ? ' <span class="fs-tag">' + SP.calDays + '/' + E.days + ' วัน</span>' : '') + '</td>'
+        + '<td>' + opD + '</td><td>' + ctN(SP.due) + '</td>'
+        + '<td>' + (need == null ? 'ไม่คุ้ม' : (need + ' วัน')) + '</td>'
+        + '<td>' + (need == null ? '—' : ctN(need * RN.trips * pax)) + '</td>'
+        + '<td>' + (need == null ? '—' : (ok ? ('เหลือ ' + (opD - need) + ' วัน') : ('เกิน ' + (need - opD) + ' วัน'))) + '</td></tr>';
+    }).join('');
+    var pExAll = cur.p + rNetTripL;
+    var needAll = (pExAll > 0) ? Math.ceil((totDue * (1 - (RN.vat ? R : 0))) / (pExAll * RN.trips)) : null;
+    var monTbl = '<table class="fs-t"><thead><tr><th class="l">เดือน</th><th>วันที่วิ่งได้</th>'
+      + '<th>ค่าเช่าที่ต้องจ่าย</th><th>ต้องวิ่ง</th><th>ต้องหาลูกค้า</th><th>เหลือ/เกิน</th></tr></thead>'
+      + '<tbody>' + monRows
+      + '<tr class="sum"><td class="l">รวมทั้งสัญญา · ' + MS.length + ' เดือน (' + totCal + ' วัน)</td>'
+      + '<td>' + totOp + '</td><td>' + ctN(totDue) + '</td>'
+      + '<td>' + (needAll == null ? 'ไม่คุ้ม' : (needAll + ' วัน')) + '</td>'
+      + '<td>' + (needAll == null ? '—' : ctN(needAll * RN.trips * pax)) + '</td>'
+      + '<td>' + (needAll == null ? '—' : (needAll <= totOp ? ('เหลือ ' + (totOp - needAll) + ' วัน') : ('เกิน ' + (needAll - totOp) + ' วัน'))) + '</td></tr>'
+      + '</tbody></table>';
+
+    /* สามฉาก · สมมติฐานเขียนติดไว้ในตาราง ไม่ใช่ซ่อนในโค้ด
+       ใครไม่เห็นด้วยกับตัวเลขจะได้เถียงถูกจุดว่าเถียงสมมติฐานไหน */
+    var SC = [
+      { l:'Worst case', lf:0.40, du:0.60, c:'#9f1239' },
+      { l:'Base case',  lf:null, du:0.85, c:'#14100C' },
+      { l:'Best case',  lf:0.85, du:1.00, c:'#0F6E56' }
+    ];
+    var rNetAllL = totDue * (1 - (RN.vat ? R : 0));
+    var scRows = SC.map(function(x){
+      var n = (x.lf == null) ? pax : Math.max(1, Math.round(cap * x.lf));
+      var d = Math.round(totOp * x.du), tp = d * RN.trips;
+      var pe = ctProfitAt(pl, n, T).p + rNetTripL;       /* กำไรต่อทริปก่อนแบกค่าเช่า */
+      var gross = pe * tp, net = gross - rNetAllL;
+      return '<tr><td class="l"><b style="color:' + x.c + '">' + x.l + '</b>'
+        + '<div style="font-size:9.5px;color:#a39c93">'
+        + (x.lf == null ? ('คนตามแผน · วิ่ง ' + Math.round(x.du * 100) + '% ของวันที่มี')
+                        : (Math.round(x.lf * 100) + '% ของความจุ · วิ่ง ' + Math.round(x.du * 100) + '% ของวันที่มี'))
+        + '</div></td>'
+        + '<td>' + n + ' คน</td><td>' + d + ' วัน</td><td>' + ctN(tp * n) + '</td>'
+        + '<td>' + (gross < 0 ? '−' : '+') + ctN(Math.abs(gross)) + '</td>'
+        + '<td>−' + ctN(rNetAllL) + '</td>'
+        + '<td><b style="color:' + (net < 0 ? '#9f1239' : '#0F6E56') + '">'
+        + (net < 0 ? '−' : '+') + ctN(Math.abs(net)) + '</b></td></tr>';
+    }).join('');
+    var scTbl = '<table class="fs-t"><thead><tr><th class="l">ฉาก · สมมติฐาน</th><th>คน/ทริป</th>'
+      + '<th>วันวิ่ง</th><th>ลูกค้ารวม</th><th>กำไรก่อนค่าเช่า</th><th>ค่าเช่าทั้งสัญญา</th>'
+      + '<th>กำไรสุทธิ</th></tr></thead><tbody>' + scRows + '</tbody></table>';
+
+    longRun = '<div class="fs-h2">ทั้งสัญญา · ต้องหาลูกค้าเดือนละเท่าไหร่ <em>ที่ ' + pax
+      + ' คน/ทริป · ' + e(RN.from) + ' → ' + e(RN.to) + '</em></div>' + monTbl
+      + '<div class="fs-note"><b>ค่าเช่าคิดเป็นรายวัน</b> · ' + B(RN.amt) + ' ÷ ' + RN.days + ' วัน = '
+      + B(RN.perCalDay) + '/วันตามปฏิทิน · เดือน 31 วันจึงเป็น ' + B(RN.perCalDay * 31)
+      + ' และเดือน 28 วันเป็น ' + B(RN.perCalDay * 28)
+      + ' — ถ้าสัญญาเขียนว่า "เดือนละ ' + B(RN.amt) + '" เท่ากันทุกเดือนไม่ว่าเดือนสั้นเดือนยาว '
+      + 'ยอดรวมทั้งสัญญาจะเป็น ' + B(RN.amt * MS.length) + ' ไม่ใช่ ' + ctB(totDue) + '<br>'
+      + 'เดือนที่<b>ซีด</b>คือเดือนที่ต้องวิ่งเกินจำนวนวันที่มี = ที่ราคาและจำนวนคนชุดนี้ '
+      + 'เดือนนั้นไม่มีทางคืนค่าเช่าได้ ต้องขึ้นราคา เพิ่มคนต่อรอบ หรือเพิ่มรอบต่อวัน<br>'
+      + 'เดือนที่มีป้าย <b>x/y วัน</b> คือเดือนที่สัญญาไม่ได้กินทั้งเดือน ค่าเช่าคิดตามวันที่ครอบคลุมจริง</div>'
+      + '<div class="fs-h2">Best / Base / Worst case <em>ทั้งสัญญา ' + MS.length + ' เดือน</em></div>' + scTbl
+      + '<div class="fs-note">สามฉากนี้เป็น<b>สมมติฐาน</b>ที่เขียนกำกับไว้ในตาราง ไม่ใช่ตัวเลขที่ระบบรู้ '
+      + 'ระบบไม่รู้ว่าเดือนไหนไฮซีซั่น · ถ้าไม่เห็นด้วยกับฉากไหน ให้เถียงที่สมมติฐานในช่องซ้าย<br>'
+      + 'ค่าเช่าหักเต็มก้อนทุกฉาก เพราะจ่ายเท่ากันไม่ว่าเรือจะวิ่งหรือไม่ — นั่นคือประเด็นทั้งหมดของการเช่า</div>';
+  } else if(RN && RN.amt > 0){
+    longRun = '<div class="fs-h2">ทั้งสัญญา</div><div class="fs-note">'
+      + 'ยังไม่ได้ใส่<b>ช่วงสัญญา</b> (วันเริ่ม–วันจบ) ในหน้าแผนคำนวณ · '
+      + 'ใส่แล้วใบนี้จะมีตารางรายเดือนว่าต้องหาลูกค้าเดือนละกี่หัว และฉาก Best/Base/Worst ทั้งสัญญาให้</div>';
+  }
+
   var now = new Date();
   var stamp = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-'
             + String(now.getDate()).padStart(2, '0') + ' '
@@ -28707,6 +28873,8 @@ function ctFactSheet(pl){
     + '<div class="fs-h2">ต้นทุนต่อทริป <em>ที่ ' + pax + ' คน · สุทธิคือหลังหัก VAT ซื้อที่ขอคืนได้แล้ว</em></div>' + costTbl
     + '<div class="fs-h2">ต่อหัว &amp; ที่มาของจุดคุ้มทุน</div>' + econ
     + '<div class="fs-h2">กำไรตามจำนวนคน</div>' + curve
+    + tier
+    + longRun
     + '<div class="fs-h2">VAT ต่อทริป</div>' + vat
     + od + itin
     + '<div class="fs-foot"><span>ตัวเลขคิดสดจากสูตรกลาง ณ เวลาที่พิมพ์ · '
