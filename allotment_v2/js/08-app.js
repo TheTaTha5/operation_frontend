@@ -40145,6 +40145,11 @@ function bkV2Render(){
          ขอบบนของกล่องนั้น ไม่ใช่จากขอบจอ · ไม่งั้นแถบ VANS ไปลอยกลางตาราง */
       vb.style.setProperty('--t2-vangroup-top', '0px');
       vb.style.setProperty('--t2-head-top', VANGROUP+'px');
+      /* §btPin · ก้อนหัว By-trip ตรึงใต้แถบแท็บ · ต้องรู้ความสูงแถบแท็บจริง
+         วัดทุกครั้งที่วาด ไม่ฝังตัวเลข · แถบนี้ห่อปุ่มกับตัวกรองที่ตัดบรรทัดได้
+         ความสูงจึงเปลี่ยนตามความกว้างจอ (CLAUDE.md §6 · ห้าม hardcode 52) */
+      try{ const _tb=document.querySelector('#view-booking .bkv2-topbar2');
+           vb.style.setProperty('--t2-pkh-top', (_tb? _tb.offsetHeight : 46)+'px'); }catch(_){}
       /* §btUnclamp (was §btScroll) · .t2-wrap เคยถูกจำกัดความสูงพอดีจอ + ดึงขอบล่างด้วย margin
          ติดลบ เพื่อกันไม่ให้หน้าเลื่อนเกินกล่องที่ตรึงไว้ · ตอนนี้หัวไม่ตรึงแล้ว (§btHead) ทั้งหน้า
          เลื่อนเป็นชิ้นเดียวตามปกติ ไม่ต้องคำนวณ/ดึงอะไรอีก ทิ้งไว้จะดึงเนื้อหาส่วนล่างของตารางหาย */
@@ -45182,8 +45187,31 @@ function bkV2RenderTab2(){
        เดิมตรึงทั้งก้อนเหมือนหน้าท่า (position:sticky) · ทั้งมือถือและเดสก์ท็อปเปลี่ยนใจ
        ไม่เอาแบบตรึงแล้ว (เดิมกินพื้นที่ตลอด ดันตารางให้เหลือที่น้อย) ให้หัวเลื่อนหายไปพร้อมหน้า
        เหมือนเนื้อหาปกติทั้งสองขนาดจอ */
+    /* §btPin (2026-09-15) · §btHead เปลี่ยนเป็น static ทั้งสองขนาดจอ
+       เอาการตรึงกลับมาเฉพาะจอกว้าง ตามที่เจ้าของงานสั่ง "ตรึงอันนี้ไว้ไม่ต้องขยับ"
+       ค่าตั้งต้นยังเป็น static เพื่อให้มือถือไม่โดน */
     .bt-pkh{position:static;background:var(--btband,#E9E7E3);
       padding:6px 6px 4px;margin-bottom:0}
+    /* ══ §btPin · ตรึงแถบแท็บกับก้อนหัวไว้ ไม่ให้เลื่อนหาย ════════════════
+       ซ้อนสองชั้น · แถบแท็บติดขอบบนสุด · ก้อนหัวติดใต้แถบแท็บพอดี
+       ความสูงแถบแท็บอ่านจาก --t2-pkh-top ที่วัดตอนวาดทุกครั้ง
+       ⚠ จอกว้างเท่านั้น · ก้อนหัวสูง ~483px ถ้าตรึงบนมือถือจะบังจนไม่เหลือที่อ่าน
+         (บทเรียนเดียวกับ §mobUnstick · t_mobile จะฟ้องทันทีถ้าเผลอเอาไปใช้จอแคบ)
+       ⚠ สองชั้นนี้ต้องพื้นทึบ ไม่งั้นเนื้อหาที่เลื่อนอยู่ข้างหลังทะลุขึ้นมา
+         แถบแท็บใช้สีพื้นของ .view · ก้อนหัวมีสีของตัวเองอยู่แล้ว
+       ⚠ ไม่แตะ .t2-wrap · การเลื่อนหน้าที่แก้ไว้ใน §btWheel ยังทำงานเหมือนเดิม */
+    @media (min-width:821px){
+      /* ตรึงที่ .bkv2-topcard ไม่ใช่ .bkv2-topbar2 · sticky เดินทางได้แค่ในกรอบของพ่อ
+         และพ่อของ topbar2 สูง 45px เท่ากับตัวมันเองพอดี จึงไม่มีที่ให้ติดเลย
+         ตัว topcard มีพ่อสูง 2,284px ติดได้จริง */
+      /* ⚠ ต้องนำหน้าด้วย #view-booking · 02-skins.css มี
+         "#view-booking .bkv2-topcard{background:transparent}" อยู่ ซึ่งชนะ selector
+         ที่ไม่มี id เสมอไม่ว่าจะเขียนทีหลังแค่ไหน · ถ้าไม่ยกระดับ พื้นจะโปร่ง
+         แล้วแถวตารางที่เลื่อนอยู่ข้างหลังจะทะลุขึ้นมาบนแถบแท็บ */
+      #view-booking .bkv2-topcard{position:sticky;top:0;z-index:70;background:#F6F7F9;
+        padding-top:6px;padding-bottom:6px}
+      #view-booking .bt-pkh{position:sticky;top:var(--t2-pkh-top,46px);z-index:60}
+    }
     .bt-hdtop{position:relative;display:flex;align-items:center;gap:13px;padding:0 8px 7px}
     .bt-arw{width:27px;height:27px;flex:none;border:1px solid rgba(0,0,0,.13);background:#fff;border-radius:9px;
       display:flex;align-items:center;justify-content:center;color:#7d7a74;font-size:14px;cursor:pointer;font-family:inherit;line-height:1}
