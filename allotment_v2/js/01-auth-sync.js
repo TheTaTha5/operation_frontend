@@ -392,7 +392,8 @@
   function _laSaveView(){ try{
     var act=document.querySelector('.nav-item.active'); var view=act&&act.dataset?act.dataset.view:''; if(!view) return;
     var st={view:view};
-    if(window._bkV2){ st.bk={tab:_bkV2.tab||'', filterDate:_bkV2.filterDate||'', filterRoute:_bkV2.filterRoute||'', detailId:_bkV2.detailId||'', boat:!!_bkV2.boatAssignMode, van:!!_bkV2.vanAssignMode}; if(window._bkV2T2Cursor) st.t2c=_bkV2T2Cursor; }
+    if(window._bkV2){ st.bk={tab:_bkV2.tab||'', filterDate:_bkV2.filterDate||'', filterRoute:_bkV2.filterRoute||'', detailId:_bkV2.detailId||'', boat:!!_bkV2.boatAssignMode, van:!!_bkV2.vanAssignMode}; if(window._bkV2T2Cursor) st.t2c=_bkV2T2Cursor;
+      var t2w=document.querySelector('#bkv2-host .t2-wrap'); if(t2w){ st.bk.t2sc=t2w.scrollTop; st.bk.t2sl=t2w.scrollLeft; } }
     try{ if(typeof _agSelected!=='undefined' && _agSelected) st.ag=_agSelected; }catch(e){}   // keep the open Agent detail across a full reload
     var mn=document.querySelector('main'); st.sc=mn?mn.scrollTop:0; st.scw=window.scrollY||0;
     sessionStorage.setItem('la_view', JSON.stringify(st));
@@ -405,7 +406,15 @@
     if(st.bk && window._bkV2){ if(st.bk.tab)_bkV2.tab=st.bk.tab; if(st.bk.filterDate)_bkV2.filterDate=st.bk.filterDate; if(st.bk.filterRoute)_bkV2.filterRoute=st.bk.filterRoute; if(st.bk.detailId)_bkV2.detailId=st.bk.detailId; _bkV2.boatAssignMode=st.bk.boat; _bkV2.vanAssignMode=st.bk.van; if(st.t2c) window._bkV2T2Cursor=st.t2c; }
     try{ if(st.view==='agents' && st.ag && typeof _agSelected!=='undefined') _agSelected=st.ag; }catch(e){}   // reopen the Agent detail after a full reload
     el.click();
-    setTimeout(function(){ try{ var mn=document.querySelector('main'); if(mn&&st.sc) mn.scrollTop=st.sc; if(st.scw) window.scrollTo(0,st.scw); }catch(e){} }, 220);
+    setTimeout(function(){ try{
+      var mn=document.querySelector('main'); if(mn&&st.sc) mn.scrollTop=st.sc; if(st.scw) window.scrollTo(0,st.scw);
+      /* §btReloadScroll · ตาราง By-trip ตั้งความสูงกล่อง (--bt-wraph) ใน rAF ของ bkV2Render เอง
+         ถ้าคืนตำแหน่งเลื่อนก่อนหน้านั้น กล่องยังเตี้ยอยู่ เบราว์เซอร์จะตัดค่าทิ้ง · คืนซ้ำอีก 2 ชั้น rAF กันพลาด */
+      if(st.bk && (st.bk.t2sc||st.bk.t2sl)){
+        var put=function(){ try{ var w=document.querySelector('#bkv2-host .t2-wrap'); if(w){ if(st.bk.t2sc) w.scrollTop=st.bk.t2sc; if(st.bk.t2sl) w.scrollLeft=st.bk.t2sl; } }catch(e){} };
+        put(); requestAnimationFrame(function(){ put(); requestAnimationFrame(put); });
+      }
+    }catch(e){} }, 220);
   }catch(e){} }
   // SEAMLESS in-place refresh · pulls latest cloud data + re-renders current view · NO page reload (no Dashboard flash)
   function _laSoftRefresh(){
