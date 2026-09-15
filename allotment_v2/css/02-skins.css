@@ -981,3 +981,24 @@ html[data-sb-theme="dark"] .sb-toggle{ background:rgba(255,255,255,.12) !importa
 html[data-sb-theme="dark"] .sb-toggle:hover{ background:rgba(255,255,255,.24) !important; }
 /* ย่อแล้วเหลือที่แนวนอนไม่พอทั้งสองปุ่ม · ปุ่มธีมซ่อน กดกางก่อนค่อยสลับ */
 .sidebar.sb-collapsed .sb-theme{ display:none; }
+
+/* พื้นหลังรอบ sidebar · ช่องซ้าย 14px บน 6px ล่าง 10px และร่อง 10px ก่อนถึงเนื้อหา
+   เป็นพื้นของ body (ครีม #f5f2ed) · โหมดมืดจึงเห็นแผงกรมท่าลอยอยู่บนกรอบครีม
+   ⚠ ไม่แตะ body{background} · นั่นคือพื้นของทั้งแอปทุกหน้า จะกลายเป็นดาร์กโหมดทั้งระบบ
+     ทาเฉพาะแถบกว้างเท่าคอลัมน์ sidebar (274px = 14 + 250 + 10) ด้วย body::after แทน
+   ⚠ z-index ต้องเป็น -1 · ::after เป็นลูกตัวท้ายของ body ถ้าเป็น 0 จะทับ .sidebar
+     (ลำดับใน DOM ตัดสินเมื่อ z-index เท่ากัน) · -1 ลงไปอยู่หลังเนื้อหาแต่ยังอยู่หน้าพื้น body
+   ⚠ body::before ถูก la-mobile skin ใช้ไปแล้ว (แถบ LOVE ANDAMAN บนจอแคบ) · ตัวนี้จึงใช้ ::after */
+html[data-sb-theme="dark"] body::after{
+  content:'';position:fixed;left:0;top:0;bottom:0;width:274px;z-index:-1;pointer-events:none;
+  background:linear-gradient(180deg, #111E4A 0%, #0A1230 100%);
+}
+/* ย่อรางแล้วคอลัมน์แคบลง · 14 + 84 + 10 */
+html[data-sb-theme="dark"] body.sb-collapsed::after{ width:108px; }
+/* ⚠ บนจอแคบ sidebar กลายเป็นลิ้นชักที่เลื่อนออกไปนอกจอ (la-mobile skin)
+     แถบนี้เป็น fixed จะค้างอยู่กับที่ = แถบมืดกว้าง 274px คาหน้าจอ 390px ตลอดเวลา
+     ทั้งที่ยังไม่ได้เปิดลิ้นชักด้วยซ้ำ · ปิดทิ้งใต้ 820px ให้ตรงกับจุดที่ la-mobile เริ่มทำงาน */
+@media (max-width:820px){
+  html[data-sb-theme="dark"] body::after,
+  html[data-sb-theme="dark"] body.sb-collapsed::after{ display:none }
+}
