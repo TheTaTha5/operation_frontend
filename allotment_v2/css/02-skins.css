@@ -1101,11 +1101,16 @@ html[data-sb-theme="dark"] .sb-pill:hover{ background:rgba(255,255,255,.24); }
    ⚠ ต้องเขียนทั้ง ::-webkit-* (Chrome/Safari) และ scrollbar-color (Firefox)
      อย่างใดอย่างหนึ่งอย่างเดียว = อีกเบราว์เซอร์ยังเห็นแท่งครีมเหมือนเดิม  */
 .sidebar{ scrollbar-width:thin; }
-.sidebar::-webkit-scrollbar{ width:8px; }
+/* ⚠ ความกว้างต้องไม่เกินกฎรวมของแอป (01-base.css:1384 = 5px)
+     ::-webkit-scrollbar ที่ประกาศไว้ทำให้เป็นสกรอลล์บาร์แบบ "จองพื้นที่" ไม่ใช่แบบลอย
+     เคยตั้ง 8px = กว้างกว่าที่แอปใช้ทั้งระบบ แล้วยังกินเนื้อที่เมนูเพิ่มอีก 3px
+     กลับมาที่ 5px เท่าแอป แล้วหรี่แท่งจริงให้เหลือ 3px ด้วยขอบโปร่ง */
+.sidebar::-webkit-scrollbar{ width:5px; }
 .sidebar::-webkit-scrollbar-track{ background:transparent; }
-/* border โปร่ง + background-clip:padding-box = ดันแท่งให้ห่างขอบโค้ง ไม่ไปชนมุม 24px */
+/* border โปร่ง + background-clip:padding-box = แท่งจริงเหลือ 3px และห่างขอบโค้ง 24px */
 .sidebar::-webkit-scrollbar-thumb{ border-radius:99px;
-  border:2px solid transparent; background-clip:padding-box; }
+  border:1px solid transparent; background-clip:padding-box; }
+.sidebar:hover::-webkit-scrollbar-thumb{ border-width:0.5px; }
 
 html[data-sb-theme="light"] .sidebar{ scrollbar-color:rgba(0,15,76,.18) transparent; }
 html[data-sb-theme="light"] .sidebar::-webkit-scrollbar-thumb{ background-color:rgba(0,15,76,.18); }
