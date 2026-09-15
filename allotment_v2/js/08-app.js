@@ -25895,6 +25895,18 @@ function ctMonthEdges(ym){
   return { a:ym + '-01', b:ym + '-' + String(last).padStart(2, '0'), days:last };
 }
 var CT_MON_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+/* ══ §ctSeason · ไฮ/โลว์ซีซั่น ═══════════════════════════════════════════════════════════════════
+   ฝั่งอันดามันตะวันตก · ไฮ ต.ค.–พ.ค. · โลว์ มิ.ย.–ก.ย. (มรสุม)
+   ฉากเดียวคุมทั้งปีไม่มีความหมาย เพราะค่าเช่าจ่ายเท่ากันทุกเดือน แต่คนไม่ได้มาเท่ากัน
+   โลว์ซีซั่นคือเดือนที่ค่าเช่ากินกำไรที่หาได้ตอนไฮ · ทีมต้องเห็นว่าต้องกินไปเท่าไหร่
+   ⚠ ตายตัวไว้ก่อน เพราะใบนี้เป็นกระดาษ ไม่มีที่ให้ตั้งค่า · เส้นทางฝั่งระนอง/พม่าฤดูไม่ตรงกัน
+     ถ้าวันหนึ่งต้องแยกรายเส้นทาง ให้ย้ายชุดนี้ไปเป็นค่าตั้งของแผน                            */
+var CT_SEASON_HI = [10, 11, 12, 1, 2, 3, 4, 5];
+function ctSeasonOf(ym){
+  var m = +String(ym).slice(5, 7);
+  return (CT_SEASON_HI.indexOf(m) >= 0) ? 'hi' : 'lo';
+}
+var CT_SEASON_TXT = { hi:'ไฮซีซั่น', lo:'โลว์ซีซั่น' };
 function ctMonLabel(ym){
   var y = +String(ym).slice(0, 4), m = +String(ym).slice(5, 7);
   return (CT_MON_TH[m - 1] || ym) + ' ' + String(y + 543).slice(2);
@@ -28792,6 +28804,9 @@ function ctFactCss(){ return '<style>'
   + 'table.fs-t tr.be td{background:#E7F1EE;font-weight:800}'
   + '.fs-tag{display:inline-block;font-size:9px;font-weight:700;border-radius:4px;padding:1px 5px;'
     + 'background:#EFEAE1;color:#6b665f;margin-left:5px}'
+  /* §ctSeason · ไฮ/โลว์ต้องแยกออกตั้งแต่ชายตามอง · ทั้งใบมีแต่ตัวเลข ถ้าไม่ติดสีจะไล่ไม่ทัน */
+  + '.fs-tag.hi{background:#E7F1EE;color:#0F6E56}'
+  + '.fs-tag.lo{background:#F6EFE2;color:#8A5B00}'
   + '.fs-note{font-size:10.5px;color:#6b665f;line-height:1.65;margin-top:7px}'
   /* §ctFactPrio · แถบคั่นสามชั้น · ทำให้ลำดับความสำคัญเห็นได้ตั้งแต่ชายตามอง
      ไม่ใช่ให้คนอ่านต้องเดาเองว่าตารางไหนเอาไว้ตัดสินใจ ตารางไหนเอาไว้ตรวจย้อน */
@@ -29093,7 +29108,9 @@ function ctFactSheet(pl){
       var need = (pEx > 0) ? Math.ceil((SP.due * (1 - (RN.vat ? R : 0))) / (pEx * RN.trips)) : null;
       var ok = (need != null && need <= opD);
       var part = (SP.calDays < E.days);
+      var sea = ctSeasonOf(ym);
       return '<tr class="' + (ok ? '' : 'dim') + '"><td class="l">' + e(ctMonLabel(ym))
+        + ' <span class="fs-tag' + (sea === 'lo' ? ' lo' : ' hi') + '">' + CT_SEASON_TXT[sea] + '</span>'
         + (part ? ' <span class="fs-tag">' + SP.calDays + '/' + E.days + ' วัน</span>' : '') + '</td>'
         + '<td>' + opD + '</td><td>' + ctN(SP.due) + '</td>'
         + '<td>' + (need == null ? 'ไม่คุ้ม' : (need + ' วัน')) + '</td>'
@@ -29114,31 +29131,70 @@ function ctFactSheet(pl){
 
     /* สามฉาก · สมมติฐานเขียนติดไว้ในตาราง ไม่ใช่ซ่อนในโค้ด
        ใครไม่เห็นด้วยกับตัวเลขจะได้เถียงถูกจุดว่าเถียงสมมติฐานไหน */
+    /* §ctSeason · สมมติฐานแยกไฮ/โลว์ · เขียนกำกับไว้ในตาราง ไม่ซ่อนในโค้ด
+       lf = สัดส่วนความจุ (null = ใช้จำนวนคนที่ตั้งไว้ในแผน) · du = วิ่งกี่ % ของวันที่มี
+       โลว์ซีซั่นไม่ได้แค่คนน้อยลง วันวิ่งก็น้อยลงด้วย · เรือหยุดตามคลื่นและตามทัวร์ที่ไม่ออก */
     var SC = [
-      { l:'Worst case', lf:0.40, du:0.60, c:'#9f1239' },
-      { l:'Base case',  lf:null, du:0.85, c:'#14100C' },
-      { l:'Best case',  lf:0.85, du:1.00, c:'#0F6E56' }
+      { l:'Worst case', c:'#9f1239',
+        hi:{ lf:0.45, du:0.70 }, lo:{ lf:0.25, du:0.35 } },
+      { l:'Base case',  c:'#14100C',
+        hi:{ lf:null, du:0.90 }, lo:{ lf:null, du:0.55, paxMul:0.55 } },
+      { l:'Best case',  c:'#0F6E56',
+        hi:{ lf:0.85, du:1.00 }, lo:{ lf:0.55, du:0.70 } }
     ];
     var rNetAllL = totDue * (1 - (RN.vat ? R : 0));
+    /* เดือนแยกฤดู · ใช้ยอดที่ไล่ไว้แล้วตอนทำตารางรายเดือน ไม่คิดซ้ำ */
+    var SEA = { hi:{ op:0, due:0, n:0 }, lo:{ op:0, due:0, n:0 } };
+    MS.forEach(function(ym){
+      var E2 = ctMonthEdges(ym), S2 = ctRentSpan(RN, E2.a, E2.b); if(!S2) return;
+      var k = ctSeasonOf(ym);
+      SEA[k].op += Math.round(S2.opDays); SEA[k].due += S2.due; SEA[k].n++;
+    });
+    var paxAt = function(cfg){
+      if(cfg.lf != null) return Math.max(1, Math.round(cap * cfg.lf));
+      return Math.max(1, Math.round(pax * (cfg.paxMul != null ? cfg.paxMul : 1)));
+    };
+    var cfgTxt = function(cfg){
+      return (cfg.lf != null ? (Math.round(cfg.lf * 100) + '% ของความจุ')
+            : (cfg.paxMul != null ? (Math.round(cfg.paxMul * 100) + '% ของคนตามแผน') : 'คนตามแผน'))
+        + ' · วิ่ง ' + Math.round(cfg.du * 100) + '%';
+    };
     var scRows = SC.map(function(x){
-      var n = (x.lf == null) ? pax : Math.max(1, Math.round(cap * x.lf));
-      var d = Math.round(totOp * x.du), tp = d * RN.trips;
-      var pe = ctProfitAt(pl, n, T).p + rNetTripL;       /* กำไรต่อทริปก่อนแบกค่าเช่า */
-      var gross = pe * tp, net = gross - rNetAllL;
-      return '<tr><td class="l"><b style="color:' + x.c + '">' + x.l + '</b>'
-        + '<div style="font-size:9.5px;color:#a39c93">'
-        + (x.lf == null ? ('คนตามแผน · วิ่ง ' + Math.round(x.du * 100) + '% ของวันที่มี')
-                        : (Math.round(x.lf * 100) + '% ของความจุ · วิ่ง ' + Math.round(x.du * 100) + '% ของวันที่มี'))
-        + '</div></td>'
-        + '<td>' + n + ' คน</td><td>' + d + ' วัน</td><td>' + ctN(tp * n) + '</td>'
-        + '<td>' + (gross < 0 ? '−' : '+') + ctN(Math.abs(gross)) + '</td>'
+      var tot = { d:0, heads:0, gross:0 }, sub = '';
+      ['hi','lo'].forEach(function(k){
+        var cfg = x[k], S2 = SEA[k];
+        var n = paxAt(cfg), d = Math.round(S2.op * cfg.du), tp = d * RN.trips;
+        var pe = ctProfitAt(pl, n, T).p + rNetTripL;
+        var g = pe * tp;
+        tot.d += d; tot.heads += tp * n; tot.gross += g;
+        sub += '<tr class="' + (k === 'lo' ? 'dim' : '') + '">'
+          + (k === 'hi' ? ('<td class="l" rowspan="3"><b style="color:' + x.c + '">' + x.l + '</b></td>') : '')
+          + '<td class="l">' + CT_SEASON_TXT[k] + ' <span class="fs-tag">' + S2.n + ' เดือน</span>'
+          + '<div style="font-size:9.5px;color:#a39c93">' + cfgTxt(cfg) + '</div></td>'
+          + '<td>' + n + ' คน</td><td>' + d + ' วัน</td><td>' + ctN(tp * n) + '</td>'
+          + '<td>' + (g < 0 ? '−' : '+') + ctN(Math.abs(g)) + '</td>'
+          + '<td>−' + ctN(S2.due * (1 - (RN.vat ? R : 0))) + '</td>'
+          + '<td>' + (function(){ var nt = g - S2.due * (1 - (RN.vat ? R : 0));
+              return '<b style="color:' + (nt < 0 ? '#9f1239' : '#0F6E56') + '">'
+                + (nt < 0 ? '−' : '+') + ctN(Math.abs(nt)) + '</b>'; })() + '</td></tr>';
+      });
+      var net = tot.gross - rNetAllL;
+      sub += '<tr class="be"><td class="l">ทั้งปี</td><td></td><td>' + tot.d + ' วัน</td>'
+        + '<td>' + ctN(tot.heads) + '</td>'
+        + '<td>' + (tot.gross < 0 ? '−' : '+') + ctN(Math.abs(tot.gross)) + '</td>'
         + '<td>−' + ctN(rNetAllL) + '</td>'
         + '<td><b style="color:' + (net < 0 ? '#9f1239' : '#0F6E56') + '">'
         + (net < 0 ? '−' : '+') + ctN(Math.abs(net)) + '</b></td></tr>';
+      return sub;
     }).join('');
-    var scTbl = '<table class="fs-t"><thead><tr><th class="l">ฉาก · สมมติฐาน</th><th>คน/ทริป</th>'
-      + '<th>วันวิ่ง</th><th>ลูกค้ารวม</th><th>กำไรก่อนค่าเช่า</th><th>ค่าเช่าทั้งสัญญา</th>'
-      + '<th>กำไรสุทธิ</th></tr></thead><tbody>' + scRows + '</tbody></table>';
+    var scTbl = '<table class="fs-t"><thead><tr><th class="l">ฉาก</th><th class="l">ฤดู · สมมติฐาน</th>'
+      + '<th>คน/ทริป</th><th>วันวิ่ง</th><th>ลูกค้า</th><th>กำไรก่อนค่าเช่า</th><th>ค่าเช่า</th>'
+      + '<th>สุทธิ</th></tr></thead><tbody>' + scRows + '</tbody></table>'
+      + '<div class="fs-note"><b>โลว์ซีซั่นคือเดือนที่ต้องเมเนจ</b> · ค่าเช่าเดินเท่ากันทุกเดือน '
+      + 'แต่คนไม่ได้มาเท่ากัน · ' + SEA.lo.n + ' เดือนโลว์กินค่าเช่าไป ' + ctB(SEA.lo.due)
+      + ' ซึ่งต้องเอากำไรจาก ' + SEA.hi.n + ' เดือนไฮมาโปะ<br>'
+      + 'ทางลดแรงกระแทก · ต่อสัญญาให้จบก่อนเข้าโลว์ · ขอหยุดเพิ่มช่วงโลว์ · '
+      + 'หาเช่าเฉพาะไฮซีซั่น · หรือย้ายลำไปเส้นทางที่ยังวิ่งได้ช่วงมรสุม</div>';
 
     longMon = '<div class="fs-h2">ต้องหาลูกค้าเดือนละเท่าไหร่ <em>ที่ ' + pax
       + ' คน/ทริป · ' + e(RN.from) + ' → ' + e(RN.to) + '</em></div>' + monTbl
