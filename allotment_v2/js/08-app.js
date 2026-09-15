@@ -29210,6 +29210,39 @@ document.addEventListener('keydown', function(e){
   e.preventDefault(); next.focus(); next.select(); ctNavMark(next);
 });
 
+/* ══ §btPinFit · ตรึงก็ต่อเมื่อยังเหลือที่ให้อ่านพอ ═══════════════════════
+   §btPin รอบแรกกั้นด้วย min-width:821px อย่างเดียว ซึ่งผิด — ความกว้างไม่ได้บอกว่า
+   ก้อนหัวจะสูงแค่ไหน · การ์ดในก้อนหัวตัดบรรทัดเอง จอยิ่งแคบยิ่งสูง
+   วัดจริง 2026-09-15 (ข้อมูลจริง · แท็บ By trip):
+     834x1112  ตรึงกิน 826px  เหลือ 26%
+     1024x768  ตรึงกิน 782px  เหลือ -14px  ← สูงกว่าจอ ไม่เหลืออะไรเลย
+     1440x900  ตรึงกิน 540px  เหลือ 40%
+     1920x1080 ตรึงกิน 363px  เหลือ 66%
+   แปลว่าแท็บเล็ตกับโน้ตบุ๊กเล็กเดือดร้อนที่สุด ส่วนมือถือไม่โดนอยู่แล้ว
+   → เลิกเดาจากความกว้าง · วัดความสูงจริงตอนวาด แล้วตรึงเฉพาะตอนที่ยังเหลือ
+     พื้นที่อ่านอย่างน้อย 340px ไม่งั้นปล่อยให้เลื่อนตามปกติ
+   ใช้ค่าเป็น px ไม่ใช่ % เพราะสิ่งที่คนอ่านคือ "แถวในตาราง" ซึ่งสูงคงที่ ~34px
+   340px = ราว 10 แถว ยังพอไล่ดูได้ · คิดเป็น % จะเพี้ยนตามความสูงจอ
+   จอเตี้ยจะผ่านเกณฑ์ % ทั้งที่เหลือพื้นที่จริงน้อยกว่าจอสูงมาก
+   ผลที่ได้: MacBook ขึ้นไปตรึง · แท็บเล็ตกับโน้ตบุ๊กเล็กไม่ตรึง · มือถือไม่ตรึง */
+function ctBtPinFit(){
+  var v = document.getElementById('view-booking'); if(!v) return;
+  var tc = v.querySelector('.bkv2-topcard'), pk = v.querySelector('.bt-pkh');
+  if(!tc || !pk){ v.classList.remove('bt-pinok'); return; }
+  var tb = v.querySelector('.bkv2-topbar2');
+  v.style.setProperty('--t2-pkh-top', (tb ? tb.offsetHeight : 46) + 'px');
+  /* วัดตอนยังไม่ตรึง เพื่อให้ได้ความสูงตามธรรมชาติ · ถอดคลาสก่อนวัดทุกครั้ง */
+  v.classList.remove('bt-pinok');
+  var used = tc.offsetHeight + pk.offsetHeight;
+  if(window.innerHeight - used >= 340) v.classList.add('bt-pinok');
+}
+/* หมุนแท็บเล็ต / ย่อขยายหน้าต่าง = เงื่อนไขเปลี่ยน ต้องคิดใหม่
+   หน่วงไว้ ไม่ต้องคิดทุกพิกเซลระหว่างลาก */
+(function(){ var t=0;
+  window.addEventListener('resize', function(){ clearTimeout(t);
+    t = setTimeout(function(){ try{ ctBtPinFit(); }catch(_){ } }, 160); });
+})();
+
 function ctCell(a, b, c){
   return '<div class="ct-cell"><div class="c1">' + (a || '') + '</div><div class="c2">' + (b || '') + '</div><div class="c3">' + (c || '') + '</div></div>';
 }
@@ -40148,8 +40181,7 @@ function bkV2Render(){
       /* §btPin · ก้อนหัว By-trip ตรึงใต้แถบแท็บ · ต้องรู้ความสูงแถบแท็บจริง
          วัดทุกครั้งที่วาด ไม่ฝังตัวเลข · แถบนี้ห่อปุ่มกับตัวกรองที่ตัดบรรทัดได้
          ความสูงจึงเปลี่ยนตามความกว้างจอ (CLAUDE.md §6 · ห้าม hardcode 52) */
-      try{ const _tb=document.querySelector('#view-booking .bkv2-topbar2');
-           vb.style.setProperty('--t2-pkh-top', (_tb? _tb.offsetHeight : 46)+'px'); }catch(_){}
+      try{ ctBtPinFit(); }catch(_){}
       /* §btUnclamp (was §btScroll) · .t2-wrap เคยถูกจำกัดความสูงพอดีจอ + ดึงขอบล่างด้วย margin
          ติดลบ เพื่อกันไม่ให้หน้าเลื่อนเกินกล่องที่ตรึงไว้ · ตอนนี้หัวไม่ตรึงแล้ว (§btHead) ทั้งหน้า
          เลื่อนเป็นชิ้นเดียวตามปกติ ไม่ต้องคำนวณ/ดึงอะไรอีก ทิ้งไว้จะดึงเนื้อหาส่วนล่างของตารางหาย */
@@ -45208,9 +45240,9 @@ function bkV2RenderTab2(){
          "#view-booking .bkv2-topcard{background:transparent}" อยู่ ซึ่งชนะ selector
          ที่ไม่มี id เสมอไม่ว่าจะเขียนทีหลังแค่ไหน · ถ้าไม่ยกระดับ พื้นจะโปร่ง
          แล้วแถวตารางที่เลื่อนอยู่ข้างหลังจะทะลุขึ้นมาบนแถบแท็บ */
-      #view-booking .bkv2-topcard{position:sticky;top:0;z-index:70;background:#F6F7F9;
+      #view-booking.bt-pinok .bkv2-topcard{position:sticky;top:0;z-index:70;background:#F6F7F9;
         padding-top:6px;padding-bottom:6px}
-      #view-booking .bt-pkh{position:sticky;top:var(--t2-pkh-top,46px);z-index:60}
+      #view-booking.bt-pinok .bt-pkh{position:sticky;top:var(--t2-pkh-top,46px);z-index:60}
     }
     .bt-hdtop{position:relative;display:flex;align-items:center;gap:13px;padding:0 8px 7px}
     .bt-arw{width:27px;height:27px;flex:none;border:1px solid rgba(0,0,0,.13);background:#fff;border-radius:9px;
