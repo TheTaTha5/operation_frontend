@@ -4774,6 +4774,10 @@
       {
         "name": "ops_piernote",
         "type": "text"
+      },
+      {
+        "name": "promoid",
+        "type": "text"
       }
     ],
     "primary_key": "row_pk",
@@ -6164,6 +6168,26 @@
       {
         "name": "docid",
         "type": "text"
+      },
+      {
+        "name": "pricemode",
+        "type": "text"
+      },
+      {
+        "name": "rates",
+        "type": "text"
+      },
+      {
+        "name": "discount",
+        "type": "text"
+      },
+      {
+        "name": "bonus",
+        "type": "text"
+      },
+      {
+        "name": "bookwin",
+        "type": "bigint"
       }
     ],
     "primary_key": "id",

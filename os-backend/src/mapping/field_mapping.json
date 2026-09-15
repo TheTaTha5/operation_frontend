@@ -5280,6 +5280,12 @@
       "source": "trips[].ops.pierNote",
       "kind": "json_text",
       "db_type": "text"
+    },
+    "promoid": {
+      "source": "trips[].promoId",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "the promotion that priced this trip when it was sold · NULL = none, or sold before 029"
     }
   },
   "sb_bookings__addons": {
@@ -6663,6 +6669,36 @@
       "source": "docId",
       "kind": "scalar",
       "db_type": "text"
+    },
+    "pricemode": {
+      "source": "priceMode",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "rate | own | discount · missing = rate (every promo written before 029)"
+    },
+    "rates": {
+      "source": "rates",
+      "kind": "json_text",
+      "db_type": "text",
+      "note": "{routeId:{zone:{paxType:price}}} · price_mode=own only · zone left out falls back to the standard rate"
+    },
+    "discount": {
+      "source": "discount",
+      "kind": "json_text",
+      "db_type": "text",
+      "note": "{mode:'pct'|'amt', value} · price_mode=discount only · always off the main contract price"
+    },
+    "bonus": {
+      "source": "bonus",
+      "kind": "json_text",
+      "db_type": "text",
+      "note": "{on,buy,free,basis} · buy-N-get-1 · system counts and warns, never adds the free seat itself"
+    },
+    "bookwin": {
+      "source": "bookWin",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "1 = enforce the booking window on programPeriods · older rows stay NULL so their bookings do not reprice"
     }
   },
   "sb_contracts__programperiods": {

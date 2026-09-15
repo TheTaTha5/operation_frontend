@@ -21513,11 +21513,11 @@ function tsNetOf(r){
   var rt=null; for(var i=0;i<SB_RATE_TYPES.length;i++) if(SB_RATE_TYPES[i].id===rtId){ rt=SB_RATE_TYPES[i]; break; }
   if(!rt) return null;
   /* §b2bPromo · เลขในวงเล็บของหน้านี้คือ "ตามเรทแล้วควรเป็นเท่าไหร่" ไว้ทานกับยอดจริงในใบจอง
-     จึงต้อง resolve โปรด้วยชุดเดียวกับตอนคีย์ใบจอง ไม่งั้นสองเลขจะไม่มีวันตรงกันเมื่อขายด้วยโปร */
-  try{ if(b.agentId && t.routeId && t.date){
-    var _pz=laPromoRateFor(b.agentId, t.routeId, t.date, b.bookingDate||'', rt);
-    if(_pz && _pz.rt) rt=_pz.rt;
-  } }catch(_){}
+     ⚠ ต้องยึดใบโปร "ที่ล็อกไว้ตอนขาย" ไม่ใช่ใบที่แอคทีฟวันนี้
+       ไม่งั้นพอมีคนไปแก้โปรทีหลัง เลขทานของใบเก่าจะขยับตาม แล้วขึ้นเหมือนคีย์ราคาผิด
+       ทั้งที่ตอนขายถูกต้องทุกบาท (ก้อน 4 · ข้อ 4 ในเอกสาร) */
+  var _pSold=null;
+  try{ _pSold=laPromoRateSold(b, t, rt); if(_pSold && _pSold.rt) rt=_pSold.rt; }catch(_){}
   var p=t.pax||{};
   if(t.bookingMode==='charter'){
     var boat=(typeof BOATS!=='undefined')?BOATS.filter(function(x){ return x.id===t.charterBoatId; })[0]:null;
@@ -21527,7 +21527,8 @@ function tsNetOf(r){
     var all=(typeof bkV2PaxAllTot==='function')?bkV2PaxAllTot(p):0;
     var ex=Math.max(0, all-(+cr.starterIncludes||0));
     var ct=Math.round((+cr.starterPrice||0) + ex*(+cr.extraPerPax||0));
-    return { tot:ct, txt:'เหมาลำ '+_tsNum(cr.starterPrice)+(ex?(' + '+ex+'\u00d7'+_tsNum(cr.extraPerPax)):''),
+    return { tot:ct, promo:(_pSold?laPromoLabel(_pSold.promo):''), promoSold:!!(_pSold&&_pSold.sold),
+             txt:'เหมาลำ '+_tsNum(cr.starterPrice)+(ex?(' + '+ex+'\u00d7'+_tsNum(cr.extraPerPax)):''),
              zone:'charter', rt:(rt.name||rt.code||'') };
   }
   var RR=rt.seatRates && rt.seatRates[t.routeId];
@@ -21559,7 +21560,9 @@ function tsNetOf(r){
   });
   if(!parts.length) return null;
   /* §agFair · โซนกับชื่อสัญญาที่ใช้ตั้งราคาใบนี้ · หน้าวิเคราะห์ต้องบอกได้ว่ากำลังเทียบกับอะไร */
-  return { tot:Math.round(n), txt:parts.join(' + '), zone:zone, rt:(rt.name||rt.code||'') };
+  return { tot:Math.round(n), txt:parts.join(' + '), zone:zone, rt:(rt.name||rt.code||''),
+           /* §b2bPromo · ขายด้วยโปรใบไหน · sold=true คือใบที่ล็อกไว้ตอนขาย ไม่ใช่เดาจากวันนี้ */
+           promo:(_pSold?laPromoLabel(_pSold.promo):''), promoSold:!!(_pSold&&_pSold.sold) };
 }
 function tsRouteColor(id){ var r=(typeof getRoute==='function'?getRoute(id):null)||{}; return r.color||'#8b909c'; }
 // §tsDocRef · อ้างอิงเอกสารจากหน้าตรวจเอกสาร · ป้ายเดียวกับที่หน้า By-trip ใช้
@@ -24405,11 +24408,16 @@ function renderTravelSum(){
           if(r.mvRow) return '<td class="r ts-mono" style="font-weight:800;color:var(--zn400)">&mdash;</td>';
           var T=tsTotalOf(r, date), N=tsNetOf(r);
           // §tsNetRate · ที่มาของยอด Net ในรูป "จำนวน × เรตต่อคน" · หาเรตไม่เจอใส่ขีด ไม่เดา
-          var nr='<span class="ts-net" title="'+(N?('ยอด Net '+money(N.tot)+' ตาม Rate Type'):'ไม่มีเรตใน Rate Type')+'">('
-                 +(N?e(N.txt):'&mdash;')+')</span>';
+          /* §b2bPromo · บอกให้เห็นว่าบรรทัดนี้ขายด้วยโปรตัวไหน · เอกสารข้อ 6 */
+          var pl=(N&&N.promo)?N.promo:'';
+          var nr='<span class="ts-net" title="'
+                 +(N?('ยอด Net '+money(N.tot)+(pl?(' · โปร: '+e(pl)+(N.promoSold?' (ล็อกไว้ตอนขาย)':'')):' ตาม Rate Type')):'ไม่มีเรตใน Rate Type')
+                 +'">('+(N?e(N.txt):'&mdash;')+')</span>'
+                 +(pl?('<span class="ts-net" style="color:#9A5410" title="'+e(pl)+'"> PROMO</span>'):'');
           var tip='booking '+money(T.base)
             +(T.site?(' · '+T.parts.map(function(p){ return p[0]+' '+money(p[1]); }).join(' · ')):'')
-            +(N?(' · Net '+money(N.tot)+' = '+N.txt):' · ไม่มีเรตใน Rate Type');
+            +(N?(' · Net '+money(N.tot)+' = '+N.txt):' · ไม่มีเรตใน Rate Type')
+            +(pl?(' · โปร: '+pl):'');
           return '<td class="r ts-mono ts-totc" style="font-weight:800" title="'+e(tip)+'">'+money(T.all)
             +(T.site?('<span class="ts-totb">'+money(T.base)+'<em>+'+money(T.site)+'</em></span>'):'')
             +nr+'</td>';
@@ -50785,6 +50793,9 @@ function bkV2CommitBooking(status){
       lockDrawSel: (t.bookingMode==='charter') ? {} : { ...(t.lockDrawSel||{}) },   // staff-picked draw sources {lockId:qty} (Option A sub-groups)
       ops: t.ops || undefined,   // §b2cEdit/§ops · การจัดเรือ-รถ + ผลเช็คอินของ "วันนั้น" · เดิมสร้างทริปใหม่โดยไม่คัดมา = แก้ booking ทีเดียวหายทุกวัน
       lockDraws: [],   // filled after save · [{lockId, qty}]
+      /* §b2bPromo · ประทับใบโปรที่ใช้จริง ณ วินาทีที่กดบันทึก
+         อ่านจากชุดราคาที่เพิ่งใช้คิดเงินบรรทัดล่าง จึงตรงกันแน่นอน ไม่ได้ resolve ซ้ำ */
+      promoId: (function(){ try{ var _r = bkV2GetRTForTrip(t); return (_r && _r.__promoId) || null; }catch(_){ return null; } })(),
       subtotal: bkV2TripSubtotal(t).total
     })),
     addOns: d.addOns.map(a => {
@@ -51409,6 +51420,38 @@ function laPromoStat(c){
            left:Math.max(0, earned - foc), over:Math.max(0, foc - earned),
            toNext: (!buy || (sold % buy === 0 && sold > 0)) ? 0 : (buy - (sold % buy)),
            pct: buy ? Math.round((sold % buy) / buy * 100) : 0 };
+}
+/* ══ §b2bPromo ก้อน 4 · ล็อกใบโปรที่ใช้จริงไว้กับทริป ═══════════════════════════════════════════
+   เอกสารข้อ 4: "บุ๊กกิ้งที่ขายไปแล้ว ต้องล็อกราคา ณ วันที่ขาย"
+   ยอดเงินล็อกอยู่แล้ว (priceBreakdown เก็บตัวเลขไว้ตอนกดบันทึก) แต่ยังไม่มีใครรู้ว่า
+   "ใบนี้ขายด้วยโปรตัวไหน" · พอไปแก้หรือลบใบโปรทีหลัง จะไล่กลับไม่ได้ว่าตอนนั้นใช้อะไร
+   และเลขทานในหน้า Travel Summary จะไปหยิบโปรที่แอคทีฟ "วันนี้" มาเทียบ ซึ่งคนละใบกัน
+   → เก็บ t.promoId ไว้ตอน commit · ทุกคนที่อยากย้อนดูอ่านจากตรงนี้ ไม่ต้อง resolve ใหม่
+   ⚠ อ่านใบโปรตรง ๆ ไม่กรองสถานะ · ใบที่ถูกยกเลิกหรือหมดอายุไปแล้วก็ยังต้องอ่านเจอ
+     ไม่งั้นย้อนดูใบจองเก่าจะกลายเป็น "ไม่มีโปร" ทั้งที่ตอนขายมี */
+function laPromoById(id){
+  if(!id || typeof SB_CONTRACTS === 'undefined' || !Array.isArray(SB_CONTRACTS)) return null;
+  return SB_CONTRACTS.filter(function(c){ return c && c.id === id; })[0] || null;
+}
+/* ชื่อที่เอาไปโชว์ในบิล/รายงาน · ย่อพอให้รู้ว่าใบไหน */
+function laPromoLabel(c){
+  if(!c) return '';
+  var t = c.note || c.version || c.id || 'Promotion';
+  var pm = c.priceMode || 'rate';
+  if(pm === 'discount') t += ' · ' + laPromoDiscTxt(c);
+  return t;
+}
+/* ชุดราคาของทริปที่ "ขายไปแล้ว" · ยึดใบโปรที่ล็อกไว้ ไม่ resolve ใหม่
+   ไม่มี promoId (ใบเก่าก่อนก้อนนี้) = ถอยไป resolve ตามวันที่ เหมือนพฤติกรรมเดิมเป๊ะ */
+function laPromoRateSold(bk, trip, baseRt){
+  if(trip && trip.promoId){
+    var c = laPromoById(trip.promoId);
+    if(c){ var rt = laPromoRate(c, trip.routeId, baseRt); if(rt) return { rt:rt, promo:c, sold:true }; }
+    return null;                                  /* ล็อกไว้แต่ใบหายไป = ไม่เดาใหม่ */
+  }
+  if(!bk || !bk.agentId || !trip || !trip.routeId || !trip.date) return null;
+  var h = laPromoRateFor(bk.agentId, trip.routeId, trip.date, bk.bookingDate || '', baseRt);
+  return h ? { rt:h.rt, promo:h.promo, sold:false } : null;
 }
 /* ทางเข้าเดียวสำหรับทุกคนที่อยากรู้ว่า "ทริปนี้ใช้ราคาชุดไหน"
    คืน null = ไม่มีโปรทับ ให้ใช้ราคาฐานตามเดิม */
