@@ -1361,6 +1361,19 @@ const DV_CSS=`<style>
   .dv-pr2 .rt b{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:15px;
     font-weight:800;line-height:1.1;color:#0C6B47}
   .dv-pr2 .rt i{display:block;font-style:normal;font-size:9px;color:#b6b1a8;font-weight:600}
+  /* §dashBoatFrame · กรอบของรายการท่า+เรือ · การ์ดจะได้ไม่สูงตามจำนวนเรือ
+     ⚠ max-height เป็นเพดาน ไม่ใช่ความสูงตายตัว · วันที่เรือออกน้อยการ์ดยังเตี้ยตามเดิม
+       ไม่มีช่องว่างเปล่าค้างไว้
+     ⚠ แถบเลื่อนตัวนี้ "ต้องเห็น" ต่างจากของ sidebar ที่ซ่อนทิ้ง
+       เพราะกรอบเล็กและไม่มีอะไรอื่นบอกว่ายังมีเรืออีกข้างล่าง
+     ⚠ overscroll-behavior:contain กันไม่ให้เลื่อนสุดกรอบแล้วไปลากคอลัมน์ทั้งอันต่อ */
+  .dv-blist{max-height:248px;overflow-y:auto;overscroll-behavior:contain;
+    scrollbar-width:thin;scrollbar-color:#DAD5CC transparent}
+  .dv-blist::-webkit-scrollbar{width:7px}
+  .dv-blist::-webkit-scrollbar-thumb{background:#DAD5CC;border-radius:4px}
+  .dv-blist::-webkit-scrollbar-track{background:transparent}
+  /* หัวข้อในกรอบเกาะบนไว้ · เลื่อนแล้วยังรู้ว่ากำลังดูบล็อกไหนอยู่ */
+  .dv-blist .dv-sec{position:sticky;top:0;z-index:1;background:#fff;margin-top:0}
   .dv-more{margin:4px 12px 2px;text-align:center;font-size:10px;color:#7d7a74;cursor:pointer;
     padding:5px;border-radius:8px;background:#F7F5F2;font-weight:600}
   .dv-more b{font-family:'DM Mono',ui-monospace,monospace;color:#0C6B47}
@@ -1876,8 +1889,14 @@ function renderDash(){
 
   // Boat Operating stats card (replaces To do list)
   // Per-pier breakdown
+  /* §dashPierAll · เดิมมีแค่ tublamu กับ panwa · ranong เปิดใช้จริงตั้งแต่ ส.ค. 2026
+     และ other มีมาตั้งแต่ §otherPier · เรือสองท่านี้ถูกนับใน opBoatsAll (ตัวเลขบนสุด)
+     แต่ตกจากบล็อก "ท่าเรือ" เพราะ if(pierStats[p]) ไม่ผ่าน · เลขบนกับเลขล่างเลยไม่ตรงกัน
+     สีกับตัวย่อใช้ชุดเดียวกับ PIER_COL/PIER_LBL ที่หน้าปฏิทินใช้ ไม่ตั้งใหม่ */
   const pierStats={tublamu:{name:'Tub Lamu',short:'TL',color:'#185FA5',op:0,allot:0,booked:0},
-                   panwa:{name:'Visit Panwa',short:'VP',color:'#0F6E56',op:0,allot:0,booked:0}};
+                   panwa:{name:'Visit Panwa',short:'VP',color:'#0F6E56',op:0,allot:0,booked:0},
+                   ranong:{name:'Ranong',short:'RN',color:'#BA7517',op:0,allot:0,booked:0},
+                   other:{name:'อื่น ๆ',short:'OT',color:'#5B289A',op:0,allot:0,booked:0}};
   opBoatsAll.forEach(ob=>{
     const p=ob.r.pier;
     if(pierStats[p]){
@@ -1910,13 +1929,18 @@ function renderDash(){
       <div class="dv-avs"></div>
       <div class="dv-av"><span class="v" style="color:${totFree>0?'#B4560A':'#3a3a36'}">${totFree}</span><span class="k">ที่นั่งว่าง</span><span class="u">ทั้งวัน</span></div>
     </div>
-    ${pierRows?`<div class="dv-sec">ท่าเรือ</div>${pierRows}`:`<div class="dv-empty">ไม่มีเรือออก${_dsTdy?'วันนี้':_dsDay}</div>`}
-    <!--§dashLeft:boatlist-->
+    ${pierRows?`<div class="dv-blist"><div class="dv-sec">ท่าเรือ</div>${pierRows}<!--§dashLeft:boatlist--></div>`:`<div class="dv-empty">ไม่มีเรือออก${_dsTdy?'วันนี้':_dsDay}</div>`}
+    <!--§dashLeft:boatmore-->
   </div>`;
 
   // Boats operating today card (replaces Notifications)
   const opBoatColor=(idx)=>['#9FB89E','#C4A874','#A8C8D8','#D4B89F','#B4D4A0','#C8A8D8'][idx%6];
-  const opBoatRows=opBoatsAll.slice(0,5).map((ob,i)=>{
+  /* §dashBoatFrame · เดิมตัดที่ 5 ลำแล้วต่อท้ายว่า "+N ลำที่เหลือ"
+     เพราะการ์ดไม่มีกรอบ ยิ่งเรือเยอะยิ่งดันใบข้างล่างตกจอ
+     วัดจริงที่จอสูง 1000 คอลัมน์ซ้าย 926px · การ์ดสูงตามจำนวนเรือแบบไม่มีเพดาน
+       0 ลำ 152px · 5 ลำ 407px · 12 ลำ 724px · 20 ลำ 1086px = กินคอลัมน์หมด
+     พอมีกรอบ (.dv-blist) แล้ว ไม่ต้องตัดอีก · เลื่อนดูในกรอบได้ครบทุกลำ */
+  const opBoatRows=opBoatsAll.map((ob,i)=>{
     const fillColor=ob.pct>=95?'#A32D2D':ob.pct>=70?'#B4560A':'#0C6B47';
     return `<div class="dv-pr2 bt" onclick="nav(document.querySelector('[data-view=op]'))">
       <span class="pm" style="background:${ob.r.color||'#7d7a74'}">${ob.b.name.slice(0,2).toUpperCase()}</span>
@@ -1925,14 +1949,17 @@ function renderDash(){
       <span class="rt"><b style="color:${fillColor}">${ob.free}</b><i>ว่าง / ${ob.cap}</i></span>
     </div>`;
   }).join('');
-  const moreOps=Math.max(0,opBoatsAll.length-5);
   /* §dashLeft · เดิมเป็นการ์ด "Boats operating" ของตัวเอง วางอยู่ใต้ Boat Operating พอดี
      ซึ่งบอกเรื่องเดียวกัน — วันที่ออกลำเดียวจะเห็นเลขชุดเดิมซ้ำสามรอบติดกัน
      (การ์ดบน + การ์ดนี้ + Today's headline) ยุบมาเป็นท้ายการ์ดเดิมแทน
      หัวเรือ/ท่า/ที่ว่าง ยังอยู่ครบ แค่ไม่ต้องมีกรอบของตัวเอง */
   const boatListSlot = opBoatRows
     ? `<div class="dv-sec">${_dsTdy?'เรือที่ออกวันนี้':'เรือที่ออก '+_dsDay}</div>`+opBoatRows
-      +(moreOps>0?`<div class="dv-more" onclick="nav(document.querySelector('[data-view=op]'))"><b>+${moreOps}</b> ลำที่เหลือ · เปิด Boat Operation &rsaquo;</div>`:'')
+    : '';
+  /* ปุ่มเปิดหน้าเต็มอยู่ "นอก" กรอบที่เลื่อน · ไม่งั้นต้องเลื่อนลงไปสุดก่อนถึงจะเห็น */
+  const boatMoreSlot = opBoatsAll.length
+    ? `<div class="dv-more" onclick="nav(document.querySelector('[data-view=op]'))">`
+      +`<b>${opBoatsAll.length}</b> ลำ · เปิด Boat Operation &rsaquo;</div>`
     : '';
 
   // leftCol assembled below (after sched + filesCard are defined)
@@ -2181,6 +2208,7 @@ function renderDash(){
   const _bkTdy=_bkForDay(_ds);
   const leftCol=`<div class="dv-col">`
     +todoCard.replace('<!--\u00a7dashLeft:boatlist-->', boatListSlot)
+              .replace('<!--\u00a7dashLeft:boatmore-->', boatMoreSlot)
     +_dashLiveB2CHtml(dx,F)
     +`</div>`;
   const rightCol=`<div class="dv-col">${ai}${_dashLiveB2BHtml(dx,F)}</div>`;
