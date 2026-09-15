@@ -21509,11 +21509,15 @@ function tsNetOf(r){
   var b=r.b, t=r.t;
   if(t.ovnLeg) return null;                      // ขากลับค้างคืน · ไม่คิดเงินซ้ำ
   var rtId=b.rateTypeRef || (b.agentId && typeof sbGetAgent==='function' ? ((sbGetAgent(b.agentId)||{}).rateTypeId) : null);
-  try{ if(typeof bkV2ResolveRateType==='function' && b.agentId && t.routeId && t.date){
-    var promo=bkV2ResolveRateType(b.agentId, t.routeId, t.date); if(promo) rtId=promo; } }catch(_){}
   if(!rtId || typeof SB_RATE_TYPES==='undefined') return null;
   var rt=null; for(var i=0;i<SB_RATE_TYPES.length;i++) if(SB_RATE_TYPES[i].id===rtId){ rt=SB_RATE_TYPES[i]; break; }
   if(!rt) return null;
+  /* §b2bPromo · เลขในวงเล็บของหน้านี้คือ "ตามเรทแล้วควรเป็นเท่าไหร่" ไว้ทานกับยอดจริงในใบจอง
+     จึงต้อง resolve โปรด้วยชุดเดียวกับตอนคีย์ใบจอง ไม่งั้นสองเลขจะไม่มีวันตรงกันเมื่อขายด้วยโปร */
+  try{ if(b.agentId && t.routeId && t.date){
+    var _pz=laPromoRateFor(b.agentId, t.routeId, t.date, b.bookingDate||'', rt);
+    if(_pz && _pz.rt) rt=_pz.rt;
+  } }catch(_){}
   var p=t.pax||{};
   if(t.bookingMode==='charter'){
     var boat=(typeof BOATS!=='undefined')?BOATS.filter(function(x){ return x.id===t.charterBoatId; })[0]:null;
@@ -50886,7 +50890,144 @@ function bkV2GetRT(){
 // A time-boxed 'promo' contract (per-route, by TRAVEL date) overrides the agent's base rate for that trip.
 // Returns a PROMO rateTypeId only when an active promo contract covers (route, travelDate); else null → base.
 // No promo contracts exist yet (Phase 3 creates them), so today this always returns null → identical pricing.
-function bkV2ResolveRateType(agentId, routeId, travelDate){
+
+/* ══ §b2bPromo · โปรโมชั่นที่ตั้งราคาได้เอง · ก้อน 1 (ทางเดินราคา) ═══════════════════════════════
+   ที่มา: เอกสาร "ข้อเสนอปรับระบบ B2B · ให้ Promotion ตั้งราคาได้เองในหน้า Agent"
+   ปัญหาเดิม · ทุกโปรโมชั่นต้องมี Rate Type รองรับ → Rate Types บวมขึ้นเรื่อย ๆ
+     ราคาสัญญาจริงปนกับราคาโปรชั่วคราว และโปรของเอเย่นต์รายเดียวไปโผล่ให้รายอื่นเห็น
+
+   ใบโปรมีสองโหมด · เลือกได้ต่อใบ
+     priceMode 'rate'  ดึงจาก Rate Type (ของเดิม · ไม่แตะ)
+     priceMode 'own'   กรอกราคาไว้ในใบโปรเอง → c.rates[routeId][zone][paxType]
+
+   ⚠ หัวใจของก้อนนี้อยู่ที่ laPromoRate() · โหมด own ต้องคืน "ออบเจกต์รูปร่างเดียวกับ Rate Type"
+     ไม่ใช่คืนตัวเลขดิบ · เพราะฝั่งที่กินราคาต่อ (bkV2TripSubtotal · tsNetOf · ใบเสนอราคา ·
+     ใบแจ้งหนี้) อ่าน rt.seatRates[route][zone][paxType] กันหมดทั้งไฟล์
+     คืนรูปเดิมไป = ไม่ต้องไปไล่แก้ที่ไหนอีกเลย
+
+   ⚠ โหมด own ต้องสืบทอด routeBundles / charterRates / addOns จาก Rate Type ตัวหลัก
+     ไม่งั้นโปรที่ตั้งใจแค่ลดราคาที่นั่ง จะทำหางยาวที่พ่วงในราคาหายไปเงียบ ๆ ด้วย
+     ทับเฉพาะ seatRates ของ route ที่โปรกรอกไว้เท่านั้น
+
+   ⚠ ช่วงวันจอง · ของเดิมตอนสร้างใบโปรยัดวันเดียวกันลงทั้งสี่ช่อง
+     (bookFrom=bookTo=travelFrom=travelTo) ถ้าอยู่ ๆ ไปบังคับใช้ช่วงวันจองกับใบเก่า
+     ใบจองที่จองก่อนโปรเริ่มจะหลุดโปรทันที = ราคาของที่ขายไปแล้วเปลี่ยน
+     จึงบังคับเฉพาะใบที่ติดธง bookWin ไว้ (ใบใหม่จากโมดัลใหม่เท่านั้น)
+   ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+var LA_PROMO_ZONES = ['PK', 'KL', 'NoTransfer'];
+var LA_PROMO_PAX   = ['adult-thai', 'child-thai', 'adult-fr', 'child-fr'];
+/* §b2bPromo · ซื้อ N แถม 1 · ก้อน 1 เก็บโครงไว้ก่อน ตัวนับอยู่ก้อน 3
+   นับสะสมตลอดช่วงโปร (ไม่ใช่ต่อใบจอง) · ฐานการนับเลือกได้ เพราะดีลจริงมีทั้งสองแบบ */
+var LA_PROMO_BASIS = { adchd:'ผู้ใหญ่ + เด็ก', ad:'เฉพาะผู้ใหญ่' };
+
+function laPromoActive(c){
+  return !!(c && c.kind === 'promo'
+    && c.status !== 'void' && c.status !== 'cancelled' && c.status !== 'expired');
+}
+/* ใบโปรทั้งหมดของเอเย่นต์รายนี้ที่ยังไม่ถูกยกเลิก */
+function laPromoList(agentId){
+  if(!agentId || typeof SB_CONTRACTS === 'undefined' || !Array.isArray(SB_CONTRACTS)) return [];
+  return SB_CONTRACTS.filter(function(c){ return c && c.agentId === agentId && laPromoActive(c); });
+}
+/* ใบนี้คลุม route + วันเดินทาง (+ วันจอง ถ้าใบนั้นตั้งช่วงวันจองไว้) หรือเปล่า */
+function laPromoCovers(c, routeId, travelDate, bookDate){
+  if(!c || !routeId || !travelDate) return false;
+  if(c.activeFrom && travelDate < c.activeFrom) return false;
+  if(c.activeTo   && travelDate > c.activeTo)   return false;
+  return (c.programPeriods || []).some(function(p){
+    if(p.routeId !== routeId) return false;
+    if(p.travelFrom && travelDate < p.travelFrom) return false;
+    if(p.travelTo   && travelDate > p.travelTo)   return false;
+    /* §b2bPromo · บังคับช่วงวันจองเฉพาะใบที่ตั้งใจใช้มัน · ใบเก่าไม่มีธงนี้ = ข้าม */
+    if(c.bookWin){
+      if(!bookDate) return false;                 /* ใบโปรขอดูวันจอง แต่ไม่รู้วันจอง = ไม่ให้ผ่าน */
+      if(p.bookFrom && bookDate < p.bookFrom) return false;
+      if(p.bookTo   && bookDate > p.bookTo)   return false;
+    }
+    return true;
+  });
+}
+/* ใบนี้มีราคาของ route นี้จริงไหม · ไม่มี = "ข้าม" ตามกติกาข้อ 2 ไม่ใช่คิดเป็น 0 */
+function laPromoHasRate(c, routeId){
+  if(!c || !routeId) return false;
+  if((c.priceMode || 'rate') === 'own'){
+    var R = (c.rates || {})[routeId];
+    if(!R) return false;
+    return LA_PROMO_ZONES.some(function(z){
+      var Z = R[z]; if(!Z) return false;
+      return LA_PROMO_PAX.some(function(k){ return (+Z[k] || 0) > 0; });
+    });
+  }
+  var rt = (typeof SB_RATE_TYPES !== 'undefined' ? SB_RATE_TYPES : [])
+    .filter(function(x){ return x.id === c.rateTypeId; })[0];
+  return !!(rt && ((rt.seatRates && rt.seatRates[routeId]) || (rt.charterRates && rt.charterRates[routeId])));
+}
+/* ใบที่ชนะ · priority สูงชนะ · เท่ากันเอาใบที่เริ่มทีหลัง · ใบที่ไม่มีราคาของ route นี้ถูกคัดออกก่อน */
+function laPromoFor(agentId, routeId, travelDate, bookDate){
+  var hit = laPromoList(agentId).filter(function(c){
+    return laPromoCovers(c, routeId, travelDate, bookDate) && laPromoHasRate(c, routeId);
+  });
+  if(!hit.length) return null;
+  hit.sort(function(a, b){
+    return (Number(b.priority || 0) - Number(a.priority || 0))
+        || String(b.activeFrom || '').localeCompare(String(a.activeFrom || ''));
+  });
+  return hit[0];
+}
+/* ชุดราคาของใบโปร · คืนรูปร่างเดียวกับ Rate Type เสมอ (ดูหมายเหตุหัวบล็อก) */
+function laPromoRate(c, routeId, baseRt){
+  if(!c || !routeId) return null;
+  if((c.priceMode || 'rate') !== 'own'){
+    var rt = (typeof SB_RATE_TYPES !== 'undefined' ? SB_RATE_TYPES : [])
+      .filter(function(x){ return x.id === c.rateTypeId; })[0];
+    return rt || null;
+  }
+  var R = (c.rates || {})[routeId]; if(!R) return null;
+  var out = {};
+  if(baseRt) Object.keys(baseRt).forEach(function(k){ out[k] = baseRt[k]; });
+  var sr = {};
+  if(baseRt && baseRt.seatRates) Object.keys(baseRt.seatRates).forEach(function(k){ sr[k] = baseRt.seatRates[k]; });
+  var zn = {}, bz = (baseRt && baseRt.seatRates && baseRt.seatRates[routeId]) || {};
+  LA_PROMO_ZONES.forEach(function(z){
+    if(!R[z]) return;
+    var Z = {};
+    LA_PROMO_PAX.forEach(function(k){ Z[k] = +R[z][k] || 0; });
+    /* §b2bPromo · คีย์ทารกไม่ได้ให้กรอก (ไม่มีใครคิดเงินจากมัน · เป็น 0 มาตลอด)
+       แต่ต้องมีอยู่ในโครง เพราะฟอร์มแก้เรตวาดคอลัมน์นี้ · ตกไปจะเพี้ยนตอนเอาไปโชว์ */
+    ['infant-thai', 'infant-fr'].forEach(function(k){
+      Z[k] = +(((R[z] || {})[k] != null) ? R[z][k] : ((bz[z] || {})[k] || 0)) || 0;
+    });
+    zn[z] = Z;
+  });
+  sr[routeId] = zn;
+  out.seatRates = sr;
+  out.id   = 'promo:' + (c.id || '');
+  out.code = c.code || 'PROMO';
+  out.name = c.note || 'Promotion';
+  out.__promoId = c.id || '';                     /* ใช้ตอนบันทึกลงใบจองในก้อน 4 */
+  return out;
+}
+/* ทางเข้าเดียวสำหรับทุกคนที่อยากรู้ว่า "ทริปนี้ใช้ราคาชุดไหน"
+   คืน null = ไม่มีโปรทับ ให้ใช้ราคาฐานตามเดิม */
+function laPromoRateFor(agentId, routeId, travelDate, bookDate, baseRt){
+  var c = laPromoFor(agentId, routeId, travelDate, bookDate);
+  if(!c) return null;
+  var rt = laPromoRate(c, routeId, baseRt);
+  if(!rt) return null;
+  return { rt:rt, promo:c };
+}
+
+/* §b2bPromo · ตัวเดิม · ตอนนี้ไม่มีใครในโค้ดเรียกแล้ว (bkV2GetRTForTrip กับ tsNetOf
+   ย้ายไปใช้ laPromoRateFor หมด) แต่คงชื่อไว้เผื่อสคริปต์ตรวจ/คอนโซลที่เคยเรียก
+   ให้เดินผ่านตัวใหม่ จะได้ไม่มีสองกติกาให้เพี้ยนกันทีหลัง
+   ⚠ คืนได้แต่ rateTypeId · ใบโปรที่กรอกราคาเองไม่มี id ให้คืน จึงคืน null
+     ห้ามเอาตัวนี้ไปใช้ตัดสินราคาอีก · ใช้ laPromoRateFor แทน */
+function bkV2ResolveRateType(agentId, routeId, travelDate, bookDate){
+  var c = laPromoFor(agentId, routeId, travelDate, bookDate || '');
+  if(!c || (c.priceMode || 'rate') === 'own') return null;
+  return c.rateTypeId || null;
+}
+function _bkV2ResolveRateTypeOld(agentId, routeId, travelDate){
   if(!agentId || !routeId || !travelDate || typeof SB_CONTRACTS==='undefined' || !Array.isArray(SB_CONTRACTS)) return null;
   const promos = SB_CONTRACTS.filter(c => c && c.agentId===agentId && c.kind==='promo'
     && c.status!=='void' && c.status!=='cancelled' && c.status!=='expired'
@@ -50903,11 +51044,13 @@ function bkV2GetRTForTrip(trip){
   const base = bkV2GetRT();
   if(!trip || !trip.routeId || !trip.date) return base;
   const d = _bkV2.newBooking; if(!d || !d.agentId) return base;
-  const rtId = bkV2ResolveRateType(d.agentId, trip.routeId, trip.date);
-  if(!rtId || rtId===d.rateTypeRef) return base;
-  const rt = (SB_RATE_TYPES||[]).find(r => r.id===rtId);
-  if(rt && (rt.seatRates?.[trip.routeId] || rt.charterRates?.[trip.routeId])) return rt;
-  return base;
+  /* §b2bPromo · ทางเข้าเดียว · รองรับทั้งใบโปรที่ดึงจาก Rate Type และใบที่กรอกราคาเอง
+     วันจองส่งเข้าไปด้วย · ใบที่ไม่ได้ตั้งช่วงวันจองไว้จะไม่สนใจค่านี้ (laPromoCovers) */
+  const hit = laPromoRateFor(d.agentId, trip.routeId, trip.date,
+                             d.bookingDate || (typeof TODAY_STR!=='undefined'?TODAY_STR:''), base);
+  if(!hit) return base;
+  if(hit.rt && hit.rt.id === d.rateTypeRef) return base;    /* โปรชี้กลับไปชุดเดิม = ไม่ต้องสลับ */
+  return hit.rt || base;
 }
 function bkV2TripSubtotal(trip){
   const rt = bkV2GetRTForTrip(trip);
