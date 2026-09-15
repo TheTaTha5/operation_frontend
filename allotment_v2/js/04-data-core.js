@@ -2748,16 +2748,46 @@ function renderCal(){
     border:1px solid rgba(255,255,255,.22) !important;border-radius:8px}
   .cal2-tbar input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.7)}
 
-  /* แถบเส้นทาง · พิลแก้วแบบ .dv-chip · ตัวเลขยังเป็น DM Mono ตามเดิม */
+  /* ══ แถบเส้นทาง · พิลแก้วแบบ .dv-chip · เป็นตัวกรองด้วย ไม่ใช่แค่คำอธิบายสี ══
+     ชิปมีสองแกนที่ไม่เกี่ยวกัน ต้องแยกให้ออกจากกันด้วยตา
+       .off   = คนกดปิดเอง (_hidRt) — ซ่อนเส้นทางนี้ออกจากปฏิทิน
+       .dead  = เดือนนี้ไม่มีทริป — ระบบบอก ไม่ใช่คนเลือก
+     ⚠ รอบแรกให้ทั้งสองแกนเป็น opacity เฉย ๆ (.5 กับ .42) ซึ่งตาแยกไม่ออก
+       กดปิดไปแล้วยังดูเหมือนเดิม · คนละเรื่องกันแต่หน้าตาเดียวกัน
+     ตอนนี้ .off เปลี่ยน "ชนิด" ของชิปเลย ไม่ใช่แค่จาง — ทิ้งสี ขอบประ ชื่อขีดฆ่า */
   .cal2-routes .cal2-rc{background:rgba(255,255,255,.10) !important;
     border:1px solid rgba(255,255,255,.20) !important;border-radius:14px;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.10)}
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.10);transition:opacity .15s,filter .15s}
   .cal2-routes .cal2-rc *{color:#D6E2F5 !important}
   .cal2-routes .cal2-rc b,.cal2-routes .cal2-rc .n{color:#fff !important}
-  .cal2-routes .cal2-rc.dead{opacity:.42}
-  .cal2-routes .cal2-rc.off{opacity:.5}
-  .cal2-routes .cal2-rc:not(.dead):not(.off){background:rgba(255,255,255,.16) !important;
-    border-color:rgba(255,255,255,.30) !important}
+  .cal2-routes .cal2-rc:hover{border-color:rgba(255,255,255,.46) !important}
+
+  /* ① ติ๊กอยู่ + มีทริป · สว่างสุด แถบสีเส้นทางเต็มสี ตัวเลขขาวล้วน */
+  .cal2-routes .cal2-rc:not(.dead):not(.off){background:rgba(255,255,255,.18) !important;
+    border-color:rgba(255,255,255,.34) !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 2px 12px rgba(2,10,30,.28)}
+  .cal2-routes .cal2-rc:not(.dead):not(.off) i{width:5px !important;
+    box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+
+  /* ② ติ๊กอยู่ + เดือนนี้ไม่มีทริป · จางลงแต่ยังมีสี = ยังนับอยู่ในปฏิทิน */
+  .cal2-routes .cal2-rc.dead:not(.off){opacity:.5;background:rgba(255,255,255,.06) !important;
+    border-color:rgba(255,255,255,.14) !important;box-shadow:none}
+
+  /* ③ ถูกกดปิด · ทิ้งสีทั้งใบ + ขอบประ + ชื่อขีดฆ่า · แยกจาก ② ได้ในแวบเดียว
+        (ใช้กับ .dead.off ด้วย · ตัวนี้ทับ ② เพราะเขียนทีหลัง น้ำหนักเท่ากัน) */
+  .cal2-routes .cal2-rc.off{opacity:.34 !important;filter:grayscale(1);
+    background:transparent !important;border-style:dashed !important;
+    border-color:rgba(255,255,255,.34) !important;box-shadow:none !important}
+  .cal2-routes .cal2-rc.off>div:first-of-type>div:first-child{text-decoration:line-through}
+  .cal2-routes .cal2-rc.off span{text-decoration:none !important}
+  .cal2-routes .cal2-rc.off:hover{opacity:.6 !important;filter:none}
+
+  /* สกรอลล์บาร์ของแถบ · ของเดิมเป็นแถบขาวสว่างพาดอยู่บนพื้น navy */
+  .cal2-routes{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.26) transparent}
+  .cal2-routes::-webkit-scrollbar{height:6px}
+  .cal2-routes::-webkit-scrollbar-track{background:transparent}
+  .cal2-routes::-webkit-scrollbar-thumb{background:rgba(255,255,255,.26);border-radius:3px}
+  .cal2-routes::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.44)}
 
   /* การ์ดขาว · มุม 12 ขอบบาง แบบการ์ด Dashboard · เงาเข้มขึ้นเพราะอยู่บนพื้น navy */
   .cal2-box{border-radius:12px !important;border:1px solid rgba(255,255,255,.14) !important;
