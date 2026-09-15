@@ -370,7 +370,7 @@
       return v==='piercheckin' || v==='vancheckin';
     }catch(e){ return false; }
   }
-  function _laBusy(){
+  function _laBusy(skipIdle){
     if(_dirty) return true;                                                             // local changes not yet synced → never overwrite
     if(window._bkV2 && (_bkV2.newBooking || _bkV2.editingId)) return true;              // a booking form is open
     var _live=_laLiveView();
@@ -383,6 +383,7 @@
     if(document.querySelector('.la-modal')||document.getElementById('la-umodal')||document.getElementById('la-pmodal')) return true;  // a dialog is open
     if(document.getElementById('dc-panel-docs')) return true;                           // Document-Check drawer open (reading details) → don't interrupt
     try{ if(typeof _agSelected!=='undefined' && _agSelected) return true; }catch(e){}   // Agent detail open (reading/editing) → don't yank back to the list
+    if(skipIdle) return false;                                                          // §btLoadNowFix · คลิกเองสั่ง skip: mousedown ของคลิกนี้เองเพิ่ง stamp _laLastInput ไปหมาดๆ
     /* หน้าเช็คอิน · 700ms พอให้ไม่วาดทับจังหวะที่นิ้วยังอยู่บนปุ่ม แต่ไม่ค้างทั้งกะ
        หน้าอื่นคงไว้ 2 วิเหมือนเดิม */
     if(Date.now()-_laLastInput < (_live?700:2000)) return true;
@@ -417,8 +418,8 @@
     }catch(e){} }, 220);
   }catch(e){} }
   // SEAMLESS in-place refresh · pulls latest cloud data + re-renders current view · NO page reload (no Dashboard flash)
-  function _laSoftRefresh(){
-    if(_laBusy()){ if(_laPending) showRefresh(_laPending); return; }
+  function _laSoftRefresh(force){
+    if(_laBusy(force)){ if(_laPending) showRefresh(_laPending); return; }
     var x=new XMLHttpRequest(); x.open('GET',bust('/api/load'),true);
     x.onload=function(){ try{
       if(x.status!==200) return;                                   // keep pending · retry next idle tick
@@ -486,7 +487,7 @@
     d.innerHTML='<span class="la-rf-dot"></span>'
       +'<span class="la-rf-tx"><b>มีข้อมูลใหม่จากคนอื่น</b>'
       +'<i>'+_by+'จะรีเฟรชอัตโนมัติเมื่อว่าง</i></span>'
-      +'<button onclick="_laSoftRefresh()">โหลดเลย</button>'; document.body.appendChild(d); }); }
+      +'<button onclick="_laSoftRefresh(true)">โหลดเลย</button>'; document.body.appendChild(d); }); }
   // §B2C new-booking alert helpers (2026-07-24)
   var _B2C_CXL=['cancelled','rejected','cancelled_weather'];
   /* §b2cPop · จำ id ของใบ b2c ที่รู้จักแล้วไว้ในหน่วยความจำ
