@@ -2691,6 +2691,82 @@ function renderCal(){
   .cal2-dwb{flex:1;overflow:auto;padding:14px 16px 24px}
   .cal2-x{position:absolute;top:13px;right:14px;width:27px;height:27px;border-radius:50%;border:1px solid ${ink.line};background:#fff;cursor:pointer;color:${ink[2]};font-size:15px;line-height:1;z-index:2}
   .cal2-lg{flex:none;display:flex;align-items:center;gap:13px;font-size:10px;color:${ink[2]};padding:0 2px;flex-wrap:wrap}
+  /* ══════════ §calDash · ยกภาษาดีไซน์ของหน้า Dashboard มาใช้ ══════════════════════════
+     Dashboard (§dashV3) วางการ์ดขาวไว้บนพื้น navy #16265C ที่มีไอสีของเส้นทางจริง
+     เบลอใหญ่อยู่ข้างหลัง · แถบหัวเป็นแก้ว · ตัวเลขเป็น DM Mono · ชิปเป็นพิลโปร่ง
+     หน้า Calendar เดิมใช้จานสีเทาอมฟ้า (slate) บนพื้นครีม — คนละภาษากันคนละเรื่อง
+     ทั้งที่เป็นหน้าที่เปิดค้างไว้ทั้งวันเหมือนกัน
+
+     ⚠ ก้อนนี้เป็น "ชั้นทับ" ทั้งหมด · ไม่ได้แก้กฎเดิมสักบรรทัด
+       ลบตั้งแต่ §calDash ถึงท้ายบล็อกนี้ = กลับไปหน้าตาเดิมทันที
+       (แพตเทิร์นเดียวกับสกินใน 02-skins.css ที่ลบทีละชั้นได้)
+     ⚠ ข้างในการ์ดขาวไม่แตะ · ตัวเลขที่นั่ง สีประจำเส้นทาง กากบาทวันนี้ ยังเหมือนเดิมหมด
+       เปลี่ยนเฉพาะเปลือกนอก = พื้น แถบเครื่องมือ แถบเส้นทาง และขอบการ์ด            */
+  #cal-wrap{background:#16265C !important;margin:0 -20px -22px !important;
+    padding:14px 18px 18px !important;position:relative;isolation:isolate;
+    min-height:calc(100dvh - var(--topbar, 44px) - 78px)}
+  #cal-wrap::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(58% 44% at 12% 8%,  rgba(255,153,153,.42), transparent 62%),
+      radial-gradient(46% 40% at 88% 4%,  rgba(186,117,23,.34),  transparent 62%),
+      radial-gradient(52% 46% at 78% 92%, rgba(15,110,86,.38),   transparent 64%),
+      radial-gradient(50% 42% at 24% 96%, rgba(24,95,165,.42),   transparent 62%);
+    filter:blur(20px) saturate(120%)}
+  #cal-wrap>*{position:relative;z-index:1}
+  .cal2-page{gap:9px}
+
+  /* แถบเครื่องมือ · ชั้นที่ลอยอยู่จริง จึงเป็นแก้วได้แบบเดียวกับ .dv-hd */
+  .cal2-tbar{border-radius:14px;padding:7px 11px !important;margin-bottom:0 !important;
+    background:linear-gradient(160deg, rgba(22,38,92,.82), rgba(12,24,62,.74));
+    -webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);
+    box-shadow:0 8px 26px rgba(2,10,30,.34), inset 0 1px 0 rgba(255,255,255,.18)}
+  /* ปุ่มกับป้ายข้างในถูกกำหนดสีมาแบบ inline · ทับด้วย !important เฉพาะสี ไม่แตะโครง */
+  .cal2-tbar button,.cal2-tbar span,.cal2-tbar div,.cal2-tbar input,.cal2-tbar select{color:#D6E2F5 !important}
+  .cal2-tbar button{background:rgba(255,255,255,.10) !important;border-color:rgba(255,255,255,.22) !important}
+  .cal2-tbar button:hover{background:rgba(255,255,255,.20) !important}
+  /* ตัวที่ถูกเลือกอยู่ต้องเด่นกว่าเพื่อน · ขาวทึบแบบปุ่ม Today ของ Dashboard
+     ⚠ ตัวจับคือ FOREST (#1F4D2C) ที่เขียนเป็น inline style ของปุ่มที่ active อยู่
+       (ดูตัวแปร FOREST/LIME ต้นฟังก์ชัน) · ถ้าย้ายไปใช้ class เมื่อไหร่ ให้แก้ตัวจับนี้ด้วย
+       ไม่งั้นปุ่มที่เลือกอยู่จะหน้าตาเหมือนปุ่มที่ไม่ได้เลือก = มองไม่ออกว่ากรองอะไรค้างไว้ */
+  .cal2-tbar button[style*="1F4D2C"]{background:#fff !important;color:#16265C !important;
+    border-color:transparent !important;box-shadow:0 2px 10px rgba(2,10,30,.30)}
+  .cal2-tbar button[style*="1F4D2C"]:hover{background:#fff !important}
+  /* กล่องย่อยในแถบ (กลุ่มช่วงวันที่) เขียน background:white มาแบบ inline
+     ถ้าไม่ทับ จะกลายเป็นพิลขาวทึบที่มีตัวหนังสือสีฟ้าจางอยู่ข้างใน = อ่านไม่ออก */
+  .cal2-tbar div[style*="background:white"],.cal2-tbar div[style*="background:#fff"]{
+    background:rgba(255,255,255,.10) !important;border-color:rgba(255,255,255,.22) !important;
+    border-radius:11px}
+  .cal2-tbar input[type="date"]{background:rgba(255,255,255,.10) !important;
+    border:1px solid rgba(255,255,255,.22) !important;border-radius:8px}
+  .cal2-tbar input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.7)}
+
+  /* แถบเส้นทาง · พิลแก้วแบบ .dv-chip · ตัวเลขยังเป็น DM Mono ตามเดิม */
+  .cal2-routes .cal2-rc{background:rgba(255,255,255,.10) !important;
+    border:1px solid rgba(255,255,255,.20) !important;border-radius:14px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.10)}
+  .cal2-routes .cal2-rc *{color:#D6E2F5 !important}
+  .cal2-routes .cal2-rc b,.cal2-routes .cal2-rc .n{color:#fff !important}
+  .cal2-routes .cal2-rc.dead{opacity:.42}
+  .cal2-routes .cal2-rc.off{opacity:.5}
+  .cal2-routes .cal2-rc:not(.dead):not(.off){background:rgba(255,255,255,.16) !important;
+    border-color:rgba(255,255,255,.30) !important}
+
+  /* การ์ดขาว · มุม 12 ขอบบาง แบบการ์ด Dashboard · เงาเข้มขึ้นเพราะอยู่บนพื้น navy */
+  .cal2-box{border-radius:12px !important;border:1px solid rgba(255,255,255,.14) !important;
+    box-shadow:0 14px 40px rgba(2,10,30,.34) !important}
+
+  /* หัวหน้าเพจอยู่นอก cal-wrap · ดึงลงมาอยู่บนพื้นเดียวกันจะได้ไม่ลอยคนละโลก */
+  #view-calendar .page-hd{background:#16265C;margin:-22px -22px 0;padding:18px 22px 4px;
+    border-radius:0;position:relative;z-index:2}
+  #view-calendar .page-hd h1{color:#fff}
+  #view-calendar .page-hd p{color:#A8BAD8}
+
+  /* จอแคบ · พื้น navy ยังกินเต็มขอบเหมือนเดิม แต่ดันของข้างในเข้ามา
+     ไม่งั้นการ์ดจะชิดขอบจอเหลือ 6px เพราะ margin ติดลบไปหักกับ padding ของหน้า */
+  @media (max-width:700px){
+    #cal-wrap{padding-left:26px !important;padding-right:26px !important}
+    #view-calendar .page-hd{margin-left:-14px;margin-right:-14px;padding-left:14px;padding-right:14px}
+  }
   </style>`;
 
   // ── State ──
@@ -2787,7 +2863,7 @@ function renderCal(){
     const on=calPier===v;
     return `<button onclick="setCalPier('${v}')" style="background:${on?FOREST:'transparent'};color:${on?LIME:ink[2]};border:none;border-radius:14px;padding:4px 12px;font-size:11px;font-weight:${on?600:500};cursor:pointer">${l}</button>`;
   }).join('');
-  const headerBar=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0;gap:8px;flex-wrap:wrap">
+  const headerBar=`<div class="cal2-tbar" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0;gap:8px;flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
       <button onclick="changeMonth(-1)" style="background:white;border:1px solid ${ink.line};border-radius:50%;width:28px;height:28px;cursor:pointer;color:${ink[2]};display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
       <button onclick="changeMonth(1)" style="background:white;border:1px solid ${ink.line};border-radius:50%;width:28px;height:28px;cursor:pointer;color:${ink[2]};display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
