@@ -36125,15 +36125,52 @@ function ctContractsPanelHTML(agentId){
     const st=_ctContractStatus(c);
     const isPromo=c.kind==='promo';
     const routes=(c.programPeriods||[]).map(p=>_ctRouteName(p.routeId));
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border,#eee);border-radius:10px;background:#fff;${st.key==='void'?'opacity:.6;':''}">
+    /* §b2bPromo · ป้ายบอกที่มาของราคา · ใบเก่าไม่มี priceMode = ตาม Rate Type เหมือนเดิม */
+    const pm=isPromo?((c.priceMode||'rate')):'';
+    const pmTag=isPromo?`<span style="background:#F1EFE8;color:#5F5E5A;font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;white-space:nowrap">${_ctEsc(LA_PROMO_MODE_TXT[pm]||pm)}${pm==='discount'?(' · '+_ctEsc(laPromoDiscTxt(c))):''}</span>`:'';
+    /* §b2bPromo · ซื้อ N แถม 1 · แถบความคืบหน้า
+       ผู้ใช้ถามว่า "จะโชว์ตัวเลขยังไงว่า Performance ถึงไหนแล้ว" — ก้อนนี้คือคำตอบ
+       ระบบไม่เติมหัว FOC ให้ · บอกแค่ว่าขายไปเท่าไหร่ ได้สิทธิ์กี่ที่ ใช้ไปแล้วกี่ที่ */
+    let bonusBar='';
+    if(isPromo && st.key!=='void'){
+      const S=laPromoStat(c);
+      if(S){
+        const warn=S.over>0;
+        bonusBar=`<div style="margin-top:7px;padding-top:7px;border-top:1px dashed #EFECE6">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:10.5px;color:#4A5464">
+            <b style="font-size:11px;color:#3C4553">ซื้อ ${S.buy} แถม 1</b>
+            <span style="color:#8A929E">นับ${_ctEsc(S.basisTxt)}</span>
+            <span style="flex:1"></span>
+            <span>ขายแล้ว <b>${S.sold.toLocaleString()}</b> หัว · ${S.bookings} ใบ</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:9px;margin-top:5px">
+            <div style="flex:1;height:7px;background:#EFECE6;border-radius:99px;overflow:hidden">
+              <i style="display:block;height:100%;width:${S.earned>0&&S.pct===0?100:S.pct}%;background:${warn?'#C0392B':'#C2410C'}"></i></div>
+            <span style="font-size:10.5px;color:#8A929E;white-space:nowrap">${S.toNext===0?'ครบรอบพอดี':('อีก '+S.toNext+' หัวถึงสิทธิ์ถัดไป')}</span>
+          </div>
+          <div style="display:flex;gap:14px;margin-top:6px;font-size:10.5px;flex-wrap:wrap">
+            <span>ได้สิทธิ์ <b>${S.earned}</b> ที่</span>
+            <span>ใช้ไปแล้ว <b>${S.used}</b> ที่</span>
+            <span style="color:${S.left>0?'#0F6E56':'#8A929E'}">คงเหลือ <b>${S.left}</b> ที่</span>
+            ${warn?`<span style="color:#C0392B">⚠ แถมเกินสิทธิ์ ${S.over} ที่</span>`:''}
+          </div>
+          <div style="font-size:9.5px;color:#A9A39A;margin-top:5px">
+            "ใช้ไปแล้ว" นับจากหัว FOC ในใบจองช่วงนี้ · ถ้ามี FOC จากเหตุอื่นจะรวมมาด้วย · ระบบไม่บล็อกการขาย</div>
+        </div>`;
+      }
+    }
+    return `<div style="display:${bonusBar?'block':'flex'};align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border,#eee);border-radius:10px;background:#fff;${st.key==='void'?'opacity:.6;':''}">
+      ${bonusBar?'<div style="display:flex;align-items:center;gap:10px">':''}
       <span style="background:${isPromo?'#FCE9D6':'#E6EEF6'};color:${isPromo?'#9A5410':'#1F5C8F'};font-size:9px;font-weight:700;padding:2px 8px;border-radius:8px;letter-spacing:.04em">${isPromo?'PROMO':'MAIN'}</span>
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600">${_ctEsc(_ctRateName(c.rateTypeId))}${c.version?` <span style="color:#aaa;font-weight:400;font-size:10px">· ${_ctEsc(c.version)}</span>`:''}</div>
+        <div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <span>${_ctEsc(isPromo&&pm!=='rate'?(c.note||'Promotion'):_ctRateName(c.rateTypeId))}</span>${pmTag}${c.version?`<span style="color:#aaa;font-weight:400;font-size:10px">· ${_ctEsc(c.version)}</span>`:''}</div>
         <div style="font-size:10.5px;color:#888;margin-top:1px">${_ctFmt(c.activeFrom)} – ${_ctFmt(c.activeTo)}${routes.length?` · ${routes.length} route: ${_ctEsc(routes.slice(0,4).join(', '))}${routes.length>4?'…':''}`:''}</div>
       </div>
       <span style="background:${st.bg};color:${st.color};font-size:9px;font-weight:600;padding:2px 8px;border-radius:8px;white-space:nowrap">${st.label}</span>
       <button onclick="ctDocForContract('${c.id}','${agentId}')" style="background:none;border:1px solid #CFE0EE;color:#1F5C8F;border-radius:8px;padding:3px 9px;font-size:10px;cursor:pointer;white-space:nowrap">${c.docId?'สัญญา ✓':'ออกสัญญา'}</button>
       ${isPromo&&st.key!=='void'?`<button onclick="ctVoidContract('${c.id}','${agentId}')" style="background:none;border:1px solid #E4C0C0;color:#A32D2D;border-radius:8px;padding:3px 9px;font-size:10px;cursor:pointer">ยกเลิก</button>`:''}
+      ${bonusBar?'</div>':''}${bonusBar}
     </div>`;
   };
   const canEdit=(typeof laCanEditArea!=='function')||laCanEditArea('sales');
@@ -36156,7 +36193,7 @@ function ctContractsPanelHTML(agentId){
       </div>
       <div style="display:flex;gap:9px;align-items:flex-start;font-size:11px;line-height:1.6;color:#4A5464;margin-top:5px">
         <span style="background:#F1EFE8;color:#5F5E5A;font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;margin-top:1px;white-space:nowrap">2 \u0e02\u0e49\u0e32\u0e21</span>
-        <div style="flex:1">\u0e16\u0e49\u0e32 PROMO \u0e19\u0e31\u0e49\u0e19\u0e44\u0e21\u0e48\u0e21\u0e35\u0e23\u0e32\u0e04\u0e32\u0e02\u0e2d\u0e07 route \u0e19\u0e31\u0e49\u0e19 (\u0e44\u0e21\u0e48\u0e27\u0e48\u0e32\u0e08\u0e30\u0e21\u0e32\u0e08\u0e32\u0e01 Rate Type \u0e2b\u0e23\u0e37\u0e2d\u0e01\u0e23\u0e2d\u0e01\u0e40\u0e2d\u0e07) \u0e2b\u0e23\u0e37\u0e2d\u0e16\u0e39\u0e01\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01\u0e44\u0e1b\u0e41\u0e25\u0e49\u0e27 \u2192 \u0e02\u0e49\u0e32\u0e21 \u0e44\u0e21\u0e48\u0e04\u0e34\u0e14\u0e40\u0e1b\u0e47\u0e19 0</div>
+        <div style="flex:1">\u0e16\u0e49\u0e32 PROMO \u0e19\u0e31\u0e49\u0e19\u0e44\u0e21\u0e48\u0e21\u0e35\u0e23\u0e32\u0e04\u0e32\u0e02\u0e2d\u0e07 route \u0e19\u0e31\u0e49\u0e19 (\u0e44\u0e21\u0e48\u0e27\u0e48\u0e32\u0e08\u0e30\u0e15\u0e31\u0e49\u0e07\u0e23\u0e32\u0e04\u0e32\u0e41\u0e1a\u0e1a\u0e44\u0e2b\u0e19) \u0e2b\u0e23\u0e37\u0e2d\u0e16\u0e39\u0e01\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01\u0e44\u0e1b\u0e41\u0e25\u0e49\u0e27 \u2192 \u0e02\u0e49\u0e32\u0e21 \u0e44\u0e21\u0e48\u0e04\u0e34\u0e14\u0e40\u0e1b\u0e47\u0e19 0</div>
       </div>
       <div style="display:flex;gap:9px;align-items:flex-start;font-size:11px;line-height:1.6;color:#4A5464;margin-top:5px">
         <span style="background:#E6EEF6;color:#1F5C8F;font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;margin-top:1px;white-space:nowrap">3 MAIN</span>
@@ -36194,11 +36231,33 @@ var _ctPromoCtx = null;
 
 function ctPromoSwitch(mode){
   _ctPromoCtx && (_ctPromoCtx.mode = mode);
-  var br = document.getElementById('ct-promo-box-rate');
-  var bo = document.getElementById('ct-promo-box-own');
-  if(br) br.style.display = (mode === 'rate') ? '' : 'none';
-  if(bo) bo.style.display = (mode === 'own')  ? '' : 'none';
+  [['rate','ct-promo-box-rate'], ['own','ct-promo-box-own'], ['discount','ct-promo-box-disc']]
+    .forEach(function(x){
+      var el = document.getElementById(x[1]);
+      if(el) el.style.display = (mode === x[0]) ? '' : 'none';
+    });
   if(mode === 'own') ctPromoTbl();
+}
+/* ตัวอย่างผลของส่วนลด · คนตั้งราคาต้องเห็นเลขจริงก่อนกดบันทึก ไม่ใช่เดาเอาจาก % */
+function ctPromoDiscPrev(){
+  var host = document.getElementById('ct-promo-disc-prev'); if(!host || !_ctPromoCtx) return;
+  var md = ((document.querySelector('input[name="ct-promo-dmode"]:checked') || {}).value) || 'pct';
+  var dv = +((document.getElementById('ct-promo-dval') || {}).value) || 0;
+  var RS = ctPromoRoutesPicked();
+  if(!dv || !RS.length){ host.innerHTML = '<span style="color:#8A929E">ใส่ตัวเลขส่วนลดแล้วจะเห็นตัวอย่างราคาที่นี่</span>'; return; }
+  var mr = laPromoMainRt(_ctPromoCtx.agentId);
+  var rows = RS.slice(0, 3).map(function(rid){
+    var z = mr && mr.seatRates && mr.seatRates[rid] && mr.seatRates[rid].PK;
+    if(!z) return '<div>' + _ctEsc(_ctRouteName(rid)) + ' · <span style="color:#A32D2D">Main ไม่มีราคาของ route นี้ → โปรจะถูกข้าม</span></div>';
+    var f = function(k){
+      var v = +z[k] || 0; if(v <= 0) return '—';
+      var n = Math.max(0, md === 'amt' ? Math.round(v - dv) : Math.round(v * (1 - dv / 100)));
+      return v.toLocaleString() + ' → <b>' + n.toLocaleString() + '</b>';
+    };
+    return '<div>' + _ctEsc(_ctRouteName(rid)) + ' · PK · ผู้ใหญ่ไทย ' + f('adult-thai')
+         + ' · ผู้ใหญ่ต่างชาติ ' + f('adult-fr') + '</div>';
+  }).join('');
+  host.innerHTML = rows + (RS.length > 3 ? ('<div style="color:#8A929E">…และอีก ' + (RS.length - 3) + ' route</div>') : '');
 }
 /* ราคาตั้งต้นของช่องหนึ่ง · มาจาก Rate Type ตัวหลักของเอเย่นต์ */
 function _ctPromoBase(routeId, zone, k){
@@ -36259,7 +36318,7 @@ function ctOpenAddPromo(agentId){
   const mainRate=(main&&main.rateTypeId)||a.rateTypeId||'';
   const routeIds=[...new Set([...(a.programPeriods||[]).map(p=>p.routeId), ...((main&&main.programPeriods)||[]).map(p=>p.routeId)].filter(Boolean))];
   const rtOpts=((typeof SB_RATE_TYPES!=='undefined')?SB_RATE_TYPES:[]).map(r=>`<option value="${r.id}"${r.id===mainRate?' selected':''}>${_ctEsc(r.name||r.code||r.id)}</option>`).join('');
-  const routeChecks=routeIds.length?routeIds.map(rid=>`<label style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:4px 9px;cursor:pointer"><input type="checkbox" class="ct-promo-route" value="${rid}" onchange="ctPromoTbl()" checked> ${_ctEsc(_ctRouteName(rid))}</label>`).join(''):'<div style="font-size:11px;color:#c0392b">agent นี้ยังไม่มี route ในสัญญา — เพิ่ม route ในโปรแกรมก่อน</div>';
+  const routeChecks=routeIds.length?routeIds.map(rid=>`<label style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:4px 9px;cursor:pointer"><input type="checkbox" class="ct-promo-route" value="${rid}" onchange="ctPromoTbl();ctPromoDiscPrev()" checked> ${_ctEsc(_ctRouteName(rid))}</label>`).join(''):'<div style="font-size:11px;color:#c0392b">agent นี้ยังไม่มี route ในสัญญา — เพิ่ม route ในโปรแกรมก่อน</div>';
   const today=(typeof TODAY_STR!=='undefined'&&TODAY_STR)?TODAY_STR:new Date().toISOString().slice(0,10);
   _ctPromoCtx={ agentId:agentId, mainRate:mainRate, mode:'rate' };
   const lb='font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:4px';
@@ -36281,7 +36340,23 @@ function ctOpenAddPromo(agentId){
             <input type="radio" name="ct-promo-mode" value="rate" checked onchange="ctPromoSwitch('rate')"> Rate Type ที่มีอยู่</label>
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;background:#F7F6F3;border:1px solid #e5e5e5;border-radius:9px;padding:7px 12px;cursor:pointer">
             <input type="radio" name="ct-promo-mode" value="own" onchange="ctPromoSwitch('own')"> กรอกราคาเองในใบนี้</label>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;background:#F7F6F3;border:1px solid #e5e5e5;border-radius:9px;padding:7px 12px;cursor:pointer">
+            <input type="radio" name="ct-promo-mode" value="discount" onchange="ctPromoSwitch('discount')"> ลดจาก Main</label>
         </div>
+      </div>
+
+      <div id="ct-promo-box-disc" style="display:none">
+        <label style="${lb}">ส่วนลดจากราคา Main</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;cursor:pointer">
+            <input type="radio" name="ct-promo-dmode" value="pct" checked onchange="ctPromoDiscPrev()"> เปอร์เซ็นต์</label>
+          <label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;cursor:pointer">
+            <input type="radio" name="ct-promo-dmode" value="amt" onchange="ctPromoDiscPrev()"> จำนวนเงินต่อหัว</label>
+          <input type="number" id="ct-promo-dval" min="0" step="1" value="10" oninput="ctPromoDiscPrev()"
+            style="width:110px;padding:7px 9px;border:1px solid #ddd;border-radius:9px;font-size:12px;font-family:inherit;text-align:right">
+        </div>
+        <div id="ct-promo-disc-prev" style="margin-top:7px;font-size:10.5px;color:#4A5464;line-height:1.7;background:#FBFAF8;border:1px solid #EFECE6;border-radius:8px;padding:7px 10px"></div>
+        <div style="font-size:10px;color:#8A929E;margin-top:5px">ลดจาก<b>ราคาสัญญาหลัก</b>เสมอ · ช่องที่เป็น 0 อยู่แล้ว (ไม่ขาย) ลดแล้วยังเป็น 0</div>
       </div>
 
       <div id="ct-promo-box-rate">
@@ -36315,6 +36390,26 @@ function ctOpenAddPromo(agentId){
       <div id="ct-promo-box-own" style="display:none">
         <label style="${lb}">ราคาโปร · เฉพาะ route ที่ติ๊กไว้</label>
         <div id="ct-promo-rates" style="border:1px solid #EFECE6;border-radius:10px;padding:9px 11px;background:#fff;overflow-x:auto"></div>
+      </div>
+
+      <div style="background:#FBFAF8;border:1px solid #EFECE6;border-radius:10px;padding:11px 13px">
+        <label style="display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;color:#3C4553;cursor:pointer">
+          <input type="checkbox" id="ct-promo-bon" onchange="var b=document.getElementById('ct-promo-bon-box'); if(b) b.style.display=this.checked?'':'none'"> ซื้อ N แถม 1</label>
+        <div id="ct-promo-bon-box" style="display:none;margin-top:9px">
+          <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:11.5px">
+            <span>ซื้อครบ</span>
+            <input type="number" id="ct-promo-bon-n" min="1" step="1" value="10"
+              style="width:78px;padding:7px 9px;border:1px solid #ddd;border-radius:9px;font-size:12px;font-family:inherit;text-align:right">
+            <span>หัว แถม 1 ที่ · นับจาก</span>
+            <select id="ct-promo-bon-basis" style="padding:7px 9px;border:1px solid #ddd;border-radius:9px;font-size:12px;font-family:inherit">
+              <option value="adchd">ผู้ใหญ่ + เด็ก</option>
+              <option value="ad">เฉพาะผู้ใหญ่</option>
+            </select>
+          </div>
+          <div style="font-size:10px;color:#8A929E;margin-top:7px;line-height:1.6">
+            นับสะสมตลอดช่วงโปร ไม่ใช่ต่อใบจอง · ระบบ<b>นับกับเตือน</b>ให้เท่านั้น ไม่เติมหัว FOC เอง<br>
+            ความคืบหน้าดูได้ที่แถบใบโปรในการ์ดสัญญา</div>
+        </div>
       </div>
 
       <div style="display:flex;gap:10px;align-items:end">
@@ -36371,8 +36466,44 @@ function ctSaveAddPromo(agentId){
       if(!confirm(routes.length-covered.length+' route ไม่มีราคาในโปรนี้ ('+miss+')\n\n'
         +'route พวกนั้นจะใช้เรทมาตรฐานตามเดิม · สร้างต่อเลยไหม')) return;
     }
+  } else if(mode==='discount'){
+    const dv=+((document.getElementById('ct-promo-dval')||{}).value)||0;
+    if(!(dv>0)){ alert('ใส่ตัวเลขส่วนลดก่อน'); return; }
+    const dmode=((document.querySelector('input[name="ct-promo-dmode"]:checked')||{}).value)||'pct';
+    if(dmode==='pct' && dv>=100){ alert('ส่วนลดเป็นเปอร์เซ็นต์ต้องน้อยกว่า 100'); return; }
+    /* ⚠ ลดเป็นจำนวนเงินมากกว่าราคาจริง = ทุกช่องกลายเป็น 0
+       ตัวคิดราคาจะอ่านว่า "ไม่ได้เปิดขาย" แล้วคืนยอด 0 ไม่ใช่ถอยไปเรทมาตรฐาน
+       เป็นความผิดตอนพิมพ์ ไม่ใช่เจตนา · ดักที่นี่ดีกว่าไปเงียบตอนขาย */
+    const mr0=laPromoMainRt(agentId);
+    if(dmode==='amt'){
+      let lo=Infinity;
+      routes.forEach(r=>{ const zz=(mr0&&mr0.seatRates&&mr0.seatRates[r])||{};
+        Object.keys(zz).forEach(z=>{ ['adult-thai','adult-fr'].forEach(k=>{
+          const v=+zz[z][k]||0; if(v>0 && v<lo) lo=v; }); }); });
+      if(lo!==Infinity && dv>=lo){
+        alert('ส่วนลด '+dv.toLocaleString()+' บาท มากกว่าหรือเท่ากับราคาผู้ใหญ่ที่ถูกที่สุดใน Main ('
+          +lo.toLocaleString()+' บาท)\n\nราคาจะกลายเป็น 0 แล้วระบบจะอ่านว่าไม่ได้เปิดขาย · ลดจำนวนลงก่อน');
+        return;
+      }
+    }
+    /* Main ไม่มีราคาของ route ไหน = ไม่มีอะไรให้ลด · เตือนก่อน ไม่ปล่อยให้เงียบ */
+    const mr=laPromoMainRt(agentId);
+    const miss=routes.filter(r=>!(mr&&mr.seatRates&&mr.seatRates[r]));
+    if(miss.length){
+      if(!confirm(miss.length+' route ไม่มีราคาใน Main ('+miss.map(r=>_ctRouteName(r)).join(', ')+')\n\n'
+        +'ไม่มีอะไรให้ลด · route พวกนั้นจะใช้เรทมาตรฐานตามเดิม · สร้างต่อเลยไหม')) return;
+    }
   } else {
     if(!rateTypeId){ alert('เลือก Rate Type ของ Promo ก่อน'); return; }
+  }
+  /* §b2bPromo · ของแถม · แยกจากราคา ใช้ร่วมกับโหมดไหนก็ได้
+     ดีลจริงมีทั้ง "ลด 10% และซื้อ 10 แถม 1" พร้อมกัน จึงไม่ทำเป็นตัวเลือกเดียวกับราคา */
+  let bonus=null;
+  if((document.getElementById('ct-promo-bon')||{}).checked){
+    const bn=parseInt((document.getElementById('ct-promo-bon-n')||{}).value,10)||0;
+    if(bn<1){ alert('จำนวนที่ต้องซื้อต้องมากกว่า 0'); return; }
+    bonus={ on:1, buy:bn, free:1,
+            basis:((document.getElementById('ct-promo-bon-basis')||{}).value)||'adchd' };
   }
 
   /* §b2bPromo · bookWin บอกว่าใบนี้ตั้งใจใช้ช่วงวันจองจริง ๆ
@@ -36384,6 +36515,10 @@ function ctSaveAddPromo(agentId){
     priceMode:mode,
     rateTypeId:(mode==='rate'?rateTypeId:null),
     rates:(mode==='own'?rates:null),
+    discount:(mode==='discount'?{
+      mode:((document.querySelector('input[name="ct-promo-dmode"]:checked')||{}).value)||'pct',
+      value:+((document.getElementById('ct-promo-dval')||{}).value)||0 }:null),
+    bonus,
     bookWin,
     activeFrom:from, activeTo:to, priority:prio,
     version:'promo-'+from, status:'active',
@@ -36396,7 +36531,8 @@ function ctSaveAddPromo(agentId){
   SB_CONTRACTS.push(c);
   if(typeof sbContractsPersist==='function') sbContractsPersist();
   ctCloseAddPromo();
-  if(typeof flShowToast==='function') flShowToast('เพิ่ม Promotion แล้ว · '+(mode==='own'?'ราคาในใบนี้':'ตาม Rate Type'));
+  if(typeof flShowToast==='function') flShowToast('เพิ่ม Promotion แล้ว · '+(LA_PROMO_MODE_TXT[mode]||mode)
+    +(bonus?(' · ซื้อ '+bonus.buy+' แถม 1'):''));
   /* §promoMx · กล่องสัญญาอยู่หน้าราคาแล้ว · เด้งกลับไปที่เดิมที่กดมา */
   if(typeof agSwitchTab==='function') agSwitchTab('prices', agentId);
   else if(typeof agRenderDetail==='function') agRenderDetail(agentId);
@@ -51079,6 +51215,15 @@ var LA_PROMO_PAX   = ['adult-thai', 'child-thai', 'adult-fr', 'child-fr'];
    นับสะสมตลอดช่วงโปร (ไม่ใช่ต่อใบจอง) · ฐานการนับเลือกได้ เพราะดีลจริงมีทั้งสองแบบ */
 var LA_PROMO_BASIS = { adchd:'ผู้ใหญ่ + เด็ก', ad:'เฉพาะผู้ใหญ่' };
 
+/* Rate Type ตัวหลักของเอเย่นต์ · โหมด "ลดจาก Main" ต้องมีของตั้งต้นให้ลด */
+function laPromoMainRt(agentId){
+  var main = (typeof SB_CONTRACTS !== 'undefined' && Array.isArray(SB_CONTRACTS))
+    ? SB_CONTRACTS.filter(function(c){ return c && c.agentId === agentId && c.kind === 'main'; })[0] : null;
+  var a = (typeof sbGetAgent === 'function') ? sbGetAgent(agentId) : null;
+  var id = (main && main.rateTypeId) || (a && a.rateTypeId) || '';
+  return ((typeof SB_RATE_TYPES !== 'undefined') ? SB_RATE_TYPES : [])
+    .filter(function(x){ return x.id === id; })[0] || null;
+}
 function laPromoActive(c){
   return !!(c && c.kind === 'promo'
     && c.status !== 'void' && c.status !== 'cancelled' && c.status !== 'expired');
@@ -51109,6 +51254,12 @@ function laPromoCovers(c, routeId, travelDate, bookDate){
 /* ใบนี้มีราคาของ route นี้จริงไหม · ไม่มี = "ข้าม" ตามกติกาข้อ 2 ไม่ใช่คิดเป็น 0 */
 function laPromoHasRate(c, routeId){
   if(!c || !routeId) return false;
+  /* §b2bPromo · โหมดลดจาก Main · "มีราคา" = Main มีราคาของ route นี้ให้ลด
+     Main ไม่มี = ไม่มีอะไรให้ลด → ข้าม เหมือนกติกาเดิมทุกประการ */
+  if((c.priceMode || 'rate') === 'discount'){
+    var mr = laPromoMainRt(c.agentId);
+    return !!(mr && mr.seatRates && mr.seatRates[routeId]);
+  }
   if((c.priceMode || 'rate') === 'own'){
     var R = (c.rates || {})[routeId];
     if(!R) return false;
@@ -51134,8 +51285,49 @@ function laPromoFor(agentId, routeId, travelDate, bookDate){
   return hit[0];
 }
 /* ชุดราคาของใบโปร · คืนรูปร่างเดียวกับ Rate Type เสมอ (ดูหมายเหตุหัวบล็อก) */
+/* ป้ายชื่อโหมด · ใช้ทั้งในหน้าจอและใน Fact sheet ทีหลัง */
+var LA_PROMO_MODE_TXT = { rate:'ตาม Rate Type', own:'ราคาในใบโปร', discount:'ลดจาก Main' };
+function laPromoDiscTxt(c){
+  var D = (c && c.discount) || {};
+  if((c && c.priceMode) !== 'discount') return '';
+  return (D.mode === 'amt') ? ('ลด ' + Math.round(+D.value || 0).toLocaleString() + ' บาท/หัว')
+                            : ('ลด ' + (+D.value || 0) + '%');
+}
 function laPromoRate(c, routeId, baseRt){
   if(!c || !routeId) return null;
+  /* ══ โหมดลดจาก Main ══════════════════════════════════════════════════════
+     คิดจากราคาของ Rate Type ตัวหลักของเอเย่นต์ ไม่ใช่ baseRt ที่คนเรียกส่งมา
+     เพราะ baseRt คือ "ชุดที่ใบจองใบนั้นอ้างอยู่" ซึ่งอาจถูกเปลี่ยนไปแล้ว
+     ส่วนลดตามสัญญาต้องลดจากราคาสัญญาหลักเสมอ ไม่งั้นลดซ้อนลดได้
+     ⚠ ช่องที่เป็น 0 อยู่แล้วแปลว่า "ไม่ขาย" · ลดแล้วต้องยังเป็น 0 ไม่ใช่ติดลบหรือกลายเป็นราคา */
+  if((c.priceMode || 'rate') === 'discount'){
+    var mr = laPromoMainRt(c.agentId) || baseRt;
+    var mz = mr && mr.seatRates && mr.seatRates[routeId];
+    if(!mz) return null;
+    var D = c.discount || {}, isAmt = (D.mode === 'amt'), dv = +D.value || 0;
+    if(!(dv > 0)) return null;
+    var dzn = {};
+    Object.keys(mz).forEach(function(z){
+      var Z = {};
+      Object.keys(mz[z]).forEach(function(k){
+        var v = +mz[z][k] || 0;
+        Z[k] = (v <= 0) ? v
+             : Math.max(0, isAmt ? Math.round(v - dv) : Math.round(v * (1 - dv / 100)));
+      });
+      dzn[z] = Z;
+    });
+    var dout = {};
+    if(baseRt) Object.keys(baseRt).forEach(function(k){ dout[k] = baseRt[k]; });
+    var dsr = {};
+    if(baseRt && baseRt.seatRates) Object.keys(baseRt.seatRates).forEach(function(k){ dsr[k] = baseRt.seatRates[k]; });
+    dsr[routeId] = dzn;
+    dout.seatRates = dsr;
+    dout.id = 'promo:' + (c.id || '');
+    dout.code = c.code || 'PROMO';
+    dout.name = c.note || 'Promotion';
+    dout.__promoId = c.id || '';
+    return dout;
+  }
   if((c.priceMode || 'rate') !== 'own'){
     var rt = (typeof SB_RATE_TYPES !== 'undefined' ? SB_RATE_TYPES : [])
       .filter(function(x){ return x.id === c.rateTypeId; })[0];
@@ -51172,6 +51364,51 @@ function laPromoRate(c, routeId, baseRt){
   out.name = c.note || 'Promotion';
   out.__promoId = c.id || '';                     /* ใช้ตอนบันทึกลงใบจองในก้อน 4 */
   return out;
+}
+/* ══ §b2bPromo · ซื้อ N แถม 1 · ตัวนับสะสม ═══════════════════════════════════════════════════
+   ตกลงกับผู้ใช้ไว้ว่า staff เป็นคนเติมหัว FOC เอง · ระบบมีหน้าที่ "นับกับเตือน" เท่านั้น
+   ไม่เติมให้อัตโนมัติ เพราะบางดีลลูกค้าขอเป็นส่วนลดแทนที่นั่ง หรือยกไปรอบหน้า
+   ⚠ นับสะสมตลอดช่วงโปร ไม่ใช่ต่อใบจอง (ผู้ใช้เลือกแบบนี้)
+   ⚠ ฐานการนับเลือกได้ · บางดีลนับผู้ใหญ่+เด็ก บางดีลนับเฉพาะผู้ใหญ่
+   ⚠ "ใช้ไปแล้ว" อนุมานจากหัว FOC ในใบจองที่อยู่ในขอบเขตเดียวกัน
+     ไม่ต้องให้ใครมาติ๊กว่า FOC ใบนี้มาจากโปรตัวไหน — ของแบบนั้นไม่มีใครทำจริง
+     แลกมาด้วยความคลาดเคลื่อนถ้าเอเย่นต์มี FOC จากเหตุอื่นในช่วงเดียวกัน
+     จึงแสดงเป็น "ใช้ไปแล้ว" ไม่ใช่ "หักสิทธิ์" และไม่เอาไปบล็อกอะไรทั้งนั้น */
+function laPromoBonus(c){
+  var B = c && c.bonus;
+  return (B && B.on && (+B.buy || 0) > 0) ? B : null;
+}
+function laPromoStat(c){
+  var B = laPromoBonus(c); if(!B) return null;
+  var buy = +B.buy || 0, basis = B.basis || 'adchd';
+  var PR = {}; (c.programPeriods || []).forEach(function(p){ PR[p.routeId] = p; });
+  var sold = 0, foc = 0, nbk = 0, seen = {};
+  ((typeof SB_BOOKINGS !== 'undefined') ? SB_BOOKINGS : []).forEach(function(b){
+    if(!b || b.agentId !== c.agentId) return;
+    if(['cancelled', 'rejected', 'cancelled_weather'].indexOf(b.status) >= 0) return;
+    (b.trips || []).forEach(function(t){
+      var p = PR[t.routeId]; if(!p) return;
+      if(p.travelFrom && t.date < p.travelFrom) return;
+      if(p.travelTo   && t.date > p.travelTo)   return;
+      if(c.bookWin){
+        var bd = b.bookingDate || ''; if(!bd) return;
+        if(p.bookFrom && bd < p.bookFrom) return;
+        if(p.bookTo   && bd > p.bookTo)   return;
+      }
+      var px = t.pax || {};
+      var n = (+px.ad || 0) + (+px.ad_fr || 0) + (+px.ad_th || 0);
+      if(basis === 'adchd') n += (+px.chd || 0) + (+px.chd_fr || 0) + (+px.chd_th || 0);
+      sold += n;
+      foc  += (+px.foc || 0) + (+px.foc_fr || 0) + (+px.foc_th || 0);
+      if(!seen[b.id]){ seen[b.id] = 1; nbk++; }
+    });
+  });
+  var earned = buy ? Math.floor(sold / buy) : 0;
+  return { buy:buy, basis:basis, basisTxt:(LA_PROMO_BASIS[basis] || basis),
+           sold:sold, bookings:nbk, earned:earned, used:foc,
+           left:Math.max(0, earned - foc), over:Math.max(0, foc - earned),
+           toNext: (!buy || (sold % buy === 0 && sold > 0)) ? 0 : (buy - (sold % buy)),
+           pct: buy ? Math.round((sold % buy) / buy * 100) : 0 };
 }
 /* ทางเข้าเดียวสำหรับทุกคนที่อยากรู้ว่า "ทริปนี้ใช้ราคาชุดไหน"
    คืน null = ไม่มีโปรทับ ให้ใช้ราคาฐานตามเดิม */
