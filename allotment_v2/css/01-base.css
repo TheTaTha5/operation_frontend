@@ -86,6 +86,33 @@
 #view-costing .ct-in.hot{color:var(--b600);font-weight:700;background:rgba(255,245,240,.6);border-color:var(--b300)}
 #view-costing select.ct-in.wide{text-align:left}
 
+/* §boatRent · การ์ดเรือ & ค่าเช่า · อยู่ระหว่างพารามิเตอร์กับการ์ดตัวเลข
+   เพราะมันเปลี่ยนทั้งความจุและต้นทุนคงที่ ต้องเห็นก่อนจะไปอ่านจุดคุ้มทุน */
+#view-costing .ct-rent{margin:14px 0}
+#view-costing .ct-rent.on{border-color:#f4d7b0}
+#view-costing .ct-rentbody{display:flex;flex-direction:column;gap:12px;padding:14px 18px}
+#view-costing .ct-rrow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 16px}
+/* §boatRent · ช่องในแถวต้องไม่ถูกบีบ · ปล่อยให้หดเมื่อไหร่ ป้ายกับช่องกรอกจะทับกันทันที
+   (เจอตอนถ่ายหน้าจอรอบแรก: "ค่าเช่า/งวด" ทับ "วันในงวด") */
+#view-costing .ct-rrow>.ct-f{flex:0 0 auto;display:block}
+#view-costing .ct-rrow>.ct-f>span{white-space:nowrap}
+#view-costing .ct-rrow>.ct-f.grow{flex:1 1 220px;min-width:190px;max-width:340px}
+#view-costing .ct-rsec{display:flex;flex-direction:column;gap:9px;padding:11px 13px;
+  background:rgba(247,242,234,.55);border:1px solid var(--sd200);border-radius:14px}
+#view-costing .ct-rsech{font-size:10px;font-weight:700;letter-spacing:.04em;color:rgba(74,62,54,.5)}
+#view-costing .ct-rchk{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--es700);cursor:pointer;white-space:nowrap}
+#view-costing .ct-rchk.big{font-size:12.5px}
+#view-costing .ct-rchk input{accent-color:var(--b500);cursor:pointer;margin:0}
+#view-costing .ct-rcalc{font-size:11.5px;color:var(--es700);background:#fff;border:1px dashed var(--sd400);
+  border-radius:10px;padding:7px 11px;font-variant-numeric:tabular-nums}
+#view-costing .ct-rcalc.warn{color:#8a5b00;background:#fef6e7;border-color:#f0d5a0}
+#view-costing .ct-rbe{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 10px;font-size:12px;
+  border-radius:14px;padding:10px 13px;border:1px solid}
+#view-costing .ct-rbe.ok{background:rgba(230,247,240,.75);border-color:var(--mt100);color:var(--es900)}
+#view-costing .ct-rbe.bad{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
+#view-costing .ct-rbe-lb{font-size:10px;font-weight:700;letter-spacing:.04em;color:rgba(74,62,54,.55);
+  text-transform:uppercase}
+
 /* การ์ดตัวเลข */
 #view-costing .ct-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
 #view-costing .ct-k{border-radius:22px;padding:18px 20px;display:flex;flex-direction:column;justify-content:space-between;gap:12px}
