@@ -29236,6 +29236,25 @@ function ctBtPinFit(){
   var used = tc.offsetHeight + pk.offsetHeight;
   if(window.innerHeight - used >= 340) v.classList.add('bt-pinok');
 }
+/* ⚠ ตอน rAF หลังวาดเสร็จใหม่ ๆ ความสูงยังไม่นิ่ง (วัดได้ topcard 45px
+   แต่พอจัดวางจริงเป็น 57px) ตัดสินใจตอนนั้นจึงพลาดได้
+   วัดซ้ำอีกรอบหลังผ่านไปครู่หนึ่ง · ราคาถูกมากเพราะเป็นแค่การอ่านความสูงสองค่า */
+var _ctPinT = 0;
+function ctBtPinFitLater(){ clearTimeout(_ctPinT);
+  _ctPinT = setTimeout(function(){ try{ ctBtPinFit(); }catch(_){ } }, 300); }
+/* เรียกหลัง bkV2Render ทุกครั้ง โดยห่อตัวฟังก์ชันไว้ ไม่ไปแทรกข้างใน
+   ของเดิมแทรกไว้กลาง rAF ซึ่งพึ่งตัวแปร vb และบรรทัดก่อนหน้า
+   ถ้าเส้นทางไหนไม่ผ่านตรงนั้น การตรึงก็ไม่ถูกคิดเลย (เจอจริง: สลับแท็บแล้วไม่ตรึง)
+   ห่อแบบนี้ครอบทุกเส้นทางที่วาดใหม่ และไม่ต้องรู้ภายในของ bkV2Render */
+(function(){
+  if(typeof window === 'undefined' || typeof window.bkV2Render !== 'function') return;
+  var _orig = window.bkV2Render;
+  window.bkV2Render = function(){
+    var out = _orig.apply(this, arguments);
+    try{ ctBtPinFit(); ctBtPinFitLater(); }catch(_){ }
+    return out;
+  };
+})();
 /* หมุนแท็บเล็ต / ย่อขยายหน้าต่าง = เงื่อนไขเปลี่ยน ต้องคิดใหม่
    หน่วงไว้ ไม่ต้องคิดทุกพิกเซลระหว่างลาก */
 (function(){ var t=0;
@@ -40181,7 +40200,7 @@ function bkV2Render(){
       /* §btPin · ก้อนหัว By-trip ตรึงใต้แถบแท็บ · ต้องรู้ความสูงแถบแท็บจริง
          วัดทุกครั้งที่วาด ไม่ฝังตัวเลข · แถบนี้ห่อปุ่มกับตัวกรองที่ตัดบรรทัดได้
          ความสูงจึงเปลี่ยนตามความกว้างจอ (CLAUDE.md §6 · ห้าม hardcode 52) */
-      try{ ctBtPinFit(); }catch(_){}
+      try{ ctBtPinFit(); ctBtPinFitLater(); }catch(_){}
       /* §btUnclamp (was §btScroll) · .t2-wrap เคยถูกจำกัดความสูงพอดีจอ + ดึงขอบล่างด้วย margin
          ติดลบ เพื่อกันไม่ให้หน้าเลื่อนเกินกล่องที่ตรึงไว้ · ตอนนี้หัวไม่ตรึงแล้ว (§btHead) ทั้งหน้า
          เลื่อนเป็นชิ้นเดียวตามปกติ ไม่ต้องคำนวณ/ดึงอะไรอีก ทิ้งไว้จะดึงเนื้อหาส่วนล่างของตารางหาย */
@@ -45236,12 +45255,15 @@ function bkV2RenderTab2(){
       /* ตรึงที่ .bkv2-topcard ไม่ใช่ .bkv2-topbar2 · sticky เดินทางได้แค่ในกรอบของพ่อ
          และพ่อของ topbar2 สูง 45px เท่ากับตัวมันเองพอดี จึงไม่มีที่ให้ติดเลย
          ตัว topcard มีพ่อสูง 2,284px ติดได้จริง */
-      /* ⚠ ต้องนำหน้าด้วย #view-booking · 02-skins.css มี
-         "#view-booking .bkv2-topcard{background:transparent}" อยู่ ซึ่งชนะ selector
-         ที่ไม่มี id เสมอไม่ว่าจะเขียนทีหลังแค่ไหน · ถ้าไม่ยกระดับ พื้นจะโปร่ง
-         แล้วแถวตารางที่เลื่อนอยู่ข้างหลังจะทะลุขึ้นมาบนแถบแท็บ */
-      #view-booking.bt-pinok .bkv2-topcard{position:sticky;top:0;z-index:70;background:#F6F7F9;
-        padding-top:6px;padding-bottom:6px}
+      /* ⚠ พื้นต้องใส่ !important · 02-skins.css:46 เขียน
+         "#view-booking .bkv2-topcard{...background:transparent!important...}"
+         !important ชนะทุก specificity ถ้าอีกฝั่งไม่ใส่บ้าง
+         อาการเวลาลืม: position กับ z-index ติด (ไม่มี !important) แต่พื้นโปร่ง
+         แถวตารางที่เลื่อนอยู่ข้างหลังจึงทะลุขึ้นมาบนแถบแท็บ — ดูเหมือนตรึงไม่ติด
+         ทั้งที่ตรึงแล้ว · พอใส่ !important ทั้งคู่ ตัวที่ specificity สูงกว่าชนะ
+         (#view-booking.bt-pinok .bkv2-topcard สูงกว่า #view-booking .bkv2-topcard) */
+      #view-booking.bt-pinok .bkv2-topcard{position:sticky;top:0;z-index:70;
+        background:#F6F7F9 !important;padding-top:6px;padding-bottom:6px}
       #view-booking.bt-pinok .bt-pkh{position:sticky;top:var(--t2-pkh-top,46px);z-index:60}
     }
     .bt-hdtop{position:relative;display:flex;align-items:center;gap:13px;padding:0 8px 7px}
