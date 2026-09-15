@@ -1090,3 +1090,31 @@ html[data-sb-theme="dark"] .sb-pill{ background:rgba(255,255,255,.12); }
 html[data-sb-theme="dark"] .sb-pill:hover{ background:rgba(255,255,255,.24); }
 /* ย่อรางแล้วซ่อนเหมือนปุ่มธีม · ที่แนวนอนไม่พอทั้งสามปุ่ม */
 .sidebar.sb-collapsed .sb-pill{ display:none; }
+
+/* ══ §sbScroll · สกรอลล์บาร์ของ sidebar ══════════════════════════════════
+   ราก · 01-base.css:1384 ตั้งกฎรวมไว้ทั้งแอป — thumb เป็น var(--sand-dark) #e8e4dc
+     ซึ่งเป็นสีครีมสว่าง · ตอน sidebar ยังเป็นกระจกขาวก็กลมกลืนดี
+     พอพื้นเป็น ci-navy กลายเป็นแท่งสว่างพาดยาวข้างเมนู เด่นกว่าตัวเมนูเอง
+   วัดจริง · scrollHeight 3409 / clientHeight 742 = thumb ยาวราว 22% ของราง
+     รายการเมนูยาวมาก แท่งจึงอยู่ในสายตาตลอดเวลา ไม่ใช่โผล่แวบเดียว
+   ⚠ ตั้งเฉพาะ .sidebar · กฎรวมของทั้งแอปไม่แตะ หน้าอื่นยังเหมือนเดิม
+   ⚠ ต้องเขียนทั้ง ::-webkit-* (Chrome/Safari) และ scrollbar-color (Firefox)
+     อย่างใดอย่างหนึ่งอย่างเดียว = อีกเบราว์เซอร์ยังเห็นแท่งครีมเหมือนเดิม  */
+.sidebar{ scrollbar-width:thin; }
+.sidebar::-webkit-scrollbar{ width:8px; }
+.sidebar::-webkit-scrollbar-track{ background:transparent; }
+/* border โปร่ง + background-clip:padding-box = ดันแท่งให้ห่างขอบโค้ง ไม่ไปชนมุม 24px */
+.sidebar::-webkit-scrollbar-thumb{ border-radius:99px;
+  border:2px solid transparent; background-clip:padding-box; }
+
+html[data-sb-theme="light"] .sidebar{ scrollbar-color:rgba(0,15,76,.18) transparent; }
+html[data-sb-theme="light"] .sidebar::-webkit-scrollbar-thumb{ background-color:rgba(0,15,76,.18); }
+html[data-sb-theme="light"] .sidebar:hover::-webkit-scrollbar-thumb{ background-color:rgba(0,15,76,.30); }
+
+html[data-sb-theme="dark"] .sidebar{ scrollbar-color:rgba(255,255,255,.16) transparent; }
+html[data-sb-theme="dark"] .sidebar::-webkit-scrollbar-thumb{ background-color:rgba(255,255,255,.16); }
+html[data-sb-theme="dark"] .sidebar:hover::-webkit-scrollbar-thumb{ background-color:rgba(255,255,255,.30); }
+
+/* ถ้า js ไม่ทำงาน จะไม่มี attribute เลย · ยังต้องมีค่าตั้งต้นให้ ไม่งั้นได้แท่งครีมเดิม */
+html:not([data-sb-theme]) .sidebar{ scrollbar-color:rgba(0,15,76,.18) transparent; }
+html:not([data-sb-theme]) .sidebar::-webkit-scrollbar-thumb{ background-color:rgba(0,15,76,.18); }
