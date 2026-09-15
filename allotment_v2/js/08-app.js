@@ -25541,11 +25541,45 @@ function ctRentBlank(){
            fuelMul:100,                       /* §boatFuel · % เทียบสูตรกลาง · 100 = เท่ากัน */
            ex:{ dep:1, cap:1, crew:1 } };
 }
-function ctRentAll(){ var r = ctRead('boat_rent'); return (r && typeof r === 'object' && !Array.isArray(r)) ? r : {}; }
-function ctRentAllSave(all){ ctWrite('boat_rent', all); }
+/* ══ §ctRentCache · ทำไมต้องมีแคชตรงนี้ ═══════════════════════════════════════════════════════
+   วัดจริงที่หน้าแผนคำนวณ · 8 แผน · ปักเรือเช่าไว้ · วาดหนึ่งรอบ = 113ms
+     ctRead ถูกเรียก 618 ครั้งต่อรอบ · 615 ครั้งในนั้นมาจาก ctRentAll
+     ctRead → laBlob() ซึ่งวัดได้ 156us ต่อครั้ง = 96ms จาก 113ms ทั้งรอบ
+   ทำไม laBlob ถึงแพงทั้งที่มีแคชอยู่แล้ว
+     มันอ่าน localStorage.getItem(LS_KEY) ทุกครั้งแล้วเทียบสตริงกับที่แคชไว้
+     blob จริง 234KB · getItem คืนสตริงตัวใหม่ทุกครั้ง การเทียบจึงไล่ทีละตัวอักษรจริง ๆ
+     (getItem เองวัดได้ ~0us · เวลาหมดไปกับการเทียบ)
+   ctCalc ถูกเรียก 431 ครั้งต่อรอบ (จุดคุ้มทุน 8 แผน + กราฟกำไร 44 แท่ง) และทุกครั้ง
+   เรียก ctRentOf + ctBoatFuelMul ซึ่งเข้า ctRentAll = ของที่ผมใส่ไปอยู่ในลูปชั้นในสุดพอดี
+   ทางแก้จึงไม่ใช่ไปแก้ laBlob (ของกลางทั้งแอป) แต่คือไม่เรียกมัน 615 ครั้ง
+
+   ⚠ ไม่แคชที่ ctRead เพราะมันคืน "ออบเจกต์ที่ parse ใหม่ทุกครั้ง" และโค้ดหลายที่
+     อาศัยสมบัติข้อนั้น (ctPlans → ctPlanSet แก้ในมือแล้วค่อยเซฟ) แคชตรงนั้นจะได้
+     ออบเจกต์ร่วมกันทั้งแอป ของที่แก้ค้างไว้จะรั่วไปหาคนอื่นก่อนกดเซฟ
+     boat_rent ไม่มีใครถืออ้างอิงค้างข้ามการเซฟ จึงแคชได้ปลอดภัย
+   ⚠ ล้างแคชสามทาง · เราเขียนเอง (_ctRentWr) · เซิร์ฟเวอร์ตอบกลับ (__savedAt) · วาดหน้าใหม่
+     ไม่มีโมดูลอื่นเขียนคีย์ boat_rent · ถ้าวันหนึ่งมี ต้องมาเรียก ctRentBust() ด้วย */
+var _ctRentWr = 0, _ctRentC = null, _ctRentCK = '', _ctRentOfC = {};
+function _ctRentKey(){ return _ctRentWr + '|' + (window.__savedAt || 0); }
+function ctRentBust(){ _ctRentC = null; _ctRentOfC = {}; }
+function ctRentAll(){
+  var k = _ctRentKey();
+  if(_ctRentC && _ctRentCK === k) return _ctRentC;
+  var r = ctRead('boat_rent');
+  _ctRentC = (r && typeof r === 'object' && !Array.isArray(r)) ? r : {};
+  _ctRentCK = k; _ctRentOfC = {};
+  return _ctRentC;
+}
+function ctRentAllSave(all){ _ctRentWr++; ctRentBust(); ctWrite('boat_rent', all); }
 function ctRentRaw(boatId){ return (boatId ? ctRentAll()[boatId] : null) || null; }
 /* คืน null ถ้าลำนี้ไม่ใช่เรือเช่า · ที่เหลือคือตัวเลขที่หารเสร็จแล้ว ไม่ต้องให้ใครมาหารเอง */
 function ctRentOf(boatId){
+  if(!boatId) return null;
+  ctRentAll();                       /* §ctRentCache · ให้แคชอัปเดต/ล้างก่อนอ่านตัวที่จำไว้ */
+  if(boatId in _ctRentOfC) return _ctRentOfC[boatId];
+  return (_ctRentOfC[boatId] = _ctRentOfCalc(boatId));
+}
+function _ctRentOfCalc(boatId){
   var R = ctRentRaw(boatId);
   if(!R || !R.on) return null;
   var b = (typeof getBoat === 'function') ? (getBoat(boatId) || {}) : {};
@@ -28450,6 +28484,7 @@ function ctPaintTabs(){
      ต้องใช้ preventScroll แล้วคืนตำแหน่งเองทั้งสองชั้น */
 function ctRender(){
   var host = document.getElementById('ct-body'); if(!host) return;
+  ctRentBust();                      /* §ctRentCache · วาดใหม่ = เริ่มนับรอบใหม่ */
   var a = document.activeElement, fk = (a && a.getAttribute) ? a.getAttribute('data-fk') : null;
   var ss = (a && a.selectionStart != null) ? a.selectionStart : null;
   var sheet = host.querySelector('.ct-sheet');
