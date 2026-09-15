@@ -5612,6 +5612,80 @@ var LA_DUP_NUMS = [
     cols:function(x){ return [x.id+(x.prevNo?' (เดิม '+x.prevNo+')':''), x.date||x.startDate||'', x.status||'',
       ((getBoat(x.boatId)||{}).name||'')+' · '+(x.title||'')]; } }
 ];
+/* ══ §dupKind · "เลขชนกัน" ไม่ได้มีแบบเดียว ═════════════════════════════
+   เดิมแผงนี้บอกเหมือนกันหมดว่า "ห้ามลบ ต้องออกเลขใหม่" ซึ่งถูกกับบางกลุ่มเท่านั้น
+   วัดจากข้อมูลจริง (backup_2026-09-14) เจอสามแบบปนกันในแผงเดียว:
+     INC-012 x10  ต่างกันแค่ id ล้วน ๆ         -> ใบเดียวถูกสร้างซ้ำ
+     MO-022  x10  ต่างกันแค่ id ล้วน ๆ         -> ใบเดียวถูกสร้างซ้ำ (฿13,620 ถูกนับ 10 รอบ = เกิน ฿122,580)
+     MO-023  x2   ต่างที่ status, currentStep  -> ใบเดียวกันคนละสถานะ
+     MO-117  x2   ต่างที่ title/เรือ/ซัพ/items -> คนละใบจริง เลขชนกันจริง
+   ถ้ากด "ออกเลขใหม่" ใส่กลุ่มแรก = เหตุการณ์จริง 1 ครั้งกลายเป็น 10 ครั้งที่ดูถูกต้อง
+   ยอด incident ของเรือเพี้ยน ยอดเบิกเพี้ยน และไม่มีใครย้อนกลับมาเห็นว่าผิด
+   → จำแนกก่อน แล้วค่อยเสนอปุ่มที่ถูกกับแบบนั้น
+
+   ฟิลด์ที่ไม่นับตอนเทียบ: id (ต่างแน่อยู่แล้ว) · prevNo (ร่องรอยการออกเลขใหม่)
+   ฟิลด์ "สถานะ/การอนุมัติ" แยกออกมาเป็นแบบที่สาม เพราะตัดสินแทนคนไม่ได้
+   ว่าจะเก็บใบที่อนุมัติแล้วหรือใบที่ยังรอ — ต้องให้คนดูเอง */
+var LA_DUP_IGNORE = ['id','prevNo'];
+var LA_DUP_STAGE  = ['status','currentStep','approvedBy','approvedDate','approveNote',
+                     'closedDate','closeNote','rejectedBy','rejectDate','updatedAt'];
+function laDupKind(group){
+  if(!group || group.length < 2) return { kind:'real', diff:[] };
+  var keys = {};
+  group.forEach(function(x){ Object.keys(x||{}).forEach(function(k){ keys[k]=1; }); });
+  var diff = Object.keys(keys).filter(function(k){
+    if(LA_DUP_IGNORE.indexOf(k) >= 0) return false;
+    var seen = {};
+    group.forEach(function(x){ seen[JSON.stringify(x[k])] = 1; });
+    return Object.keys(seen).length > 1;
+  });
+  if(!diff.length) return { kind:'same', diff:[] };
+  var onlyStage = diff.every(function(k){ return LA_DUP_STAGE.indexOf(k) >= 0; });
+  return { kind: onlyStage ? 'stage' : 'real', diff: diff };
+}
+var LA_DUP_KIND_TXT = {
+  same:  { label:'ใบซ้ำ',        color:'#A32D2D', bg:'#FBE9E9',
+           tip:'ทุกฟิลด์ตรงกันหมด ต่างแค่ id · เป็นใบเดียวที่ถูกสร้างซ้ำ ไม่ใช่เลขชนกัน' },
+  stage: { label:'คนละสถานะ',    color:'#8A6A0B', bg:'#FAF0C8',
+           tip:'เนื้อหาเหมือนกัน ต่างแค่สถานะ/การอนุมัติ · ต้องเลือกเองว่าจะเก็บใบไหน' },
+  real:  { label:'คนละใบจริง',   color:'#0d7a5f', bg:'#e6f7f0',
+           tip:'เนื้อหาต่างกันจริง · เลขชนกัน ต้องออกเลขใหม่ ห้ามลบ' }
+};
+
+/* §dupDrop · ลบใบซ้ำในกลุ่มที่ "ต่างแค่ id" · เก็บใบแรกสุดในอาเรย์ไว้
+   ใช้ได้เฉพาะกลุ่มที่ laDupKind บอกว่า same เท่านั้น · เช็คซ้ำอีกรอบก่อนลบจริง
+   เพราะข้อมูลอาจถูกแก้ไประหว่างที่แผงเปิดค้างไว้ */
+function costNoDropDupes(key, no){
+  var U = LA_DUP_NUMS.filter(function(x){ return x.k===key; })[0]; if(!U) return;
+  var arr = U.get() || [];
+  var grp = arr.filter(function(x){ return U.no(x) === no; });
+  if(grp.length < 2){ alert('ไม่พบใบซ้ำของเลข '+no+' แล้ว'); return; }
+  var kind = laDupKind(grp);
+  if(kind.kind !== 'same'){
+    alert('เลข '+no+' ไม่ใช่ใบซ้ำแท้แล้ว\n\nมีฟิลด์ที่ต่างกัน: '+kind.diff.join(', ')
+      + '\n\nปุ่มลบใช้ได้เฉพาะกลุ่มที่ทุกฟิลด์ตรงกันหมด · ปิดแผงแล้วเปิดใหม่เพื่อดูสถานะล่าสุด');
+    return;
+  }
+  var keep = grp[0], drop = grp.slice(1);
+  var money = U.money ? drop.reduce(function(a,x){ return a + (+x.amount||0); }, 0) : 0;
+  var msg = 'ลบใบซ้ำของเลข '+no+'\n\n'
+    + 'ทั้ง '+grp.length+' ใบมีเนื้อหาตรงกันทุกฟิลด์ ต่างแค่ id\n'
+    + 'เก็บไว้ : '+keep.id+'\n'
+    + 'ลบทิ้ง : '+drop.length+' ใบ ('+drop.map(function(x){return x.id;}).slice(0,3).join(', ')
+    + (drop.length>3?' …':'')+')\n'
+    + (money ? ('\nยอดที่เคยถูกนับเกิน: \u0e3f'+Math.round(money).toLocaleString()+'\n') : '')
+    + '\nลบแล้วย้อนไม่ได้ · ข้อมูลไม่หายเพราะใบที่เก็บไว้เหมือนกันทุกอย่าง';
+  if(!confirm(msg)) return;
+  drop.forEach(function(x){
+    var i = arr.indexOf(x);
+    if(i >= 0) arr.splice(i, 1);
+  });
+  if(typeof flSave === 'function') flSave();
+  alert('ลบใบซ้ำแล้ว '+drop.length+' ใบ · เหลือ '+keep.id);
+  try{ costDupInspect(key); }catch(_){ }
+  if(typeof flRenderCostAnalytics === 'function') flRenderCostAnalytics();
+}
+
 // §renumber · ออกเลขใหม่ให้เอกสารที่เลขชนกัน · ไม่ลบอะไรทั้งสิ้น
 //   คืนค่า {n, changed:[{id,from,to,title}]} เพื่อเอาไปแสดงว่าทำอะไรไปบ้าง
 function laRenumberSet(k){
@@ -5880,22 +5954,41 @@ function costDupInspect(key){
     arr.forEach(function(x){ var n=U.no(x); if(!n) return; (m[n]=m[n]||[]).push(x); });
     Object.keys(m).forEach(function(n){
       var g=m[n]; if(g.length<2) return; nGrp++; nRec+=g.length;
+      /* §dupKind · จำแนกก่อนว่ากลุ่มนี้เป็นแบบไหน แล้วเสนอปุ่มให้ตรงกับแบบนั้น */
+      var K = laDupKind(g), KT = LA_DUP_KIND_TXT[K.kind];
+      var badge = '<span title="'+esc(KT.tip)+(K.diff.length?(' · ต่างที่: '+esc(K.diff.join(', '))):'')+'" '
+        +'style="background:'+KT.bg+';color:'+KT.color+';border-radius:6px;padding:1px 7px;'
+        +'font-size:9.5px;font-weight:700;margin-left:7px;white-space:nowrap">'+KT.label+'</span>';
+      var dropBtn = (K.kind==='same')
+        ? '<button onclick="costNoDropDupes(\''+key+'\',\''+String(n).replace(/\'/g,'')+'\')" '
+          +'style="border:none;background:#A32D2D;color:#fff;border-radius:8px;padding:4px 10px;'
+          +'font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">'
+          +'เก็บใบแรก ลบอีก '+(g.length-1)+' ใบ</button>'
+        : '';
       // §noOne · ทุกแถวเลือกได้เอง ว่าจะออกเลขใหม่ หรือยกเลิกใบนี้ทิ้ง
       g.forEach(function(x,ix){
-        var canCancel = (key==='noMemo') && x.status!=='paid' && x.status!=='cancelled';
-        var act='<button onclick="costNoRenumberOne(\''+key+'\',\''+String(x.id).replace(/\'/g,'')+'\')" '
-          +'style="border:none;background:#5B289A;color:#fff;border-radius:8px;padding:4px 10px;'
-          +'font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">ออกเลขใหม่</button>'
-          +(canCancel?' <button onclick="costNoCancelOne(\''+key+'\',\''+String(x.id).replace(/\'/g,'')+'\')" '
-            +'style="border:1px solid #E0A0A0;background:#fff;color:#A32D2D;border-radius:8px;padding:4px 10px;'
-            +'font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;margin-left:5px">ยกเลิกใบนี้</button>':'');
-        rows.push({ grp:(ix===0?n:''), first:ix===0, c:U.cols(x), act:act });
+        var act;
+        if(K.kind==='same'){
+          /* ใบซ้ำแท้ · ปุ่มอยู่ที่แถวแรกของกลุ่ม ทำทีเดียวทั้งกลุ่ม
+             ไม่เสนอ "ออกเลขใหม่" เพราะจะเปลี่ยนใบซ้ำให้กลายเป็นใบจริงคนละใบ */
+          act = (ix===0) ? dropBtn : '<span style="font-size:10px;color:#999">ใบซ้ำ</span>';
+        } else {
+          var canCancel = (key==='noMemo') && x.status!=='paid' && x.status!=='cancelled';
+          act='<button onclick="costNoRenumberOne(\''+key+'\',\''+String(x.id).replace(/\'/g,'')+'\')" '
+            +'style="border:none;background:#5B289A;color:#fff;border-radius:8px;padding:4px 10px;'
+            +'font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">ออกเลขใหม่</button>'
+            +(canCancel?' <button onclick="costNoCancelOne(\''+key+'\',\''+String(x.id).replace(/\'/g,'')+'\')" '
+              +'style="border:1px solid #E0A0A0;background:#fff;color:#A32D2D;border-radius:8px;padding:4px 10px;'
+              +'font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;margin-left:5px">ยกเลิกใบนี้</button>':'');
+        }
+        rows.push({ grp:(ix===0?(n+badge):''), first:ix===0, c:U.cols(x), act:act });
       });
     });
   } else return;
   var meta=S||N||U;
   costDwOpen((U?'เลขชนกัน · ':(meta.sure?'ซ้ำแน่นอน · ':'น่าสงสัย · '))+meta.label,
-    U ? (nGrp+' เลข · '+nRec+' ใบ · เอกสารคนละใบที่ใช้เลขเดียวกัน · ห้ามลบ ต้องออกเลขใหม่')
+    U ? (nGrp+' เลข · '+nRec+' ใบ · ป้ายท้ายเลขบอกว่ากลุ่มนั้นเป็นแบบไหน · '
+         +'ใบซ้ำ = ลบได้ · คนละใบจริง = ห้ามลบ ต้องออกเลขใหม่ · คนละสถานะ = เลือกเอง')
       : (nGrp+' กลุ่ม · '+nRec+' รายการ · แถวที่อยู่กลุ่มเดียวกันคือของที่ระบบมองว่าเหมือนกันทุกฟิลด์'),
     U ? [['เลขที่ชนกัน',nGrp],['เอกสารทั้งหมด',nRec]]
       : [['กลุ่มที่ซ้ำ',nGrp],['รายการทั้งหมด',nRec],['ส่วนเกิน',nRec-nGrp]], []);
