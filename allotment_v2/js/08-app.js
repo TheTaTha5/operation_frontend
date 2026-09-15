@@ -28570,6 +28570,16 @@ function ctFactCss(){ return '<style>'
   + '.fs-tag{display:inline-block;font-size:9px;font-weight:700;border-radius:4px;padding:1px 5px;'
     + 'background:#EFEAE1;color:#6b665f;margin-left:5px}'
   + '.fs-note{font-size:10.5px;color:#6b665f;line-height:1.65;margin-top:7px}'
+  /* §ctFactPrio · แถบคั่นสามชั้น · ทำให้ลำดับความสำคัญเห็นได้ตั้งแต่ชายตามอง
+     ไม่ใช่ให้คนอ่านต้องเดาเองว่าตารางไหนเอาไว้ตัดสินใจ ตารางไหนเอาไว้ตรวจย้อน */
+  + '.fs-band{display:flex;align-items:baseline;gap:10px;margin:22px 0 2px;'
+    + 'border-top:2px solid #14100C;padding-top:8px}'
+  + '.fs-band i{font-style:normal;font-size:15px;font-weight:800;color:#C2410C;'
+    + 'font-variant-numeric:tabular-nums}'
+  + '.fs-band b{font-size:13px;font-weight:800;letter-spacing:-.2px}'
+  + '.fs-band s{text-decoration:none;font-size:10.5px;color:#8b857d;flex:1}'
+  + '.fs-band.ref{border-top-color:#DED8CE}.fs-band.ref i,.fs-band.ref b{color:#8b857d}'
+  + '.fs-band + .fs-h2{margin-top:10px;border-bottom-color:#EFEAE1}'
   + '.fs-foot{margin-top:22px;padding-top:9px;border-top:1px solid #DED8CE;font-size:9.5px;'
     + 'color:#8b857d;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}'
   + '@media print{body{background:#fff;padding:0}.fs-tool{display:none}'
@@ -28593,9 +28603,23 @@ function ctFactSheet(pl){
   var rtNm  = '';
   try{ var _r = (typeof getRoute === 'function') ? getRoute(pl.famId) : null; rtNm = (_r && _r.name) || ''; }catch(_){ }
 
-  /* ── 4 ตัวเลขที่ต้องเห็นก่อนอย่างอื่น ── */
+  /* ── 4 ตัวเลขที่ต้องเห็นก่อนอย่างอื่น ──
+     §ctFactPrio · ช่องที่ 4 เดิมเป็น "ราคาขาย" ซึ่งอ่านได้จากตารางราคาอยู่แล้ว
+     ตอนเช่าเรือ เลขที่ต้องเห็นก่อนอย่างอื่นคือ "ทั้งสัญญาแล้วเหลือเท่าไหร่"
+     ตัวนั้นคำนวณอยู่ท้ายใบ · ยกขึ้นมาไว้หัวกระดาษ ไม่ต้องเลื่อนหาสามหน้า */
+  var _factBase = null, _factBaseTxt = '';
   var bePct = be ? Math.round(be / cap * 100) : 100;
-  var kpi = '<div class="fs-kpi">'
+  var kpi4 = function(){
+    if(_factBase == null)
+      return '<div class="fs-k"><s>ราคาขาย</s><b>' + ctN(pAd) + '</b><i>เด็ก ' + ctN(pCh)
+        + (+pl.comm > 0 ? (' · คอม ' + (+pl.comm) + '%') : ' · ไม่มีคอม') + '</i></div>';
+    return '<div class="fs-k hi"><s>ทั้งสัญญา · BASE CASE</s><b class="'
+      + (_factBase < 0 ? 'neg' : 'pos') + '">' + (_factBase < 0 ? '−' : '+')
+      + ctN(Math.abs(_factBase)) + '</b><i>' + e(_factBaseTxt) + ' · หักค่าเช่าเต็มก้อนแล้ว</i></div>';
+  };
+  /* ⚠ ต้องเป็นฟังก์ชัน ไม่ใช่สตริง · _factBase ถูกเติมค่าในบล็อกฉากซึ่งอยู่ท้ายกว่านี้
+     ประกอบเป็นสตริงตรงนี้เลย = อ่าน _factBase ตอนยังเป็น null ช่องที่ 4 จะไม่มีวันเปลี่ยน */
+  var kpiHtml = function(){ return '<div class="fs-kpi">'
     + '<div class="fs-k hi"><s>จุดคุ้มทุน</s><b>' + (be ? (be + ' คน') : 'ไม่ถึง')
       + '</b><i>' + (be ? (bePct + '% ของ ' + cap + ' ที่นั่ง') : ('เต็มลำ ' + cap + ' ที่นั่งก็ยังขาดทุน')) + '</i></div>'
     + '<div class="fs-k"><s>กำไรที่คาด · ' + pax + ' คน</s><b class="' + (cur.p < 0 ? 'neg' : 'pos') + '">'
@@ -28603,8 +28627,7 @@ function ctFactSheet(pl){
       + (cur.rev ? Math.round(cur.p / cur.rev * 100) : 0) + '% ของรายได้สุทธิ</i></div>'
     + '<div class="fs-k"><s>ต้นทุนต่อทริป</s><b>' + ctN(cur.c.net) + '</b><i>คงที่ ' + ctN(cur.c.fixNet)
       + ' + ผันแปร ' + ctN(cur.c.varNet) + '</i></div>'
-    + '<div class="fs-k"><s>ราคาขาย</s><b>' + ctN(pAd) + '</b><i>เด็ก ' + ctN(pCh)
-      + (+pl.comm > 0 ? (' · คอม ' + (+pl.comm) + '%') : ' · ไม่มีคอม') + '</i></div></div>';
+    + kpi4() + '</div>'; };
 
   /* ── พารามิเตอร์ที่ใช้คำนวณ · ใครถือใบนี้ต้องทำซ้ำได้ ── */
   var P = [['เครื่องยนต์', e(pl.eng || '')], ['จำนวนลำ', boats + ' ลำ'],
@@ -28833,7 +28856,7 @@ function ctFactSheet(pl){
      ขึ้นเฉพาะตอนเป็นเรือเช่าและระบุช่วงสัญญาไว้ — เพราะ "ต้องหาลูกค้ากี่คนต่อเดือน"
      จะมีความหมายก็ต่อเมื่อมีต้นทุนก้อนที่จ่ายรายงวดไม่ว่าจะวิ่งหรือไม่
      เรือของบริษัทไม่มีก้อนนั้น ทุกทริปที่เกินจุดคุ้มทุนคือกำไรล้วน ไม่ต้องมีโควตารายเดือน */
-  var longRun = '';
+  var longMon = '', longSc = '';
   if(RN && RN.amt > 0 && RN.from && RN.to && RN.to >= RN.from){
     var rNetTripL = RN.perTrip * (1 - (RN.vat ? R : 0));
     var MS = ctMonthsIn(RN.from, RN.to);
@@ -28894,7 +28917,7 @@ function ctFactSheet(pl){
       + '<th>วันวิ่ง</th><th>ลูกค้ารวม</th><th>กำไรก่อนค่าเช่า</th><th>ค่าเช่าทั้งสัญญา</th>'
       + '<th>กำไรสุทธิ</th></tr></thead><tbody>' + scRows + '</tbody></table>';
 
-    longRun = '<div class="fs-h2">ทั้งสัญญา · ต้องหาลูกค้าเดือนละเท่าไหร่ <em>ที่ ' + pax
+    longMon = '<div class="fs-h2">ต้องหาลูกค้าเดือนละเท่าไหร่ <em>ที่ ' + pax
       + ' คน/ทริป · ' + e(RN.from) + ' → ' + e(RN.to) + '</em></div>' + monTbl
       + '<div class="fs-note"><b>ค่าเช่าคิดเป็นรายวัน</b> · ' + B(RN.amt) + ' ÷ ' + RN.days + ' วัน = '
       + B(RN.perCalDay) + '/วันตามปฏิทิน · เดือน 31 วันจึงเป็น ' + B(RN.perCalDay * 31)
@@ -28903,13 +28926,20 @@ function ctFactSheet(pl){
       + 'ยอดรวมทั้งสัญญาจะเป็น ' + B(RN.amt * MS.length) + ' ไม่ใช่ ' + ctB(totDue) + '<br>'
       + 'เดือนที่<b>ซีด</b>คือเดือนที่ต้องวิ่งเกินจำนวนวันที่มี = ที่ราคาและจำนวนคนชุดนี้ '
       + 'เดือนนั้นไม่มีทางคืนค่าเช่าได้ ต้องขึ้นราคา เพิ่มคนต่อรอบ หรือเพิ่มรอบต่อวัน<br>'
-      + 'เดือนที่มีป้าย <b>x/y วัน</b> คือเดือนที่สัญญาไม่ได้กินทั้งเดือน ค่าเช่าคิดตามวันที่ครอบคลุมจริง</div>'
-      + '<div class="fs-h2">Best / Base / Worst case <em>ทั้งสัญญา ' + MS.length + ' เดือน</em></div>' + scTbl
+      + 'เดือนที่มีป้าย <b>x/y วัน</b> คือเดือนที่สัญญาไม่ได้กินทั้งเดือน ค่าเช่าคิดตามวันที่ครอบคลุมจริง</div>';
+    longSc = '<div class="fs-h2">Best / Base / Worst case <em>ทั้งสัญญา ' + MS.length
+      + ' เดือน · ' + e(RN.from) + ' → ' + e(RN.to) + '</em></div>' + scTbl
       + '<div class="fs-note">สามฉากนี้เป็น<b>สมมติฐาน</b>ที่เขียนกำกับไว้ในตาราง ไม่ใช่ตัวเลขที่ระบบรู้ '
       + 'ระบบไม่รู้ว่าเดือนไหนไฮซีซั่น · ถ้าไม่เห็นด้วยกับฉากไหน ให้เถียงที่สมมติฐานในช่องซ้าย<br>'
       + 'ค่าเช่าหักเต็มก้อนทุกฉาก เพราะจ่ายเท่ากันไม่ว่าเรือจะวิ่งหรือไม่ — นั่นคือประเด็นทั้งหมดของการเช่า</div>';
+    /* §ctFactPrio · เก็บกำไรสุทธิฉาก Base ไว้ขึ้นหัวกระดาษ · เป็นเลขที่ตอบว่า "ควรเช่าไหม" */
+    (function(){
+      var n = pax, d = Math.round(totOp * 0.85), tp = d * RN.trips;
+      _factBase = (ctProfitAt(pl, n, T).p + rNetTripL) * tp - rNetAllL;
+      _factBaseTxt = d + ' วัน · ' + ctN(tp * n) + ' หัว';
+    })();
   } else if(RN && RN.amt > 0){
-    longRun = '<div class="fs-h2">ทั้งสัญญา</div><div class="fs-note">'
+    longSc = '<div class="fs-h2">ทั้งสัญญา</div><div class="fs-note">'
       + 'ยังไม่ได้ใส่<b>ช่วงสัญญา</b> (วันเริ่ม–วันจบ) ในหน้าแผนคำนวณ · '
       + 'ใส่แล้วใบนี้จะมีตารางรายเดือนว่าต้องหาลูกค้าเดือนละกี่หัว และฉาก Best/Base/Worst ทั้งสัญญาให้</div>';
   }
@@ -28929,16 +28959,30 @@ function ctFactSheet(pl){
       + '</div></div>'
       + '<div class="co">LOVE ANDAMAN<u>ต้นทุน &amp; จุดคุ้มทุน · Fact Sheet<br>ออกเมื่อ ' + e(stamp)
       + (who ? (' · ' + e(who)) : '') + '</u></div></div>'
-    + kpi
-    + '<div class="fs-h2">พารามิเตอร์ที่ใช้คำนวณ</div>' + params
+    + kpiHtml()
+    /* ══ §ctFactPrio · เรียงตามลำดับที่คนอ่านต้องใช้ ไม่ใช่ตามลำดับที่เขียนโค้ด ══
+       ของเดิมเอา "พารามิเตอร์" กับ "ตารางต้นทุน 20 บรรทัด" ไว้หน้าแรก
+       ทั้งสองอันเป็นของไว้ตรวจย้อน ไม่มีใครตัดสินใจอะไรจากมัน
+       คนถือใบนี้ไปประชุมต้องการสามอย่างตามลำดับ
+         1 ตัดสินใจ   เช่าคุ้มไหม · ตั้งราคาเท่าไหร่
+         2 วางแผน     เดือนหนึ่งต้องหาลูกค้ากี่หัว · ได้กี่คนถึงเริ่มกำไร
+         3 ตรวจย้อน   ตัวเลขพวกนั้นมาจากไหน
+       ถ้าเถียงกันจบที่ชั้น 1 ก็ไม่ต้องพลิกไปชั้น 3 เลย */
+    + '<div class="fs-band"><i>1</i><b>ตัดสินใจ</b><s>'
+      + (longSc ? 'เช่าคุ้มไหม · ตั้งราคาเท่าไหร่' : 'ตั้งราคาเท่าไหร่') + '</s></div>'
+    + longSc + tier
+    + '<div class="fs-band"><i>2</i><b>วางแผน</b><s>'
+      + (longMon ? 'ต้องหาลูกค้าเท่าไหร่ · ได้กี่คนถึงเริ่มกำไร' : 'ได้กี่คนถึงเริ่มกำไร') + '</s></div>'
+    + longMon
+    + '<div class="fs-h2">กำไรตามจำนวนคน</div>' + curve
+    + '<div class="fs-h2">ต่อหัว &amp; ที่มาของจุดคุ้มทุน</div>' + econ
+    + '<div class="fs-band ref"><i>3</i><b>ที่มาของตัวเลข</b><s>ไว้ตรวจย้อน · คำนวณซ้ำเองได้ทุกช่อง</s></div>'
     + rent
     + '<div class="fs-h2">ต้นทุนต่อทริป <em>ที่ ' + pax + ' คน · สุทธิคือหลังหัก VAT ซื้อที่ขอคืนได้แล้ว</em></div>' + costTbl
-    + '<div class="fs-h2">ต่อหัว &amp; ที่มาของจุดคุ้มทุน</div>' + econ
-    + '<div class="fs-h2">กำไรตามจำนวนคน</div>' + curve
-    + tier
-    + longRun
+    + od
     + '<div class="fs-h2">VAT ต่อทริป</div>' + vat
-    + od + itin
+    + '<div class="fs-h2">พารามิเตอร์ที่ใช้คำนวณ</div>' + params
+    + itin
     + '<div class="fs-foot"><span>ตัวเลขคิดสดจากสูตรกลาง ณ เวลาที่พิมพ์ · '
       + 'สูตรกลางแก้เมื่อไหร่ ใบนี้จะไม่ตรงกับหน้าจออีก</span>'
       + '<span>' + e(stamp) + '</span></div></div>';
