@@ -25538,6 +25538,7 @@ var CT_RENT_EX = [
 function ctRentBlank(){
   return { on:1, mode:'lump', amt:0, seat:0, days:30, off:2, trips:1, vat:0, note:'',
            from:'', to:'',                    /* §rentSpan · ช่วงสัญญา · ว่าง = ไม่จำกัด */
+           fuelMul:100,                       /* §boatFuel · % เทียบสูตรกลาง · 100 = เท่ากัน */
            ex:{ dep:1, cap:1, crew:1 } };
 }
 function ctRentAll(){ var r = ctRead('boat_rent'); return (r && typeof r === 'object' && !Array.isArray(r)) ? r : {}; }
@@ -25560,6 +25561,22 @@ function ctRentOf(boatId){
            perDay:perDay, perTrip:perDay / trips, perCalDay:amt / days, vat:!!R.vat,
            from:R.from || '', to:R.to || '',              /* §rentSpan */
            ex:R.ex || { dep:1, cap:1, crew:1 }, note:R.note || '' };
+}
+/* ══ §boatFuel · ลำไหนกินน้ำมันเท่าไหร่ ═══════════════════════════════════════════════════════
+   สูตรกลางตั้งลิตร/ทริปไว้ชุดเดียว (3EN 360 · 4EN 520) ซึ่งจูนมาจากเรือของบริษัท
+   เรือเช่าคนละตัวถัง คนละเครื่อง — กินไม่เท่ากันแน่นอน และเรือเราเองแต่ละลำก็ไม่เท่ากัน
+   เก็บเป็น "%" ไม่ใช่ "ลิตร" เพราะตัวคูณนี้ผูกกับ "ลำ" แต่ลิตรต่อทริปขึ้นกับ "เส้นทาง"
+     (สิมิลันไกลกว่าพีพีเยอะ) ลำเดียวกันวิ่งสองเส้นทางจะได้ลิตรคนละเลข แต่ % เท่าเดิม
+   รู้ลิตรจริงของเส้นทางไหนแน่ ๆ → ไปตั้งที่แท็บ "ปรับ / ปิด รายแผน" ซึ่งเป็นรายเส้นทางอยู่แล้ว
+     สองอันนี้คูณกันได้: ลิตรจากแผน (หรือสูตรกลาง) x % ของลำ
+   ⚠ ใช้ได้แม้ลำนั้นไม่ใช่เรือเช่า · ความกินน้ำมันไม่ได้ขึ้นกับว่าใครเป็นเจ้าของ
+     จึงไม่อ่านผ่าน ctRentOf() ที่คืน null เมื่อปิดสวิตช์เช่า
+   ⚠ มีผลกับ "ค่าประมาณ" เท่านั้น · P&L ที่ลงลิตรจริงจากใบงานเรือแล้วจะทับทั้งบรรทัดอยู่ดี */
+function ctBoatFuelMul(boatId){
+  var R = ctRentRaw(boatId);
+  var m = R ? +R.fuelMul : NaN;
+  if(!(m > 0)) return 1;
+  return m / 100;
 }
 function ctRentSet(boatId, k, v){
   if(!boatId) return;
@@ -25763,6 +25780,8 @@ function ctCalc(pl, ctx, tpl){
   var RN = ctRentOf(ctx && ctx.boatId);
   /* §rentSpan · นอกช่วงสัญญาให้กลับไปเป็นเรือปกติทั้งชุด — ทั้งค่าเช่าและบรรทัดที่ตัดออก */
   if(RN && !ctRentActiveOn(RN, ctx && ctx.date)) RN = null;
+  /* §boatFuel · ไม่ผ่าน RN · ตัวคูณนี้ติดกับลำ ไม่เกี่ยวว่าเช่าหรือไม่เช่า */
+  var FM = ctBoatFuelMul(ctx && ctx.boatId);
   var out = { gross:0, vin:0, net:0, fixNet:0, varNet:0, rows:[], rent:RN };
   ctLinesByGroup(T).forEach(function(x){
     var ln = x.ln, g = ln.g || 'อื่นๆ';
@@ -25775,7 +25794,13 @@ function ctCalc(pl, ctx, tpl){
       var _q = ctOdQty(pl, ln, ctx);
       L.parts.forEach(function(p){ var a = (+p.u || 0) * _q; amt += a; vr += a; });
     } else {
-      L.parts.forEach(function(p){ var a = ctPartAmt(p, ctx); amt += a; if(p.k === 'var') vr += a; else fx += a; });
+      L.parts.forEach(function(p){
+        var a = ctPartAmt(p, ctx);
+        /* §boatFuel · จับที่ p.fuel ไม่ใช่ที่ ln.id==='fuel' · ทีมเพิ่มบรรทัดน้ำมันใหม่เมื่อไหร่
+           ก็ติ๊ก fuel ที่ส่วนประกอบเหมือนกัน จะได้ไม่ต้องกลับมาแก้ชื่อ id ที่นี่อีก */
+        if(p.fuel && FM !== 1) a *= FM;
+        amt += a; if(p.k === 'var') vr += a; else fx += a;
+      });
     }
     var m = ctGrpMul(pl, g);                              // §category · ปรับ ±% ทั้งหมวด
     if(m !== 1){ amt *= m; fx *= m; vr *= m; }
@@ -28567,7 +28592,8 @@ function ctFactSheet(pl){
         + '<div><span>เรือ</span><b>' + e(bN) + '</b></div>'
         + '<div><span>ที่นั่ง</span><b>' + seats + '</b></div>'
         + '<div><span>สถานะ</span><b>เรือของบริษัท</b></div>'
-        + '<div><span>ค่าเช่า</span><b>—</b></div></div>';
+        + '<div><span>กินน้ำมันเทียบสูตรกลาง</span><b>'
+          + Math.round(ctBoatFuelMul(pl.boatId) * 100) + '%</b></div></div>';
     } else {
       var rNetTrip = RN.perTrip * (1 - (RN.vat ? R : 0));
       var rNetAll  = RN.amt * (1 - (RN.vat ? R : 0));
@@ -28590,7 +28616,8 @@ function ctFactSheet(pl){
         + '<div><span>เจ้าของเรือรับผิดชอบ</span><b>' + (CT_RENT_EX.filter(function(x){ return RN.ex[x.id]; })
             .map(function(x){ return x.l; }).join(' · ') || '—') + '</b></div>'
         + '<div><span>ผู้เช่าจ่ายเอง</span><b>น้ำมันเรือ</b></div>'
-        + '<div><span>ค่าเช่ามี VAT</span><b>' + (RN.vat ? 'ขอคืนได้' : 'ไม่มี') + '</b></div></div>'
+        + '<div><span>ค่าเช่ามี VAT</span><b>' + (RN.vat ? 'ขอคืนได้' : 'ไม่มี') + '</b></div>'
+        + '<div><span>กินน้ำมันเทียบสูตรกลาง</span><b>' + Math.round(ctBoatFuelMul(pl.boatId) * 100) + '%</b></div></div>'
         + '<div class="fs-note"><b>จุดคุ้มทุนของค่าเช่า</b> · '
         + (dNd == null
             ? ('ที่ ' + pax + ' คน/ทริป วิ่งกี่วันก็ไม่คุ้ม (กำไรก่อนค่าเช่าติดลบ ' + B(Math.abs(pEx)) + '/ทริป)')
@@ -29019,8 +29046,43 @@ function ctPlanHtml(){
       + '<label class="ct-rchk big"><input type="checkbox"' + (on ? ' checked' : '')
         + ' onchange="ctRentSet(\'' + bid + '\',\'on\',this.checked?1:0)"> <b>' + ctE(bN) + ' เป็นเรือเช่า</b></label></div>';
 
+    /* §boatFuel · ขึ้นทั้งเรือเช่าและเรือบริษัท · ความกินน้ำมันไม่ได้ขึ้นกับว่าใครเป็นเจ้าของ */
+    var fuelBox = (function(){
+      var fl = (T.lines || []).filter(function(x){
+        return (x.parts || []).some(function(p){ return p.fuel; }); })[0];
+      var baseQ = 0, perPax = 0;
+      if(fl){
+        var L = ctEffLine(fl, pl);
+        (L.parts || []).forEach(function(p){
+          if(!p.fuel) return;
+          if(p.k === 'fix') baseQ += (pl.eng === '4EN' && p.q4 != null) ? (+p.q4 || 0) : (+p.q || 0);
+          else if(p.k === 'var') perPax += (+p.q || 0);
+        });
+      }
+      var mul = (rr.fuelMul == null || rr.fuelMul === '') ? 100 : +rr.fuelMul;
+      var m = (mul > 0) ? mul / 100 : 1;
+      var totBase = baseQ + perPax * pax, totNow = totBase * m;
+      return '<div class="ct-rsec"><div class="ct-rsech">น้ำมัน · ลำนี้กินเท่าไหร่เทียบกับสูตรกลาง</div>'
+        + '<div class="ct-rrow">'
+        + '<label class="ct-f"><span>เทียบสูตรกลาง</span>'
+        + '<input class="ct-in" data-fk="rn.' + bid + '.fuelMul" value="' + ctE(mul) + '"'
+        + ' onchange="ctRentSet(\'' + bid + '\',\'fuelMul\',this.value)"'
+        + ' oninput="ctRentSet(\'' + bid + '\',\'fuelMul\',this.value)" style="width:78px"></label>'
+        + '<span class="ct-u" style="align-self:end;padding-bottom:9px">% · 100 = เท่าสูตรกลาง</span>'
+        + '<div class="ct-rcalc" style="flex:1;min-width:220px">สูตรกลาง <b>' + ctN(totBase)
+        + ' ลิตร</b>/ทริป ที่ ' + pax + ' คน → ลำนี้ <b>' + ctN(totNow) + ' ลิตร</b>'
+        + (m !== 1 ? (' (' + (m > 1 ? '+' : '−') + ctN(Math.abs(totNow - totBase)) + ' ลิตร · '
+                      + ctB(Math.abs(totNow - totBase) * (+pl.fuel || 0)) + '/ทริป)') : '')
+        + '</div></div>'
+        + '<div class="ct-hint" style="padding:0">ตัวคูณนี้ผูกกับ<b>ลำ</b> · ลิตรต่อทริปขึ้นกับ<b>เส้นทาง</b> '
+        + '(สิมิลันไกลกว่าพีพีเยอะ) ลำเดียวกันวิ่งสองเส้นทางได้ลิตรคนละเลข แต่ % เท่าเดิม<br>'
+        + 'รู้ลิตรจริงของเส้นทางนี้แน่ ๆ → ตั้งที่แท็บ <b>ปรับ / ปิด รายแผน</b> ซึ่งเป็นรายเส้นทาง · สองอันคูณกัน<br>'
+        + 'มีผลกับ<b>ค่าประมาณ</b>เท่านั้น · ทริปที่ลงลิตรจริงจากใบงานเรือแล้ว P&amp;L จะใช้ของจริงทับอยู่ดี</div></div>';
+    })();
+
     if(!on){
-      body += '<div class="ct-hint" style="padding:0">เรือของบริษัท · คิดค่าเสื่อม กัปตัน เด็กเรือ ตามสูตรกลางเหมือนเดิม</div></div>';
+      body += '<div class="ct-hint" style="padding:0">เรือของบริษัท · คิดค่าเสื่อม กัปตัน เด็กเรือ ตามสูตรกลางเหมือนเดิม</div>'
+        + fuelBox + '</div>';
       return '<div class="ct-card ct-catcard ct-rent">' + head + body + '</div>';
     }
 
@@ -29063,6 +29125,8 @@ function ctPlanHtml(){
       body += '<div class="ct-rcalc warn">ยังไม่ได้ใส่ค่าเช่า · บรรทัดค่าเช่าจึงยังไม่เข้าสูตร</div>';
     }
     body += '</div>';
+
+    body += fuelBox;                                    /* §boatFuel */
 
     /* เจ้าของเรือรับผิดชอบอะไรบ้าง · ตั้งต้นตามดีลที่คุยกันไว้ แต่ดีลอื่นเปลี่ยนได้ */
     body += '<div class="ct-rsec"><div class="ct-rsech">เจ้าของเรือรับผิดชอบ · ติ๊กไว้ = ตัดออกจากต้นทุนของเรา</div>'
