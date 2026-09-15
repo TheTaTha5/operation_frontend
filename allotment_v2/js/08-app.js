@@ -44686,9 +44686,9 @@ function bkV2Tab2DateShift(n){ _bkV2T2Q=''; _bkV2T2Lk='';
   const dt = new Date(cur + 'T00:00'); dt.setDate(dt.getDate() + n);
   _bkV2.filterDate = bkV2LocalYMD(dt);
   _bkV2.filterRoute = null;
-  bkV2Render();
+  bkV2RenderKeep();
 }
-function bkV2Tab2Today(){ _bkV2T2Q=''; _bkV2T2Lk=''; _bkV2.filterDate = bkV2LocalYMD(new Date()); _bkV2.filterRoute = null; bkV2Render(); }
+function bkV2Tab2Today(){ _bkV2T2Q=''; _bkV2T2Lk=''; _bkV2.filterDate = bkV2LocalYMD(new Date()); _bkV2.filterRoute = null; bkV2RenderKeep(); }
 function bkV2Tab2TogglePax(rowId){
   const el = document.getElementById(rowId);
   if(!el) return;
@@ -44712,24 +44712,24 @@ function bkV2Tab2SetLk(lockId){
   var l=null; for(var i=0;i<L.length;i++){ if(L[i] && L[i].id===lockId){ l=L[i]; break; } }
   var nm=l?((typeof bkV2LockHolderName==='function')?bkV2LockHolderName(l):String(l.holderId||'')):'';
   _bkV2T2Lk = (_bkV2T2Lk===nm) ? '' : nm;
-  bkV2Render();
+  bkV2RenderKeep();
 }
-function bkV2Tab2SetQ(v){ _bkV2T2Q = String(v||''); bkV2Render();
+function bkV2Tab2SetQ(v){ _bkV2T2Q = String(v||''); bkV2RenderKeep();
   try{ var el=document.getElementById('bt-q'); if(el){ el.focus(); el.setSelectionRange(el.value.length,el.value.length); } }catch(_){}
 }
-function bkV2Tab2SetPier(p){ _bkV2T2Pier = p; _bkV2T2Family = ''; _bkV2.filterRoute = null; bkV2Render(); }
-function bkV2Tab2SetRoute(rid){ _bkV2.filterRoute = rid || null; bkV2Render(); }
+function bkV2Tab2SetPier(p){ _bkV2T2Pier = p; _bkV2T2Family = ''; _bkV2.filterRoute = null; bkV2RenderKeep(); }
+function bkV2Tab2SetRoute(rid){ _bkV2.filterRoute = rid || null; bkV2RenderKeep(); }
 let _bkV2T2Family = '';
-function bkV2Tab2SetFamily(fid){ _bkV2T2Family = fid || ''; _bkV2.filterRoute = null; bkV2Render(); }
+function bkV2Tab2SetFamily(fid){ _bkV2T2Family = fid || ''; _bkV2.filterRoute = null; bkV2RenderKeep(); }
 let _bkV2T2Sort = { col:'', dir:'asc' };   // manifest column sort (Agency / Zone) · '' = original order
-function bkV2Tab2SetSort(col){ if(_bkV2T2Sort.col===col){ _bkV2T2Sort.dir = _bkV2T2Sort.dir==='asc'?'desc':'asc'; } else { _bkV2T2Sort = {col, dir:'asc'}; } bkV2Render(); }
-function bkV2Tab2ClearFilters(){ _bkV2T2Pier = 'all'; _bkV2T2Family = ''; _bkV2T2Q=''; _bkV2.filterRoute = null; bkV2Render(); }
-function bkV2Tab2PickDay(ds){ _bkV2T2Q=''; _bkV2T2Lk=''; _bkV2.filterDate = ds; _bkV2.filterRoute = null; _bkV2T2Cursor = ds.slice(0,7); bkV2Render(); }
+function bkV2Tab2SetSort(col){ if(_bkV2T2Sort.col===col){ _bkV2T2Sort.dir = _bkV2T2Sort.dir==='asc'?'desc':'asc'; } else { _bkV2T2Sort = {col, dir:'asc'}; } bkV2RenderKeep(); }
+function bkV2Tab2ClearFilters(){ _bkV2T2Pier = 'all'; _bkV2T2Family = ''; _bkV2T2Q=''; _bkV2.filterRoute = null; bkV2RenderKeep(); }
+function bkV2Tab2PickDay(ds){ _bkV2T2Q=''; _bkV2T2Lk=''; _bkV2.filterDate = ds; _bkV2.filterRoute = null; _bkV2T2Cursor = ds.slice(0,7); bkV2RenderKeep(); }
 function bkV2Tab2MonthShift(n){
   const c = _bkV2T2Cursor || bkV2Tab2ActiveDate().slice(0,7);
   let [y,m] = c.split('-').map(Number); m += n;
   if(m<1){ m=12; y--; } if(m>12){ m=1; y++; }
-  _bkV2T2Cursor = `${y}-${String(m).padStart(2,'0')}`; bkV2Render();
+  _bkV2T2Cursor = `${y}-${String(m).padStart(2,'0')}`; bkV2RenderKeep();
 }
 // Aggregate every trip (date+route) across all bookings · for calendar dots + prev/upcoming lists
 function bkV2Tab2AllTrips(){
