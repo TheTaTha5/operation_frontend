@@ -28378,7 +28378,8 @@ var CT_ICON = {
   trash:'<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
   link:'<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',
   info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
-  undo:'<path d="M3 10h11a5 5 0 0 1 0 10H8"/><path d="M7 6l-4 4 4 4"/>'
+  undo:'<path d="M3 10h11a5 5 0 0 1 0 10H8"/><path d="M7 6l-4 4 4 4"/>',
+  printer:'<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>'
 };
 function ctIcon(k, sz, sw){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (sw || 2)
   + '" stroke-linecap="round" stroke-linejoin="round" style="width:' + (sz || 16) + 'px;height:' + (sz || 16) + 'px;flex:none">' + (CT_ICON[k] || '') + '</svg>'; }
@@ -28429,6 +28430,305 @@ function ctNum(v, fk, oninput, w){
     + '" style="width:' + (w || 68) + 'px">';
 }
 
+
+/* ══ §ctFact · Fact Sheet · สรุปแผนหนึ่งแผนลงกระดาษ A4 ══════════════════════════════════════════
+   หน้าจอออกแบบให้ "ปรับแล้วเห็นผลทันที" · กระดาษออกแบบให้ "เอาไปคุยกับคนอื่น"
+   คนละงานกัน จึงไม่ยกเลย์เอาต์เดียวกันมาทั้งดุ้น — ตัดของที่กดไม่ได้บนกระดาษทิ้งหมด
+   (ช่องกรอก ปุ่ม แถบสี กราฟ 38 แท่งที่อ่านค่าไม่ได้) แล้วแทนด้วยตัวเลขที่อ่านแล้วตัดสินใจได้
+   ⚠ ตัวเลขคิดสดจากสูตรกลาง ณ วินาทีที่กดพิมพ์ · จึงต้องมีวันเวลากำกับหัวกระดาษเสมอ
+     สูตรกลางแก้เมื่อไหร่ ใบที่พิมพ์ไปแล้วจะไม่ตรงกับหน้าจออีก และไม่มีใครรู้ว่าใบไหนเก่า
+   ⚠ ใช้ document.write ลงหน้าต่างใหม่เหมือนใบสั่งงาน/ทะเบียนรายชื่อ (goPrint)
+     ไม่ใช่ @media print ทับหน้าเดิม เพราะหน้านี้มี sticky/overflow เต็มไปหมด
+     สั่งพิมพ์ทับจะได้กระดาษที่ตัดกลางตารางทุกครั้ง                                        */
+function ctFactCss(){ return '<style>'
+  + '@page{size:A4 portrait;margin:11mm}'
+  + 'body{margin:0;padding:22px 18px 60px;background:#E9EBEF;'
+    + "font-family:'Noto Sans Thai','DM Sans',system-ui,sans-serif;color:#14100C}"
+  + '.fs{max-width:820px;margin:0 auto 18px;background:#fff;padding:26px 30px 34px;'
+    + 'box-shadow:0 10px 40px -18px rgba(20,16,12,.5);border-radius:6px}'
+  + '.fs-tool{max-width:820px;margin:0 auto 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;'
+    + 'background:#fff;border-radius:10px;padding:10px 14px;font-size:12.5px}'
+  + '.fs-tool b{font-size:13.5px}.fs-tool .h{color:#6b665f;flex:1;min-width:180px}'
+  + '.fs-tool button{border:none;background:#C2410C;color:#fff;border-radius:8px;padding:7px 15px;'
+    + "font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}"
+  + '.fs-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;'
+    + 'border-bottom:2px solid #14100C;padding-bottom:11px;margin-bottom:16px}'
+  + '.fs-hd h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.3px}'
+  + '.fs-hd .sub{font-size:11.5px;color:#6b665f;margin-top:4px}'
+  + '.fs-hd .co{text-align:right;font-size:10px;letter-spacing:.16em;font-weight:800;color:#6b665f}'
+  + '.fs-hd .co u{display:block;text-decoration:none;font-size:9.5px;letter-spacing:0;'
+    + 'font-weight:400;color:#8b857d;margin-top:5px;line-height:1.5}'
+  + '.fs-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:16px}'
+  + '.fs-k{border:1px solid #DED8CE;border-radius:9px;padding:9px 11px}'
+  + '.fs-k.hi{background:#F6F1E8;border-color:#C9BFAE}'
+  + '.fs-k s{display:block;text-decoration:none;font-size:8.5px;font-weight:800;letter-spacing:.09em;'
+    + 'color:#8b857d;text-transform:uppercase}'
+  + '.fs-k b{display:block;font-size:21px;font-weight:800;margin-top:3px;line-height:1.1;'
+    + 'font-variant-numeric:tabular-nums}'
+  + '.fs-k b.neg{color:#9f1239}.fs-k b.pos{color:#0F6E56}'
+  + '.fs-k i{display:block;font-style:normal;font-size:10px;color:#6b665f;margin-top:3px}'
+  + '.fs-h2{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;'
+    + 'color:#8b857d;border-bottom:1px solid #DED8CE;padding-bottom:4px;margin:17px 0 8px}'
+  + '.fs-h2 em{font-style:normal;text-transform:none;letter-spacing:0;font-weight:500;color:#a39c93}'
+  + '.fs-g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px 16px;font-size:11.5px}'
+  + '.fs-g div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted #E4DED4;padding:3px 0}'
+  + '.fs-g span{color:#6b665f}.fs-g b{font-weight:700;font-variant-numeric:tabular-nums}'
+  + 'table.fs-t{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums}'
+  + 'table.fs-t th{text-align:right;font-size:9.5px;font-weight:800;letter-spacing:.05em;color:#8b857d;'
+    + 'text-transform:uppercase;padding:4px 7px;border-bottom:1px solid #14100C}'
+  + 'table.fs-t th.l,table.fs-t td.l{text-align:left}'
+  + 'table.fs-t td{text-align:right;padding:4px 7px;border-bottom:1px solid #EFEAE1}'
+  + 'table.fs-t tr.g td{background:#F6F1E8;font-weight:700}'
+  + 'table.fs-t tr.ln td.l{padding-left:20px;color:#4a4238}'
+  + 'table.fs-t tr.sum td{border-top:1.5px solid #14100C;border-bottom:none;font-weight:800;padding-top:6px}'
+  + 'table.fs-t tr.dim td{color:#a39c93}'
+  + 'table.fs-t tr.be td{background:#E7F1EE;font-weight:800}'
+  + '.fs-tag{display:inline-block;font-size:9px;font-weight:700;border-radius:4px;padding:1px 5px;'
+    + 'background:#EFEAE1;color:#6b665f;margin-left:5px}'
+  + '.fs-note{font-size:10.5px;color:#6b665f;line-height:1.65;margin-top:7px}'
+  + '.fs-foot{margin-top:22px;padding-top:9px;border-top:1px solid #DED8CE;font-size:9.5px;'
+    + 'color:#8b857d;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}'
+  + '@media print{body{background:#fff;padding:0}.fs-tool{display:none}'
+    + '.fs{box-shadow:none;border-radius:0;margin:0;max-width:none;padding:0}'
+    + '.fs-h2,table.fs-t{break-inside:auto}tr{break-inside:avoid}}'
+  + '</style>'; }
+
+/* หนึ่งแผน = หนึ่งใบ · แยกฟังก์ชันไว้เพื่อให้พิมพ์หลายแผนต่อกันได้ในอนาคต */
+function ctFactSheet(pl){
+  var e = ctE, B = ctB, T = ctTpl(), R = ctVatR(T);
+  var pax   = Math.max(1, +pl.pax || 1);
+  var seats = ctPlanSeats(pl), boats = Math.max(1, +pl.boats || 1);
+  var cap   = Math.max(1, seats * boats);
+  var cur   = ctProfitAt(pl, pax, T);
+  var be    = ctBreakEven(pl, cap, T);
+  var RN    = ctRentOf(pl.boatId);
+  var pAd   = +pl.price || 0;
+  var pCh   = (pl.priceCh != null && pl.priceCh !== '') ? (+pl.priceCh || 0) : pAd;
+  var nCh   = ctChdAt(pl, pax);
+  var vout  = ((pax - nCh) * pAd + nCh * pCh) * R;
+  var rtNm  = '';
+  try{ var _r = (typeof getRoute === 'function') ? getRoute(pl.famId) : null; rtNm = (_r && _r.name) || ''; }catch(_){ }
+
+  /* ── 4 ตัวเลขที่ต้องเห็นก่อนอย่างอื่น ── */
+  var bePct = be ? Math.round(be / cap * 100) : 100;
+  var kpi = '<div class="fs-kpi">'
+    + '<div class="fs-k hi"><s>จุดคุ้มทุน</s><b>' + (be ? (be + ' คน') : 'ไม่ถึง')
+      + '</b><i>' + (be ? (bePct + '% ของ ' + cap + ' ที่นั่ง') : ('เต็มลำ ' + cap + ' ที่นั่งก็ยังขาดทุน')) + '</i></div>'
+    + '<div class="fs-k"><s>กำไรที่คาด · ' + pax + ' คน</s><b class="' + (cur.p < 0 ? 'neg' : 'pos') + '">'
+      + (cur.p < 0 ? '−' : '+') + ctN(Math.abs(cur.p)) + '</b><i>Margin '
+      + (cur.rev ? Math.round(cur.p / cur.rev * 100) : 0) + '% ของรายได้สุทธิ</i></div>'
+    + '<div class="fs-k"><s>ต้นทุนต่อทริป</s><b>' + ctN(cur.c.net) + '</b><i>คงที่ ' + ctN(cur.c.fixNet)
+      + ' + ผันแปร ' + ctN(cur.c.varNet) + '</i></div>'
+    + '<div class="fs-k"><s>ราคาขาย</s><b>' + ctN(pAd) + '</b><i>เด็ก ' + ctN(pCh)
+      + (+pl.comm > 0 ? (' · คอม ' + (+pl.comm) + '%') : ' · ไม่มีคอม') + '</i></div></div>';
+
+  /* ── พารามิเตอร์ที่ใช้คำนวณ · ใครถือใบนี้ต้องทำซ้ำได้ ── */
+  var P = [['เครื่องยนต์', e(pl.eng || '')], ['จำนวนลำ', boats + ' ลำ'],
+    ['ความจุ/ลำ', seats + ' ที่นั่ง' + (pl.boatId ? '' : ' (พิมพ์เอง)')],
+    ['จำนวนคนที่คาด', pax + ' คน'], ['คนไทย', (Math.min(+pl.paxTH || 0, pax)) + ' คน'],
+    ['เด็ก', (+pl.chPct || 0) + '% = ' + nCh + ' คน'],
+    ['ราคาผู้ใหญ่', B(pAd) + ' <span class="fs-tag">รวม VAT</span>'],
+    ['ราคาเด็ก', B(pCh)], ['คอมมิชชั่น', (+pl.comm || 0) + '%'],
+    ['ราคาน้ำมัน', B(pl.fuel) + '/ลิตร'], ['VAT', (+T.vatRate || 0) + '%'],
+    ['ความจุรวม', cap + ' ที่นั่ง']];
+  var params = '<div class="fs-g">' + P.map(function(x){
+      return '<div><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>';
+
+  /* ── เรือ & ค่าเช่า · ขึ้นเฉพาะตอนปักลำไว้ ── */
+  var rent = '';
+  if(pl.boatId){
+    var bN = ((typeof getBoat === 'function' ? getBoat(pl.boatId) : null) || {}).name || pl.boatId;
+    if(!RN){
+      rent = '<div class="fs-h2">เรือที่ใช้</div><div class="fs-g">'
+        + '<div><span>เรือ</span><b>' + e(bN) + '</b></div>'
+        + '<div><span>ที่นั่ง</span><b>' + seats + '</b></div>'
+        + '<div><span>สถานะ</span><b>เรือของบริษัท</b></div>'
+        + '<div><span>ค่าเช่า</span><b>—</b></div></div>';
+    } else {
+      var rNetTrip = RN.perTrip * (1 - (RN.vat ? R : 0));
+      var rNetAll  = RN.amt * (1 - (RN.vat ? R : 0));
+      var pEx = cur.p + rNetTrip;
+      var dNd = (pEx > 0) ? Math.ceil(rNetAll / (pEx * RN.trips)) : null;
+      var okD = (dNd != null && dNd <= RN.runDays);
+      rent = '<div class="fs-h2">เรือเช่า · เงื่อนไขสัญญา <em>ผูกกับลำ ใช้ร่วมทุกเส้นทางที่ลำนี้วิ่ง</em></div>'
+        + '<div class="fs-g">'
+        + '<div><span>เรือ</span><b>' + e(RN.name) + '</b></div>'
+        + '<div><span>ที่นั่ง</span><b>' + RN.seats + '</b></div>'
+        + '<div><span>ค่าเช่า/งวด</span><b>' + B(RN.amt)
+          + (RN.mode === 'seat' ? (' <span class="fs-tag">' + B(RN.seat) + '/ที่นั่ง</span>') : '') + '</b></div>'
+        + '<div><span>วันในงวด</span><b>' + RN.days + ' วัน</b></div>'
+        + '<div><span>วันหยุดตามตกลง</span><b>' + RN.off + ' วัน</b></div>'
+        + '<div><span>วันที่วิ่งได้</span><b>' + RN.runDays + ' วัน</b></div>'
+        + '<div><span>ค่าเช่า/วันวิ่ง</span><b>' + B(RN.perDay) + '</b></div>'
+        + '<div><span>ค่าเช่า/ทริป</span><b>' + B(RN.perTrip)
+          + (RN.trips > 1 ? (' <span class="fs-tag">' + RN.trips + ' รอบ/วัน</span>') : '') + '</b></div>'
+        + '<div><span>ช่วงสัญญา</span><b>' + (RN.from ? e(RN.from) : '—') + ' → ' + (RN.to ? e(RN.to) : 'ไม่ระบุ') + '</b></div>'
+        + '<div><span>เจ้าของเรือรับผิดชอบ</span><b>' + (CT_RENT_EX.filter(function(x){ return RN.ex[x.id]; })
+            .map(function(x){ return x.l; }).join(' · ') || '—') + '</b></div>'
+        + '<div><span>ผู้เช่าจ่ายเอง</span><b>น้ำมันเรือ</b></div>'
+        + '<div><span>ค่าเช่ามี VAT</span><b>' + (RN.vat ? 'ขอคืนได้' : 'ไม่มี') + '</b></div></div>'
+        + '<div class="fs-note"><b>จุดคุ้มทุนของค่าเช่า</b> · '
+        + (dNd == null
+            ? ('ที่ ' + pax + ' คน/ทริป วิ่งกี่วันก็ไม่คุ้ม (กำไรก่อนค่าเช่าติดลบ ' + B(Math.abs(pEx)) + '/ทริป)')
+            : ('ต้องวิ่ง <b>' + dNd + ' วัน/งวด</b> ที่ ' + pax + ' คน/ทริป · มีให้วิ่ง ' + RN.runDays + ' วัน'
+               + (okD ? (' · เหลือหายใจ ' + (RN.runDays - dNd) + ' วัน · ลูกค้ารวม '
+                         + (dNd * RN.trips * pax).toLocaleString() + ' หัว/งวด')
+                      : ' · <b>เกินจำนวนวันที่มี</b>')))
+        + '<br>P&amp;L รายทริปลงค่าเช่าตามทริปที่วิ่งจริง ไม่ใช่เต็มก้อน · '
+        + 'ส่วนที่ขาดดูได้ที่ P&amp;L รายทริป → รายเดือน → Unabsorbed boat rent</div>';
+    }
+  }
+
+  /* ── ตารางต้นทุน · หมวดแล้วแตกรายบรรทัด ── */
+  var gA = {}, gO = [], gL = {};
+  cur.c.rows.forEach(function(r){
+    if(!gA[r.g]){ gA[r.g] = { amt:0, vat:0, net:0, fix:0, varr:0 }; gO.push(r.g); gL[r.g] = []; }
+    var a = gA[r.g]; a.amt += r.amt; a.vat += r.vatAmt; a.net += r.net; a.fix += r.fix; a.varr += r.varr;
+    gL[r.g].push(r);
+  });
+  var kindOf = function(f, v){ return (f > 0 && v > 0) ? 'ผสม' : (v > 0 ? 'ผันแปร' : 'คงที่'); };
+  var ctr = '';
+  gO.forEach(function(g){
+    var A = gA[g];
+    ctr += '<tr class="g"><td class="l">' + e(g) + '</td><td>' + kindOf(A.fix, A.varr) + '</td><td>'
+        +  ctN(A.amt) + '</td><td>' + (A.vat ? ctN(A.vat) : '—') + '</td><td>' + ctN(A.net) + '</td>'
+        +  '<td>' + Math.round(A.net / (cur.c.net || 1) * 100) + '%</td></tr>';
+    gL[g].forEach(function(r){
+      ctr += '<tr class="ln' + (r.amt ? '' : ' dim') + '"><td class="l">' + e(r.l) + '</td>'
+          +  '<td>' + kindOf(r.fix, r.varr) + '</td><td>' + (r.amt ? ctN(r.amt) : '—') + '</td>'
+          +  '<td>' + (r.vatAmt ? ctN(r.vatAmt) : '—') + '</td><td>' + (r.net ? ctN(r.net) : '—') + '</td><td></td></tr>';
+    });
+  });
+  var costTbl = '<table class="fs-t"><thead><tr><th class="l">รายการ</th><th>ชนิด</th><th>จำนวนเงิน</th>'
+    + '<th>VAT ซื้อ</th><th>สุทธิ</th><th>สัดส่วน</th></tr></thead><tbody>' + ctr
+    + '<tr class="sum"><td class="l">รวมต้นทุน · ที่ ' + pax + ' คน</td><td></td><td>' + ctN(cur.c.gross)
+    + '</td><td>' + ctN(cur.c.vin) + '</td><td>' + ctN(cur.c.net) + '</td><td>100%</td></tr></tbody></table>';
+
+  /* ── เศรษฐศาสตร์ต่อหัว · ที่มาของจุดคุ้มทุน ── */
+  var revPer = cur.rev / pax, varPer = cur.c.varNet / pax, cm = revPer - varPer;
+  /* ราคาต่ำสุดที่ยังไม่ขาดทุน ณ จำนวนคนที่ตั้งไว้ · ขยับราคาทั้งผู้ใหญ่และเด็กตามสัดส่วนเดิม
+     ของที่ลูกค้าสั่งเพิ่มมีรายได้ของมันเอง ต้องหักออกจากยอดที่ทัวร์หลักต้องแบกก่อน */
+  var needTour = cur.c.net - cur.revOd;
+  var kMin = (cur.revTour > 0) ? (needTour / cur.revTour) : null;
+  var minAd = (kMin != null && kMin > 0) ? pAd * kMin : null;
+  var econ = '<div class="fs-g" style="grid-template-columns:repeat(3,1fr)">'
+    + '<div><span>รายได้สุทธิ/หัว</span><b>' + ctN(revPer) + '</b></div>'
+    + '<div><span>ต้นทุนผันแปร/หัว</span><b>−' + ctN(varPer) + '</b></div>'
+    + '<div><span>ส่วนเกิน/หัว</span><b>' + ctN(cm) + '</b></div>'
+    + '<div><span>ต้นทุนคงที่/ทริป</span><b>' + ctN(cur.c.fixNet) + '</b></div>'
+    + '<div><span>คงที่ ÷ ส่วนเกิน</span><b>' + (cm > 0 ? (Math.ceil(cur.c.fixNet / cm) + ' คน') : 'ไม่คุ้ม') + '</b></div>'
+    + '<div><span>จุดคุ้มทุนที่ระบบไล่จริง</span><b>' + (be ? (be + ' คน') : 'ไม่ถึง') + '</b></div>'
+    + '<div><span>ห่างจุดคุ้มทุน</span><b>' + (be == null ? 'เต็มลำยังไม่คุ้ม'
+        : (pax >= be ? ('เกินมา ' + (pax - be) + ' คน') : ('ขาดอีก ' + (be - pax) + ' คน'))) + '</b></div>'
+    + '<div><span>ราคาต่ำสุดที่ไม่ขาดทุน · ที่ ' + pax + ' คน</span><b>'
+        + (minAd == null ? '—' : ctN(minAd)) + '</b></div>'
+    + '<div><span>ต้นทุนต่อหัว · ที่ ' + pax + ' คน</span><b>' + ctN(cur.c.net / pax) + '</b></div></div>'
+    + '<div class="fs-note">สองช่องล่างขวาต่างกันได้ เพราะบางบรรทัดเป็น<b>ขั้นบันได</b> '
+    + '(ไกด์ทุก 25 คน · เด็กเรือเพิ่มเมื่อเกิน 40) ต้นทุนจึงกระโดดเป็นช่วง ไม่ใช่เส้นตรง '
+    + 'สูตรหารตรง ๆ ใช้ไม่ได้ · ระบบจึงไล่ทีละคนจาก 1 จนกำไรเป็นบวกครั้งแรก</div>';
+
+  /* ── กำไรตามจำนวนคน · เลือกเฉพาะระดับที่ใช้ตัดสินใจ ไม่ใช่ทั้ง 38 แถว ── */
+  var lv = {};
+  [0.25, 0.5, 0.75, 1].forEach(function(f){ lv[Math.max(1, Math.round(cap * f))] = 1; });
+  lv[pax] = 1; if(be) lv[be] = 1;
+  var lvs = Object.keys(lv).map(Number).sort(function(a, b){ return a - b; });
+  var curveRows = lvs.map(function(n){
+    var X = ctProfitAt(pl, n, T);
+    var isBe = (be && n === be), isNow = (n === pax);
+    return '<tr class="' + (isBe ? 'be' : '') + '"><td class="l">' + n + ' คน'
+      + (isBe ? ' <span class="fs-tag">จุดคุ้มทุน</span>' : '')
+      + (isNow ? ' <span class="fs-tag">ที่ตั้งไว้</span>' : '')
+      + (n === cap ? ' <span class="fs-tag">เต็มลำ</span>' : '') + '</td>'
+      + '<td>' + Math.round(n / cap * 100) + '%</td>'
+      + '<td>' + ctN(X.rev) + '</td><td>' + ctN(X.c.net) + '</td>'
+      + '<td>' + (X.p < 0 ? '−' : '+') + ctN(Math.abs(X.p)) + '</td>'
+      + '<td>' + (X.p < 0 ? '−' : '+') + ctN(Math.abs(X.p / n)) + '</td></tr>';
+  }).join('');
+  var curve = '<table class="fs-t"><thead><tr><th class="l">จำนวนคน</th><th>อัตราบรรทุก</th>'
+    + '<th>รายได้สุทธิ</th><th>ต้นทุนสุทธิ</th><th>กำไร/ขาดทุน</th><th>ต่อหัว</th></tr></thead>'
+    + '<tbody>' + curveRows + '</tbody></table>';
+
+  /* ── VAT ── */
+  var vat = '<div class="fs-g" style="grid-template-columns:repeat(3,1fr)">'
+    + '<div><span>ภาษีขาย</span><b>' + ctN(vout) + '</b></div>'
+    + '<div><span>ภาษีซื้อที่ขอคืนได้</span><b>−' + ctN(cur.c.vin) + '</b></div>'
+    + '<div><span>ต้องนำส่ง</span><b>' + ctN(Math.max(0, vout - cur.c.vin)) + '</b></div></div>';
+
+  /* ── รายละเอียดเส้นทาง · มีค่อยขึ้น ── */
+  var IA = ctItin(pl), km = ctItinKm(IA), itin = '';
+  if(IA.length){
+    itin = '<div class="fs-h2">รายละเอียดเส้นทาง</div><table class="fs-t">'
+      + '<thead><tr><th class="l">เวลา</th><th class="l">กิจกรรม</th><th>กม.</th></tr></thead><tbody>'
+      + IA.map(function(r){ return '<tr><td class="l">' + e(r.t || '') + '</td><td class="l">'
+          + e(r.a || '') + '</td><td>' + e(r.k || '—') + '</td></tr>'; }).join('')
+      + '<tr class="sum"><td class="l">รวมระยะทาง</td><td></td><td>'
+      + (km == null ? '—' : (km.toLocaleString() + ' กม.')) + '</td></tr></tbody></table>';
+  }
+
+  /* ── ของที่ลูกค้าสั่งเพิ่ม · มีค่อยขึ้น ── */
+  var odL = (T.lines || []).filter(function(ln){ return ln.od; }), od = '';
+  if(odL.length){
+    var odRows = odL.map(function(ln){
+      var C = ctOdCfg(pl, ln), L = ctEffLine(ln, pl);
+      var unit = +((L.parts || [])[0] || {}).u || 0, pct = ctOdPct(ln), u1 = pct ? 'คน' : 'ลำ';
+      var q = ctOdQty(pl, ln, { pax:pax });
+      var off = L.off || ctGrpCfg(pl, ln.g || 'อื่นๆ').off;
+      return '<tr class="' + (off ? 'dim' : '') + '"><td class="l">' + e(ln.l)
+        + (off ? ' <span class="fs-tag">ปิดอยู่</span>' : '') + '</td>'
+        + '<td>' + ctN(unit) + '/' + u1 + '</td><td>' + q + ' ' + u1 + '</td>'
+        + '<td>' + ctN(C.aR) + '</td><td>' + ctN(C.uR) + '</td></tr>';
+    }).join('');
+    var odRev = ctOdRev(pl, T, { pax:pax });
+    od = '<div class="fs-h2">ของที่ลูกค้าสั่งเพิ่ม <em>คิดตามที่สั่งจริง ไม่ใช่ทุกหัวบนเรือ</em></div>'
+      + '<table class="fs-t"><thead><tr><th class="l">รายการ</th><th>ทุน/หน่วย</th><th>คาดว่าสั่ง</th>'
+      + '<th>บริษัทได้ · เอเจนต์</th><th>บริษัทได้ · ขายเพิ่ม</th></tr></thead><tbody>' + odRows
+      + '<tr class="sum"><td class="l">รายได้ส่วนนี้ที่รวมอยู่ในกำไรข้างบนแล้ว</td><td></td><td></td>'
+      + '<td colspan="2">' + ctN(odRev * (1 - R)) + '</td></tr></tbody></table>';
+  }
+
+  var now = new Date();
+  var stamp = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-'
+            + String(now.getDate()).padStart(2, '0') + ' '
+            + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  var who = ''; try{ who = (typeof ckMe === 'function') ? String(ckMe() || '') : ''; }catch(_){ }
+  if(who === '-' || who === '\u2014') who = '';        /* ckMe คืนขีดกลางตอนยังไม่รู้ว่าใคร */
+
+  return '<div class="fs">'
+    + '<div class="fs-hd"><div><h1>' + e(pl.name || 'แผนคำนวณ') + '</h1>'
+      + '<div class="sub">' + (rtNm ? ('เส้นทาง ' + e(rtNm) + ' · ') : 'ยังไม่ผูกเส้นทาง · ')
+      + e(pl.eng || '') + ' · ' + boats + ' ลำ · ' + seats + ' ที่นั่ง/ลำ'
+      + (RN ? ' · เรือเช่า ' + e(RN.name) : (pl.boatId ? ' · ' + e(((typeof getBoat === 'function' ? getBoat(pl.boatId) : null) || {}).name || '') : ''))
+      + '</div></div>'
+      + '<div class="co">LOVE ANDAMAN<u>ต้นทุน &amp; จุดคุ้มทุน · Fact Sheet<br>ออกเมื่อ ' + e(stamp)
+      + (who ? (' · ' + e(who)) : '') + '</u></div></div>'
+    + kpi
+    + '<div class="fs-h2">พารามิเตอร์ที่ใช้คำนวณ</div>' + params
+    + rent
+    + '<div class="fs-h2">ต้นทุนต่อทริป <em>ที่ ' + pax + ' คน · สุทธิคือหลังหัก VAT ซื้อที่ขอคืนได้แล้ว</em></div>' + costTbl
+    + '<div class="fs-h2">ต่อหัว &amp; ที่มาของจุดคุ้มทุน</div>' + econ
+    + '<div class="fs-h2">กำไรตามจำนวนคน</div>' + curve
+    + '<div class="fs-h2">VAT ต่อทริป</div>' + vat
+    + od + itin
+    + '<div class="fs-foot"><span>ตัวเลขคิดสดจากสูตรกลาง ณ เวลาที่พิมพ์ · '
+      + 'สูตรกลางแก้เมื่อไหร่ ใบนี้จะไม่ตรงกับหน้าจออีก</span>'
+      + '<span>' + e(stamp) + '</span></div></div>';
+}
+function ctFactPrint(){
+  var pl = ctPlan(_ct.pid);
+  if(!pl){ alert('ยังไม่ได้เลือกแผน'); return; }
+  var title = 'Fact Sheet · ' + (pl.name || 'แผนคำนวณ');
+  var html = '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>' + ctE(title) + '</title>'
+    + '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700;800&family=DM+Mono:wght@400;700&display=swap" rel="stylesheet">'
+    + ctFactCss() + '</head><body>'
+    + '<div class="fs-tool"><b>Fact Sheet</b><span class="h">' + ctE(pl.name || '')
+      + ' · A4 แนวตั้ง · ตัวเลขคิดสด ณ เวลาที่เปิดหน้านี้</span>'
+    + '<button onclick="window.print()">&#128424; พิมพ์ / บันทึก PDF</button></div>'
+    + ctFactSheet(pl) + '</body></html>';
+  var w = window.open('', '_blank');
+  if(!w){ alert('เปิดหน้าต่างไม่ได้ · อนุญาต pop-up ของเว็บนี้ก่อน'); return; }
+  w.document.write(html); w.document.close(); w.focus();
+}
+
 // ── แท็บ 1 · แผนคำนวณ ───────────────────────────────────────────────────────────────────────────
 function ctPlanHtml(){
   var P = ctPlans();
@@ -28474,6 +28774,8 @@ function ctPlanHtml(){
                 + ctE(r.name || r.id) + '</option>'; }).join('')
           + '</optgroup>'; }).join('')
     + '</select></div>'
+    + '<button class="ct-ib" title="Fact Sheet · สรุปแผนนี้ลงกระดาษ A4 / บันทึก PDF" onclick="ctFactPrint()">'
+      + ctIcon('printer', 15) + '</button>'                                   /* §ctFact */
     + '<button class="ct-ib" title="คัดลอกแผน" onclick="ctDupPlan()">' + ctIcon('copy', 15) + '</button>'
     + '<button class="ct-ib danger" title="ลบแผน" onclick="ctDelPlan()">' + ctIcon('trash', 15) + '</button></div>';
 
