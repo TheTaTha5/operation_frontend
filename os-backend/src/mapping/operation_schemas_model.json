@@ -6938,5 +6938,178 @@
     "primary_key": "id",
     "foreign_keys": [],
     "rows": 0
+  },
+  "po_cash_rows": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "date",
+        "type": "text"
+      },
+      {
+        "name": "kind",
+        "type": "text"
+      },
+      {
+        "name": "txt",
+        "type": "text"
+      },
+      {
+        "name": "amt",
+        "type": "bigint"
+      },
+      {
+        "name": "at",
+        "type": "text"
+      },
+      {
+        "name": "by",
+        "type": "text"
+      },
+      {
+        "name": "ts",
+        "type": "text"
+      },
+      {
+        "name": "src",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "po_cash_lt": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "date",
+        "type": "text"
+      },
+      {
+        "name": "bid",
+        "type": "text"
+      },
+      {
+        "name": "n",
+        "type": "bigint"
+      },
+      {
+        "name": "nj",
+        "type": "bigint"
+      },
+      {
+        "name": "nc",
+        "type": "bigint"
+      },
+      {
+        "name": "amt",
+        "type": "bigint"
+      },
+      {
+        "name": "note",
+        "type": "text"
+      },
+      {
+        "name": "by",
+        "type": "text"
+      },
+      {
+        "name": "ts",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "po_cash_pk": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "date",
+        "type": "text"
+      },
+      {
+        "name": "bid",
+        "type": "text"
+      },
+      {
+        "name": "ad_th",
+        "type": "bigint"
+      },
+      {
+        "name": "chd_th",
+        "type": "bigint"
+      },
+      {
+        "name": "inf_th",
+        "type": "bigint"
+      },
+      {
+        "name": "foc_th",
+        "type": "bigint"
+      },
+      {
+        "name": "ad_fr",
+        "type": "bigint"
+      },
+      {
+        "name": "chd_fr",
+        "type": "bigint"
+      },
+      {
+        "name": "inf_fr",
+        "type": "bigint"
+      },
+      {
+        "name": "foc_fr",
+        "type": "bigint"
+      },
+      {
+        "name": "amt",
+        "type": "bigint"
+      },
+      {
+        "name": "dock",
+        "type": "bigint"
+      },
+      {
+        "name": "by",
+        "type": "text"
+      },
+      {
+        "name": "ts",
+        "type": "text"
+      },
+      {
+        "name": "src",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
   }
 }

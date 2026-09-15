@@ -7483,5 +7483,204 @@
       "db_type": "text",
       "note": "ทั้งก้อนเป็น JSON text เหมือน vanjob_sent — perPax/rate/rows/extra/by/at เพิ่มช่องได้โดยไม่ต้องแตะ DB"
     }
+  },
+  "po_cash_rows": {
+    "id": {
+      "source": "po_cash_rows[].id (record id)",
+      "kind": "pk",
+      "db_type": "text",
+      "note": "pier petty cash day ledger · one row per entry · was one JSON string per pier, which the server replaced wholesale so two people at one pier erased each other"
+    },
+    "pier": {
+      "source": "po_cash_rows[].pier",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "date": {
+      "source": "po_cash_rows[].date",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "kind": {
+      "source": "po_cash_rows[].kind",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "txt": {
+      "source": "po_cash_rows[].txt",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "amt": {
+      "source": "po_cash_rows[].amt",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "at": {
+      "source": "po_cash_rows[].at",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "by": {
+      "source": "po_cash_rows[].by",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "ts": {
+      "source": "po_cash_rows[].ts",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "src": {
+      "source": "po_cash_rows[].src",
+      "kind": "scalar",
+      "db_type": "text"
+    }
+  },
+  "po_cash_lt": {
+    "id": {
+      "source": "po_cash_lt[].id (record id)",
+      "kind": "pk",
+      "db_type": "text",
+      "note": "longtail sheet · id is pier|date|boat so the same cell from two devices merges instead of duplicating"
+    },
+    "pier": {
+      "source": "po_cash_lt[].pier",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "date": {
+      "source": "po_cash_lt[].date",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "bid": {
+      "source": "po_cash_lt[].bid",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "n": {
+      "source": "po_cash_lt[].n",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "nj": {
+      "source": "po_cash_lt[].nj",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "nc": {
+      "source": "po_cash_lt[].nc",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "amt": {
+      "source": "po_cash_lt[].amt",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "note": {
+      "source": "po_cash_lt[].note",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "by": {
+      "source": "po_cash_lt[].by",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "ts": {
+      "source": "po_cash_lt[].ts",
+      "kind": "scalar",
+      "db_type": "text"
+    }
+  },
+  "po_cash_pk": {
+    "id": {
+      "source": "po_cash_pk[].id (record id)",
+      "kind": "pk",
+      "db_type": "text",
+      "note": "park fee sheet · both sides kept · what the booking says vs what was paid at the gate"
+    },
+    "pier": {
+      "source": "po_cash_pk[].pier",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "date": {
+      "source": "po_cash_pk[].date",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "bid": {
+      "source": "po_cash_pk[].bid",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "ad_th": {
+      "source": "po_cash_pk[].ad_th",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "chd_th": {
+      "source": "po_cash_pk[].chd_th",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "inf_th": {
+      "source": "po_cash_pk[].inf_th",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "foc_th": {
+      "source": "po_cash_pk[].foc_th",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "ad_fr": {
+      "source": "po_cash_pk[].ad_fr",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "chd_fr": {
+      "source": "po_cash_pk[].chd_fr",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "inf_fr": {
+      "source": "po_cash_pk[].inf_fr",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "foc_fr": {
+      "source": "po_cash_pk[].foc_fr",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "amt": {
+      "source": "po_cash_pk[].amt",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "dock": {
+      "source": "po_cash_pk[].dock",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "by": {
+      "source": "po_cash_pk[].by",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "ts": {
+      "source": "po_cash_pk[].ts",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "src": {
+      "source": "po_cash_pk[].src",
+      "kind": "scalar",
+      "db_type": "text"
+    }
   }
 }

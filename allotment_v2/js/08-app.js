@@ -12568,6 +12568,102 @@ function pcSave(){
     laBlobSave();
   }catch(e){ try{ console.warn('[poCash] save failed', e && e.message); }catch(_){} }
 }
+/* ══ §pcRows · ย้ายเงินสดย่อยจาก "สตริงก้อนเดียว" มาเป็น "แถว" ═══════════════════════════════════
+   ก้อน 1 · สร้างแถวขึ้นมาคู่ขนาน · ตัวอ่านของหน้าจอยังใช้สตริงเหมือนเดิมทุกอย่าง
+   deploy แค่ก้อนนี้แล้วไม่มีอะไรเปลี่ยนในสายตาคนใช้ · ก้อน 2 ค่อยสลับตัวอ่าน
+
+   ทำไมต้องย้าย · ทั้งท่า ทั้งเดือน ทุกแถว อยู่ใน key เดียว (po_cash_<ท่า>)
+   ค่าที่เป็นสตริงเดินทางเป็น {op:'meta'} ซึ่งฝั่งเซิร์ฟเวอร์ DELETE แล้ว INSERT ทับทั้ง key
+   batch คำนวณ behind ไว้แล้วก็จริง แต่ "บอก" เฉย ๆ ไม่ได้ปฏิเสธการเขียน
+   สองคนที่ท่าเดียวกันเปิดหน้าอยู่ คนที่เซฟทีหลังจึงลบแถวของคนแรกทิ้งโดยไม่มีอะไรฟ้อง
+   (ไคลเอนต์อ่านใหม่เมื่อสตริงเปลี่ยนอยู่แล้ว แต่รีเฟรชที่จะพาของคนอื่นมาถูกกั้นไว้
+    ตอนโฟกัสอยู่ในช่องกรอก ซึ่งคือสภาพปกติของคนที่กำลังนั่งคีย์)
+   พอเป็นแถวที่มี id ตัวคำนวณ diff จะส่งเป็น op รายเรคคอร์ด = กลไกเดียวกับใบจอง/สัญญา
+   ที่มีคอมเมนต์กำกับไว้เองว่า "server merges onto its CURRENT record"
+
+   ⚠ ย้ายแล้วไม่ลบ key เก่า · เก็บไว้เป็นตัวเทียบจนกว่าก้อน 3 จะยืนยันว่าครบ
+   ⚠ ทำซ้ำได้ · id ของแถวสมุดใช้ของเดิมที่ไคลเอนต์สร้างไว้แล้ว (ไม่ซ้ำกันอยู่แล้ว)
+     ส่วนสองชีทใช้ ท่า|วัน|เรือ ซึ่งคงที่ · รันกี่รอบก็ไม่เกิดแถวซ้ำ
+   ⚠ ไม่ทับของที่มีอยู่ในตารางแล้ว · ถ้าก้อน 2 ลงไปแล้วมีคนคีย์ของใหม่เข้าตาราง
+     แล้วสตริงเก่ายังค้างอยู่ การย้ายรอบถัดไปต้องไม่ย้อนเอาของเก่ามาทับ            */
+var PC_LT_F = ['n','nj','nc','amt'];
+function pcArr(k){
+  var b; try{ b = laBlob(); }catch(_){ return []; }
+  if(!Array.isArray(b[k])) b[k] = [];
+  return b[k];
+}
+function pcRowsArr(){ return pcArr('po_cash_rows'); }
+function pcLtArr(){   return pcArr('po_cash_lt'); }
+function pcPkArr(){   return pcArr('po_cash_pk'); }
+function pcCellId(pier, ds, bid){ return pier + '|' + ds + '|' + bid; }
+/* แปลงก้อนของท่าหนึ่งเป็นแถว · คืนจำนวนที่เพิ่มจริง */
+function pcRowsFromPier(pier, P){
+  var R = pcRowsArr(), L = pcLtArr(), K = pcPkArr();
+  var have = {}; R.forEach(function(x){ if(x && x.id) have[x.id] = 1; });
+  var haveL = {}; L.forEach(function(x){ if(x && x.id) haveL[x.id] = 1; });
+  var haveK = {}; K.forEach(function(x){ if(x && x.id) haveK[x.id] = 1; });
+  var n = 0;
+  Object.keys(P || {}).forEach(function(ds){
+    var D = P[ds]; if(!D || typeof D !== 'object') return;
+    ['in','out'].forEach(function(kind){
+      (Array.isArray(D[kind]) ? D[kind] : []).forEach(function(r){
+        if(!r || !r.id || have[r.id]) return;
+        R.push({ id:String(r.id), pier:pier, date:ds, kind:kind, txt:String(r.txt || ''),
+                 amt:Math.round(+r.amt || 0), at:String(r.at || ''), by:String(r.by || ''),
+                 ts:String(r.ts || ''), src:String(r.src || '') });
+        have[r.id] = 1; n++;
+      });
+    });
+    Object.keys(D.lt || {}).forEach(function(bid){
+      var id = pcCellId(pier, ds, bid); if(haveL[id]) return;
+      var C = D.lt[bid] || {}, o = { id:id, pier:pier, date:ds, bid:String(bid),
+        note:String(C.note || ''), by:String(C.by || ''), ts:String(C.ts || '') };
+      PC_LT_F.forEach(function(f){ o[f] = (C[f] == null || C[f] === '') ? null : Math.round(+C[f] || 0); });
+      L.push(o); haveL[id] = 1; n++;
+    });
+    Object.keys(D.pk || {}).forEach(function(bid){
+      var id = pcCellId(pier, ds, bid); if(haveK[id]) return;
+      var C = D.pk[bid] || {}, o = { id:id, pier:pier, date:ds, bid:String(bid),
+        by:String(C.by || ''), ts:String(C.ts || ''), src:String(C.src || '') };
+      PC_PK.concat(['amt','dock']).forEach(function(f){
+        o[f] = (C[f] == null || C[f] === '') ? null : Math.round(+C[f] || 0); });
+      K.push(o); haveK[id] = 1; n++;
+    });
+  });
+  return n;
+}
+/* เรียกครั้งเดียวต่อการโหลดหน้า · เรียกตอนเปิดหน้าเงินสดย่อย ไม่ใช่ตอนบูต
+   ตอนบูต blob อาจยังไม่พร้อม และหน้าอื่นไม่ต้องแบกงานนี้ */
+var _pcMigDone = false;
+function pcRowsMigrate(force){
+  if(_pcMigDone && !force) return 0;
+  _pcMigDone = true;
+  var n = 0;
+  try{
+    PC_PIERS.forEach(function(p){ n += pcRowsFromPier(p, pcPier(p)); });
+    if(n > 0){ laBlobSave(); try{ console.log('[poCash] ย้ายเข้าตารางแล้ว ' + n + ' แถว'); }catch(_){} }
+  }catch(e){ try{ console.warn('[poCash] ย้ายไม่สำเร็จ', e && e.message); }catch(_){} }
+  return n;
+}
+/* ตรวจว่าสตริงกับตารางตรงกันไหม · ก้อน 3 จะใช้ตัวนี้ตัดสินว่าลบ key เก่าได้หรือยัง
+   เรียกจากคอนโซลได้: pcRowsAudit() */
+function pcRowsAudit(){
+  var out = { ok:true, pier:{} };
+  PC_PIERS.forEach(function(p){
+    var P = pcPier(p), nS = 0;
+    Object.keys(P || {}).forEach(function(ds){
+      var D = P[ds] || {};
+      nS += (D['in'] || []).length + (D.out || []).length
+          + Object.keys(D.lt || {}).length + Object.keys(D.pk || {}).length;
+    });
+    var nR = pcRowsArr().filter(function(x){ return x.pier === p; }).length
+           + pcLtArr().filter(function(x){ return x.pier === p; }).length
+           + pcPkArr().filter(function(x){ return x.pier === p; }).length;
+    out.pier[p] = { สตริง:nS, ตาราง:nR, ตรงกัน:(nS === nR) };
+    if(nS !== nR) out.ok = false;
+  });
+  return out;
+}
 function pcNum(v){ return Math.max(0, Math.round(parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''))||0)); }
 function pcMoney(n){ return '฿'+Math.round(+n||0).toLocaleString('en-US'); }
 function pcN(n){ return Math.round(+n||0).toLocaleString('en-US'); }
@@ -13677,6 +13773,7 @@ function pcJumpToday(){
   }catch(_){}
 }
 function renderPierCash(pier){
+  pcRowsMigrate();   /* §pcRows ก1 · ย้ายเข้าตารางคู่ขนาน · ตัวอ่านยังใช้สตริงเหมือนเดิม */
   _PC_RATE={};   /* §pcCalc · ราคาอาจถูกแก้ที่หน้าต้นทุนระหว่างนี้ */
   _pcPier=pier||_pcPier;
   var host=document.getElementById('pc-host-'+_pcPier); if(!host) return;
