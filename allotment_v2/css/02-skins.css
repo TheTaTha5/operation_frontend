@@ -933,23 +933,34 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
      ตามไปด้วย ถึงจะทับได้ (น้ำหนักเท่ากัน อยู่ทีหลัง = ชนะ)
    สีเน้นยังเป็น Ocean #1683C7 ทั้งสองโหมด · สลับธีมแล้วสีแบรนด์ไม่ขยับ    */
 
+/* §sbCi · พื้นและสีเน้นของ sidebar อิง --ci-navy/--ci-cyan ที่ประกาศไว้ใน :root
+   วัดด้วย ΔE2000 · navy ที่ใช้อยู่เดิม (#16265C) ห่าง ci-navy 7.0 = คนละเฉด
+   ฮิวตรงกันแทบเป๊ะ (226° vs 228°) ต่างที่ความอิ่ม/ความสว่าง · จึงเลื่อนมาใช้ตัวจริงได้เลย
+   ไล่สีสร้างจากฮิว 228° S100 ตัวเดียวกัน เปลี่ยนแค่ L ทุกขั้นจึงอยู่ในตระกูล ci-navy
+     L22 #001670  ·  L15 #000F4C = ci-navy  ·  L11 #000B38  ·  L8 #000829
+   ⚠ แตะเฉพาะ sidebar · Dashboard/Calendar ยังเป็น #16265C เหมือนเดิม */
 html[data-sb-theme="dark"] .sidebar{
   background:
-    radial-gradient(120% 28% at 50% 0%,   rgba(24,95,165,.55), transparent 62%),
-    radial-gradient(110% 24% at 50% 100%, rgba(15,110,86,.34), transparent 60%),
-    linear-gradient(180deg, rgba(22,38,92,.93), rgba(14,24,62,.90)) !important;
+    radial-gradient(120% 26% at 50% 0%, rgba(0,188,223,.20), transparent 62%),
+    linear-gradient(180deg, rgba(0,22,112,.94), rgba(0,15,76,.93)) !important;
   border:1px solid rgba(255,255,255,.14) !important;
-  box-shadow:0 22px 52px -18px rgba(2,10,30,.62), inset 0 1.5px 0 rgba(255,255,255,.16) !important;
+  box-shadow:0 22px 52px -18px rgba(0,4,24,.66), inset 0 1.5px 0 rgba(255,255,255,.16) !important;
 }
 html[data-sb-theme="dark"] .sidebar .nav-section{ color:rgba(214,226,245,.66) !important; }
 html[data-sb-theme="dark"] .sidebar .nav-item{ color:#C3D2EC !important; }
 html[data-sb-theme="dark"] .sidebar .nav-item svg{ color:#8FA6CC !important; }
 html[data-sb-theme="dark"] .sidebar .nav-item:hover{ background:rgba(255,255,255,.10) !important; color:#fff !important; }
 html[data-sb-theme="dark"] .sidebar .nav-item:hover svg{ color:#fff !important; }
-/* ตัวที่เปิดอยู่ · คุมสีเน้นเดิมไว้ เงาแรงขึ้นเพราะพื้นเข้มกลืนเงาอ่อน */
+/* ตัวที่เปิดอยู่ · ใช้ ci-cyan
+   ⚠ ตัวหนังสือบน ci-cyan ต้องเป็น ci-navy ห้ามเป็นขาว · ขาวได้แค่ 2.27:1
+     (:root §ciColour เขียนเตือนข้อนี้ไว้แล้ว) · navy บนฟ้าได้ 7.90:1
+   ของเดิม Ocean #1683C7 + ตัวหนังสือขาว วัดได้ 4.11:1 ไม่ผ่านเกณฑ์อยู่แล้ว
+   และตัวพิลกับพื้นแถบห่างกันแค่ 3.83:1 · เปลี่ยนแล้วขึ้นเป็น 6.95:1 */
 html[data-sb-theme="dark"] .sidebar .nav-item.active{
-  background:#1683C7 !important; color:#fff !important;
-  box-shadow:0 8px 20px -4px rgba(22,131,199,.62) !important; }
+  background:var(--ci-cyan) !important; color:var(--ci-navy) !important; font-weight:600 !important;
+  box-shadow:0 8px 20px -4px rgba(0,188,223,.44) !important; }
+html[data-sb-theme="dark"] .sidebar .nav-item.active svg{ color:var(--ci-navy) !important; }
+html[data-sb-theme="dark"] .sb-avatar{ background:var(--ci-cyan) !important; color:var(--ci-navy) !important; }
 
 /* หัวโปรไฟล์ · ค่าเดิมเป็นหมึกเข้ม (#1e2633/#5a6472) ซึ่งบนพื้น navy คืออ่านไม่ออก */
 html[data-sb-theme="dark"] .sb-greet{ color:rgba(214,226,245,.62) !important; }
@@ -991,7 +1002,7 @@ html[data-sb-theme="dark"] .sb-toggle:hover{ background:rgba(255,255,255,.24) !i
    ⚠ body::before ถูก la-mobile skin ใช้ไปแล้ว (แถบ LOVE ANDAMAN บนจอแคบ) · ตัวนี้จึงใช้ ::after */
 html[data-sb-theme="dark"] body::after{
   content:'';position:fixed;left:0;top:0;bottom:0;width:274px;z-index:-1;pointer-events:none;
-  background:linear-gradient(180deg, #111E4A 0%, #0A1230 100%);
+  background:linear-gradient(180deg, #000B38 0%, #000829 100%);   /* ci-navy L11 → L8 */
 }
 /* ย่อรางแล้วคอลัมน์แคบลง · 14 + 84 + 10 */
 html[data-sb-theme="dark"] body.sb-collapsed::after{ width:108px; }
