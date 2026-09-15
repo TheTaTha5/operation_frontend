@@ -29235,6 +29235,10 @@ function ctBtPinFit(){
   v.classList.remove('bt-pinok');
   var used = tc.offsetHeight + pk.offsetHeight;
   if(window.innerHeight - used >= 340) v.classList.add('bt-pinok');
+  /* §btColHd · ความสูงที่เหลือให้กล่องตาราง · หัวคอลัมน์จะตรึงได้ก็ต่อเมื่อ
+     กล่องนี้เป็นตัวเลื่อนเอง (sticky เกาะกับตัวเลื่อนที่ใกล้ที่สุดเสมอ)
+     เผื่อขอบล่างไว้ 14px ไม่ให้ชนก้นจอพอดีเป๊ะจนดูอึดอัด */
+  v.style.setProperty('--t2-wrap-max', Math.max(240, window.innerHeight - used - 14) + 'px');
 }
 /* ⚠ ตอน rAF หลังวาดเสร็จใหม่ ๆ ความสูงยังไม่นิ่ง (วัดได้ topcard 45px
    แต่พอจัดวางจริงเป็น 57px) ตัดสินใจตอนนั้นจึงพลาดได้
@@ -45265,6 +45269,19 @@ function bkV2RenderTab2(){
       #view-booking.bt-pinok .bkv2-topcard{position:sticky;top:0;z-index:70;
         background:#F6F7F9 !important;padding-top:6px;padding-bottom:6px}
       #view-booking.bt-pinok .bt-pkh{position:sticky;top:var(--t2-pkh-top,46px);z-index:60}
+      /* ══ §btColHd · หัวคอลัมน์ตาราง (VOUCHER/AGENCY/AD/CHD…) ตรึงด้วย ════════
+         กฎ th{position:sticky;top:0} มีอยู่ในโค้ดแล้วและไม่มีใครลบ
+         แต่ไม่เคยทำงาน เพราะ sticky เกาะกับ "ตัวเลื่อนที่ใกล้ที่สุด" ซึ่งคือ .t2-wrap
+         และ .t2-wrap ไม่เคยเลื่อนแนวตั้ง (สูงเท่าเนื้อหา) sticky จึงไม่เคยถูกกระตุ้น
+         วัดจริงที่ 1440x900 เลื่อนลง 900: ของที่ตรึงจบที่ y=529 แต่ thead อยู่ที่ y=-249
+         คือหลุดพ้นจอไปแล้ว · ผู้ใช้เห็นเป็น "หัวบีบกันแล้วหายไป"
+         → ให้กล่องตารางสูงเท่าที่เหลือจากของที่ตรึง แล้วเลื่อนในตัวเอง
+           หัวคอลัมน์จึงตรึงอยู่ที่ขอบบนของกล่องได้จริง
+         ผลพลอยได้: เหลือตัวเลื่อนชั้นเดียว (ของเดิมหน้าเลื่อน + หัวตรึง = สองความรู้สึก)
+         ⚠ เฉพาะตอน bt-pinok · จอที่ไม่ตรึงยังเลื่อนทั้งหน้าเป็นชิ้นเดียวเหมือนเดิม
+         ⚠ หัวคอลัมน์ต้องพื้นทึบ · ของเดิมเป็น #EDF0F5 อยู่แล้ว ไม่ต้องแตะ */
+      #view-booking.bt-pinok .t2-wrap{max-height:var(--t2-wrap-max,60vh);overflow:auto}
+      #view-booking.bt-pinok .t2-wrap table thead th{position:sticky;top:0;z-index:40}
     }
     .bt-hdtop{position:relative;display:flex;align-items:center;gap:13px;padding:0 8px 7px}
     .bt-arw{width:27px;height:27px;flex:none;border:1px solid rgba(0,0,0,.13);background:#fff;border-radius:9px;
