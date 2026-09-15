@@ -370,7 +370,7 @@
       return v==='piercheckin' || v==='vancheckin';
     }catch(e){ return false; }
   }
-  function _laBusy(){
+  function _laBusy(skipIdle){
     if(_dirty) return true;                                                             // local changes not yet synced → never overwrite
     if(window._bkV2 && (_bkV2.newBooking || _bkV2.editingId)) return true;              // a booking form is open
     var _live=_laLiveView();
@@ -383,6 +383,7 @@
     if(document.querySelector('.la-modal')||document.getElementById('la-umodal')||document.getElementById('la-pmodal')) return true;  // a dialog is open
     if(document.getElementById('dc-panel-docs')) return true;                           // Document-Check drawer open (reading details) → don't interrupt
     try{ if(typeof _agSelected!=='undefined' && _agSelected) return true; }catch(e){}   // Agent detail open (reading/editing) → don't yank back to the list
+    if(skipIdle) return false;                                                          // §btLoadNowFix · คลิกเองสั่ง skip: mousedown ของคลิกนี้เองเพิ่ง stamp _laLastInput ไปหมาดๆ
     /* หน้าเช็คอิน · 700ms พอให้ไม่วาดทับจังหวะที่นิ้วยังอยู่บนปุ่ม แต่ไม่ค้างทั้งกะ
        หน้าอื่นคงไว้ 2 วิเหมือนเดิม */
     if(Date.now()-_laLastInput < (_live?700:2000)) return true;
@@ -392,7 +393,8 @@
   function _laSaveView(){ try{
     var act=document.querySelector('.nav-item.active'); var view=act&&act.dataset?act.dataset.view:''; if(!view) return;
     var st={view:view};
-    if(window._bkV2){ st.bk={tab:_bkV2.tab||'', filterDate:_bkV2.filterDate||'', filterRoute:_bkV2.filterRoute||'', detailId:_bkV2.detailId||'', boat:!!_bkV2.boatAssignMode, van:!!_bkV2.vanAssignMode}; if(window._bkV2T2Cursor) st.t2c=_bkV2T2Cursor; }
+    if(window._bkV2){ st.bk={tab:_bkV2.tab||'', filterDate:_bkV2.filterDate||'', filterRoute:_bkV2.filterRoute||'', detailId:_bkV2.detailId||'', boat:!!_bkV2.boatAssignMode, van:!!_bkV2.vanAssignMode}; if(window._bkV2T2Cursor) st.t2c=_bkV2T2Cursor;
+      var t2w=document.querySelector('#bkv2-host .t2-wrap'); if(t2w){ st.bk.t2sc=t2w.scrollTop; st.bk.t2sl=t2w.scrollLeft; } }
     try{ if(typeof _agSelected!=='undefined' && _agSelected) st.ag=_agSelected; }catch(e){}   // keep the open Agent detail across a full reload
     var mn=document.querySelector('main'); st.sc=mn?mn.scrollTop:0; st.scw=window.scrollY||0;
     sessionStorage.setItem('la_view', JSON.stringify(st));
@@ -405,11 +407,19 @@
     if(st.bk && window._bkV2){ if(st.bk.tab)_bkV2.tab=st.bk.tab; if(st.bk.filterDate)_bkV2.filterDate=st.bk.filterDate; if(st.bk.filterRoute)_bkV2.filterRoute=st.bk.filterRoute; if(st.bk.detailId)_bkV2.detailId=st.bk.detailId; _bkV2.boatAssignMode=st.bk.boat; _bkV2.vanAssignMode=st.bk.van; if(st.t2c) window._bkV2T2Cursor=st.t2c; }
     try{ if(st.view==='agents' && st.ag && typeof _agSelected!=='undefined') _agSelected=st.ag; }catch(e){}   // reopen the Agent detail after a full reload
     el.click();
-    setTimeout(function(){ try{ var mn=document.querySelector('main'); if(mn&&st.sc) mn.scrollTop=st.sc; if(st.scw) window.scrollTo(0,st.scw); }catch(e){} }, 220);
+    setTimeout(function(){ try{
+      var mn=document.querySelector('main'); if(mn&&st.sc) mn.scrollTop=st.sc; if(st.scw) window.scrollTo(0,st.scw);
+      /* §btReloadScroll · ตาราง By-trip ตั้งความสูงกล่อง (--bt-wraph) ใน rAF ของ bkV2Render เอง
+         ถ้าคืนตำแหน่งเลื่อนก่อนหน้านั้น กล่องยังเตี้ยอยู่ เบราว์เซอร์จะตัดค่าทิ้ง · คืนซ้ำอีก 2 ชั้น rAF กันพลาด */
+      if(st.bk && (st.bk.t2sc||st.bk.t2sl)){
+        var put=function(){ try{ var w=document.querySelector('#bkv2-host .t2-wrap'); if(w){ if(st.bk.t2sc) w.scrollTop=st.bk.t2sc; if(st.bk.t2sl) w.scrollLeft=st.bk.t2sl; } }catch(e){} };
+        put(); requestAnimationFrame(function(){ put(); requestAnimationFrame(put); });
+      }
+    }catch(e){} }, 220);
   }catch(e){} }
   // SEAMLESS in-place refresh · pulls latest cloud data + re-renders current view · NO page reload (no Dashboard flash)
-  function _laSoftRefresh(){
-    if(_laBusy()){ if(_laPending) showRefresh(_laPending); return; }
+  function _laSoftRefresh(force){
+    if(_laBusy(force)){ if(_laPending) showRefresh(_laPending); return; }
     var x=new XMLHttpRequest(); x.open('GET',bust('/api/load'),true);
     x.onload=function(){ try{
       if(x.status!==200) return;                                   // keep pending · retry next idle tick
@@ -477,7 +487,7 @@
     d.innerHTML='<span class="la-rf-dot"></span>'
       +'<span class="la-rf-tx"><b>มีข้อมูลใหม่จากคนอื่น</b>'
       +'<i>'+_by+'จะรีเฟรชอัตโนมัติเมื่อว่าง</i></span>'
-      +'<button onclick="_laSoftRefresh()">โหลดเลย</button>'; document.body.appendChild(d); }); }
+      +'<button onclick="_laSoftRefresh(true)">โหลดเลย</button>'; document.body.appendChild(d); }); }
   // §B2C new-booking alert helpers (2026-07-24)
   var _B2C_CXL=['cancelled','rejected','cancelled_weather'];
   /* §b2cPop · จำ id ของใบ b2c ที่รู้จักแล้วไว้ในหน่วยความจำ
