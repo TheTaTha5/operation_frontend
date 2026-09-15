@@ -33611,6 +33611,7 @@ function rtBuildDetailBody(rt){
   // Also collect Bundle footnotes (¹ ² ³ ...) for routes with bundled longtail
   const ZONES = ['PK','KL','NoTransfer'];
   const PAX = (typeof rtNatPax==='function') ? rtNatPax(rtNatScopeOf(rt)) : ['adult-thai','child-thai','adult-fr','child-fr'];   // §nationality scope · hide TH or FR columns
+  const NC = rtNatCols(PAX);   // §rtNatCols · หัวตารางงอกจากชุดเดียวกับตัวตาราง
   const TH_FG = '#143F73';   // header text · Thai
   const FR_FG = '#854F0B';   // header text · Foreigner
   const _rv = rt.routeValidity || {};
@@ -33648,8 +33649,8 @@ function rtBuildDetailBody(rt){
           : ''}
         <td style="padding:6px 12px;font-size:10px;color:${(isNotOffered||isMissing)?'#C44A36':'#5F5E5A'};text-transform:uppercase;letter-spacing:.06em;font-weight:600">${z==='NoTransfer'?'No transfer':z}</td>
         ${isOffered
-          ? PAX.map((p,pi) => `<td style="padding:6px 12px;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums;color:#0F1419;${pi===1?'padding-right:24px;':''}">${fmt(cell[p])}</td>`).join('')
-          : `<td colspan="4" style="padding:6px 12px;text-align:center;font-size:10px;color:#C44A36;font-weight:700;letter-spacing:.06em;text-transform:uppercase"><span style="background:#FBE4E0;color:#C44A36;padding:2px 9px;border-radius:3px;font-size:9px;letter-spacing:.05em">${isNotOffered?'No Offer':'Not Set'}</span></td>`}
+          ? PAX.map((p,pi) => `<td style="padding:6px 12px;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums;color:#0F1419;${pi===NC.lastTh?'padding-right:24px;':''}${pi===NC.firstFr&&NC.th.length?'border-left:1px solid #F2F0EA;':''}">${fmt(cell[p])}</td>`).join('')
+          : `<td colspan="${PAX.length}" style="padding:6px 12px;text-align:center;font-size:10px;color:#C44A36;font-weight:700;letter-spacing:.06em;text-transform:uppercase"><span style="background:#FBE4E0;color:#C44A36;padding:2px 9px;border-radius:3px;font-size:9px;letter-spacing:.05em">${isNotOffered?'No Offer':'Not Set'}</span></td>`}
         ${zi===0
           ? `<td rowspan="3" style="padding:10px 12px;vertical-align:top;text-align:right;font-size:10.5px;font-variant-numeric:tabular-nums;color:#5F5E5A;border-left:1px solid #F2F0EA">${vFrom}</td>
              <td rowspan="3" style="padding:10px 0 10px 12px;vertical-align:top;text-align:right;font-size:10.5px;font-variant-numeric:tabular-nums;color:#5F5E5A">${vTo}</td>`
@@ -33706,22 +33707,19 @@ function rtBuildDetailBody(rt){
       ${seatRows ? `<table style="width:100%;border-collapse:collapse;table-layout:fixed">
         <colgroup>
           <col style="width:22%"><col style="width:10%">
-          <col><col><col><col>
+          ${PAX.map(()=>'<col>').join('')}
           <col style="width:10%"><col style="width:10%">
         </colgroup>
         <thead>
           <tr>
             <th rowspan="2" style="padding:8px 0;text-align:left;font-size:9.5px;font-weight:700;color:#5F5E5A;letter-spacing:.06em;text-transform:uppercase;vertical-align:bottom">Route</th>
             <th rowspan="2" style="padding:8px 12px;text-align:left;font-size:9.5px;font-weight:700;color:#5F5E5A;letter-spacing:.06em;text-transform:uppercase;vertical-align:bottom">Zone</th>
-            <th colspan="2" style="padding:6px 12px;text-align:center;font-size:10px;font-weight:700;color:${TH_FG};letter-spacing:.06em;text-transform:uppercase;border-bottom:1.5px solid ${TH_FG}">Thai</th>
-            <th colspan="2" style="padding:6px 12px;text-align:center;font-size:10px;font-weight:700;color:${FR_FG};letter-spacing:.06em;text-transform:uppercase;border-bottom:1.5px solid ${FR_FG};border-left:1px solid #F2F0EA">Foreigner</th>
+            ${NC.th.length?`<th colspan="${NC.th.length}" style="padding:6px 12px;text-align:center;font-size:10px;font-weight:700;color:${TH_FG};letter-spacing:.06em;text-transform:uppercase;border-bottom:1.5px solid ${TH_FG}">Thai</th>`:''}
+            ${NC.fr.length?`<th colspan="${NC.fr.length}" style="padding:6px 12px;text-align:center;font-size:10px;font-weight:700;color:${FR_FG};letter-spacing:.06em;text-transform:uppercase;border-bottom:1.5px solid ${FR_FG};${NC.th.length?'border-left:1px solid #F2F0EA;':''}">Foreigner</th>`:''}
             <th colspan="2" style="padding:6px 12px;text-align:center;font-size:10px;font-weight:700;color:#5F5E5A;letter-spacing:.06em;text-transform:uppercase;border-bottom:1.5px solid #C8C6BF;border-left:1px solid #F2F0EA">Active period</th>
           </tr>
           <tr>
-            <th style="padding:5px 12px;text-align:right;font-size:9px;font-weight:600;color:#5F5E5A;letter-spacing:.04em">Adult</th>
-            <th style="padding:5px 24px 5px 12px;text-align:right;font-size:9px;font-weight:600;color:#5F5E5A;letter-spacing:.04em">Child</th>
-            <th style="padding:5px 12px;text-align:right;font-size:9px;font-weight:600;color:#5F5E5A;letter-spacing:.04em;border-left:1px solid #F2F0EA">Adult</th>
-            <th style="padding:5px 12px;text-align:right;font-size:9px;font-weight:600;color:#5F5E5A;letter-spacing:.04em">Child</th>
+            ${PAX.map((p,pi)=>`<th style="padding:5px ${pi===NC.lastTh?'24px':'12px'} 5px 12px;text-align:right;font-size:9px;font-weight:600;color:#5F5E5A;letter-spacing:.04em;${pi===NC.firstFr&&NC.th.length?'border-left:1px solid #F2F0EA;':''}">${NC.lbl(p)}</th>`).join('')}
             <th style="padding:5px 12px;text-align:right;font-size:9px;font-weight:600;color:#5F5E5A;letter-spacing:.04em;border-left:1px solid #F2F0EA">Start</th>
             <th style="padding:5px 0 5px 12px;text-align:right;font-size:9px;font-weight:600;color:#5F5E5A;letter-spacing:.04em">End</th>
           </tr>
@@ -34452,6 +34450,23 @@ function rtModalUpdateSummary(){
 }
 
 // §per-rate-type nationality scope · which pax-type columns/fields this rate covers
+/* ══ §rtNatCols · คอลัมน์สัญชาติ · ตัวช่วยร่วมของทุกตารางที่วาดราคาที่นั่ง ══════════════════════
+   บั๊กที่แก้: Rate Type ที่ตั้ง nationalityScope = 'fr' (เอเย่นต์ที่ขายเฉพาะต่างชาติ)
+   ตัวตารางวาดตาม PAX ซึ่งเหลือ 2 ช่อง แต่หัวตารางฝังไว้ตายตัวเป็น ไทย(2) + ต่างชาติ(2)
+   ผลคือราคาต่างชาติไปนั่งใต้คอลัมน์ "ไทย" และ Start/End เลื่อนไปอยู่ใต้ "ต่างชาติ"
+   วัดจริงที่ Russian Standard scope=fr: หัว 6 ช่อง ตัวตาราง 4 ช่อง · 3,900 (ผู้ใหญ่ ตช.)
+   ไปโผล่ใต้ THAI · ADULT — คนอ่านเข้าใจว่าเป็นราคาคนไทยทันที
+   อยู่ทั้งหน้าจอ Pricing Matrix และใบสัญญาที่ปริ้นส่งเอเย่นต์ (คนละฟังก์ชัน โครงเดียวกัน)
+   → ให้หัวตารางกับ colgroup งอกจาก PAX ชุดเดียวกับที่ตัวตารางใช้ จะได้ไม่มีวันหลุดจากกันอีก */
+function rtNatCols(PAX){
+  var th = PAX.filter(function(p){ return /-thai$/.test(p); });
+  var fr = PAX.filter(function(p){ return /-fr$/.test(p); });
+  return { pax:PAX, th:th, fr:fr,
+           lastTh: th.length ? PAX.indexOf(th[th.length - 1]) : -1,
+           firstFr: fr.length ? PAX.indexOf(fr[0]) : -1,
+           lbl: function(p){ return /^adult/.test(p) ? 'Adult' : /^child/.test(p) ? 'Child'
+                                  : /^infant/.test(p) ? 'Infant' : p; } };
+}
 function rtNatPax(scope){ return scope==='thai' ? ['adult-thai','child-thai'] : scope==='fr' ? ['adult-fr','child-fr'] : ['adult-thai','child-thai','adult-fr','child-fr']; }
 function rtNatScopeOf(rt){ return (rt && rt.nationalityScope) || 'both'; }
 function rtNatLabel(scope){ return scope==='thai' ? 'ไทยเท่านั้น' : scope==='fr' ? 'ต่างชาติเท่านั้น' : 'ไทย + ต่างชาติ'; }
@@ -40515,6 +40530,7 @@ function ctDocRenderPricing(a, rt, lang, fmt){
   const ZONES=['PK','KL','NoTransfer'];
   const _rtScope=(typeof rtNatScopeOf==='function')?rtNatScopeOf(rt):'both';   // §nationality scope on the contract
   const PAX=(typeof rtNatPax==='function')?rtNatPax(_rtScope):['adult-thai','child-thai','adult-fr','child-fr'];
+  const NC=rtNatCols(PAX);   // §rtNatCols · บั๊กเดียวกับหน้าจอ · ใบนี้ส่งถึงมือเอเย่นต์ด้วย
   let seatRows = '';
   (rt.routes||[]).filter(rId => agentRouteIds.includes(rId)).forEach(rId => {
     const rr = rt.seatRates && rt.seatRates[rId];
@@ -40539,7 +40555,7 @@ function ctDocRenderPricing(a, rt, lang, fmt){
       seatRows += `<tr style="${rowTop}">
         ${isFirst ? `<td rowspan="${totalRows}" style="padding:8px 12px 8px 0;vertical-align:top;font-size:11px;font-weight:600;color:#0F1419;line-height:1.3">${rName(rId)}</td>` : ''}
         <td style="padding:5px 10px ${has?'0':'5px'};font-size:9.5px;color:#5F5E5A;text-transform:uppercase;letter-spacing:.05em;font-weight:600">${z==='NoTransfer'?'No tr.':z}</td>
-        ${PAX.map((p,pi) => `<td style="padding:5px 10px ${has?'0':'5px'};text-align:right;font-size:10.5px;font-variant-numeric:tabular-nums;color:#0F1419;${pi===1?'padding-right:18px;':''}"><div style="font-weight:600">${fmtN(cell[p])}</div></td>`).join('')}
+        ${PAX.map((p,pi) => `<td style="padding:5px 10px ${has?'0':'5px'};text-align:right;font-size:10.5px;font-variant-numeric:tabular-nums;color:#0F1419;${pi===NC.lastTh?'padding-right:18px;':''}${pi===NC.firstFr&&NC.th.length?'border-left:1px solid #F2F0EA;':''}"><div style="font-weight:600">${fmtN(cell[p])}</div></td>`).join('')}
       </tr>`;
       /* บรรทัดชั้นสัญญา · ป้ายอยู่ในคอลัมน์ Zone ครั้งเดียวต่อแถว ไม่ต้องซ้ำทุกเซลล์ */
       if(has){
@@ -40549,7 +40565,7 @@ function ctDocRenderPricing(a, rt, lang, fmt){
             const _t = tiers[pi] || {};
             const _s = (_t.sell===0||_t.sell) ? fmtN(_t.sell) : '—';
             const _m = (_t.minSell===0||_t.minSell) ? fmtN(_t.minSell) : '—';
-            return `<td style="padding:1px 10px 6px;text-align:right;font-size:8.5px;color:#9b9590;font-variant-numeric:tabular-nums;white-space:nowrap;${pi===1?'padding-right:18px;':''}">${_s} <span style="color:#c9c5bd">/</span> ${_m}</td>`;
+            return `<td style="padding:1px 10px 6px;text-align:right;font-size:8.5px;color:#9b9590;font-variant-numeric:tabular-nums;white-space:nowrap;${pi===NC.lastTh?'padding-right:18px;':''}${pi===NC.firstFr&&NC.th.length?'border-left:1px solid #F2F0EA;':''}">${_s} <span style="color:#c9c5bd">/</span> ${_m}</td>`;
           }).join('')}
         </tr>`;
       }
@@ -40568,14 +40584,11 @@ function ctDocRenderPricing(a, rt, lang, fmt){
         <tr>
           <th rowspan="2" style="padding:6px 0;text-align:left;font-size:9px;font-weight:700;color:#5F5E5A;letter-spacing:.06em;text-transform:uppercase;vertical-align:bottom">${T('route')}</th>
           <th rowspan="2" style="padding:6px 10px;text-align:left;font-size:9px;font-weight:700;color:#5F5E5A;letter-spacing:.06em;text-transform:uppercase;vertical-align:bottom">${T('zone')}</th>
-          <th colspan="2" style="padding:5px 10px;text-align:center;font-size:9.5px;font-weight:700;color:${TH_FG};letter-spacing:.05em;text-transform:uppercase;border-bottom:1.5px solid ${TH_FG}">${T('thai')}</th>
-          <th colspan="2" style="padding:5px 10px;text-align:center;font-size:9.5px;font-weight:700;color:${FR_FG};letter-spacing:.05em;text-transform:uppercase;border-bottom:1.5px solid ${FR_FG};border-left:1px solid #F2F0EA">${T('foreigner')}</th>
+          ${NC.th.length?`<th colspan="${NC.th.length}" style="padding:5px 10px;text-align:center;font-size:9.5px;font-weight:700;color:${TH_FG};letter-spacing:.05em;text-transform:uppercase;border-bottom:1.5px solid ${TH_FG}">${T('thai')}</th>`:''}
+          ${NC.fr.length?`<th colspan="${NC.fr.length}" style="padding:5px 10px;text-align:center;font-size:9.5px;font-weight:700;color:${FR_FG};letter-spacing:.05em;text-transform:uppercase;border-bottom:1.5px solid ${FR_FG};${NC.th.length?'border-left:1px solid #F2F0EA;':''}">${T('foreigner')}</th>`:''}
         </tr>
         <tr>
-          <th style="padding:4px 10px;text-align:right;font-size:8.5px;font-weight:600;color:#5F5E5A">${T('adult')}</th>
-          <th style="padding:4px 18px 4px 10px;text-align:right;font-size:8.5px;font-weight:600;color:#5F5E5A">${T('child')}</th>
-          <th style="padding:4px 10px;text-align:right;font-size:8.5px;font-weight:600;color:#5F5E5A;border-left:1px solid #F2F0EA">${T('adult')}</th>
-          <th style="padding:4px 10px;text-align:right;font-size:8.5px;font-weight:600;color:#5F5E5A">${T('child')}</th>
+          ${PAX.map((p,pi)=>`<th style="padding:4px ${pi===NC.lastTh?'18px':'10px'} 4px 10px;text-align:right;font-size:8.5px;font-weight:600;color:#5F5E5A;${pi===NC.firstFr&&NC.th.length?'border-left:1px solid #F2F0EA;':''}">${T(/^adult/.test(p)?'adult':'child')}</th>`).join('')}
         </tr>
       </thead>
       <tbody>${seatRows}</tbody>
