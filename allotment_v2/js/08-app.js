@@ -12532,18 +12532,77 @@ function pcKey(pier){ return 'po_cash_'+(pier||'panwa'); }
    ถ้าเอา object ไปวางไว้ใน blob ด้วย พอ feature อื่นสั่ง laBlobSave() ตอนที่เรายังไม่ได้เซฟ
    diff จะเห็นว่า key หายไป แล้วสั่งลบขึ้นเซิร์ฟเวอร์ · ข้อมูลหายทั้งที่ไม่มีใครลบ */
 var _PC_MEM={}, _PC_SRC={};
+/* ══ §pcRows ก2 · ตารางเป็นของจริงแล้ว · สตริงเหลือไว้เทียบอย่างเดียว ═══════════════════════════
+   หน้าจอกับจุดที่แก้ข้อมูลทั้ง 7 จุดไม่ได้แตะเลยสักบรรทัด · ทุกจุดเรียก pcDay() แล้วจบที่ pcSave()
+   เปลี่ยนแค่ข้างใต้สองฟังก์ชันนี้ · ข้างบนยังเห็นเป็นก้อนซ้อนเหมือนเดิม {วัน:{in,out,lt,pk}}
+
+   ⚠ หัวใจอยู่ที่ pcSave ต้องเขียนเป็น "ส่วนต่าง" ไม่ใช่ "สร้างใหม่ทั้งชุด"
+     ถ้าสร้างใหม่ทั้งชุดจากหน่วยความจำ แล้วหน่วยความจำเก่ากว่าตาราง (อีกคนเพิ่งเพิ่มแถว
+     แต่รีเฟรชยังมาไม่ถึงเรา) แถวของเขาจะถูกลบทิ้ง = บั๊กเดิมย้ายมาอยู่ระดับแถวแทน
+     จึงเทียบ view ปัจจุบันกับ "ภาพตอนที่สร้าง view" แล้วแตะเฉพาะแถวที่เราเปลี่ยนจริง
+     แถวที่เราไม่รู้จักเลยไม่ถูกแตะ ต่อให้มันโผล่มาระหว่างทาง
+
+   ⚠ สร้าง view ใหม่เมื่อ "ตัวอาเรย์เปลี่ยนตัว" · รีเฟรชจากเซิร์ฟเวอร์เขียน localStorage ใหม่
+     laBlob() จึง parse ใหม่ได้อาเรย์คนละตัว · เช็คด้วยตัวตนของอาเรย์จึงแม่นและถูกมาก
+     การเซฟของเราเองแก้อาเรย์ตัวเดิมในที่ · เราอัปเดตภาพตอนสร้างเองหลังเซฟ ไม่ต้องเช็ค     */
+var _PC_V0 = {}, _PC_ARR = null;
+function pcClone(o){ return JSON.parse(JSON.stringify(o || {})); }
+function pcArrSame(){
+  return _PC_ARR && _PC_ARR.r === pcRowsArr() && _PC_ARR.l === pcLtArr() && _PC_ARR.k === pcPkArr();
+}
+function pcArrMark(){ _PC_ARR = { r:pcRowsArr(), l:pcLtArr(), k:pcPkArr() }; }
+/* แถว → ก้อนซ้อน · ทิ้งค่าว่าง/null เพื่อให้หน้าตาเหมือนที่โค้ดเดิมเคยเห็น */
+function pcPut(o, k, v){ if(v !== null && v !== undefined && v !== '' && !(typeof v === 'number' && !v)) o[k] = v; }
+function pcBuildViews(){
+  var V = {};
+  PC_PIERS.forEach(function(p){ V[p] = {}; });
+  var day = function(p, ds){
+    if(!V[p]) V[p] = {};
+    if(!V[p][ds]) V[p][ds] = { 'in':[], out:[], lt:{}, pk:{} };
+    return V[p][ds];
+  };
+  pcRowsArr().forEach(function(x){
+    if(!x || !x.id || !x.pier || !x.date) return;
+    var D = day(x.pier, x.date), r = { id:x.id, amt:Math.round(+x.amt || 0) };
+    pcPut(r, 'txt', x.txt); pcPut(r, 'at', x.at); pcPut(r, 'by', x.by);
+    pcPut(r, 'ts', x.ts);   pcPut(r, 'src', x.src);
+    D[x.kind === 'in' ? 'in' : 'out'].push(r);
+  });
+  pcLtArr().forEach(function(x){
+    if(!x || !x.pier || !x.date || !x.bid) return;
+    var C = {};
+    PC_LT_F.forEach(function(f){ pcPut(C, f, (x[f] == null) ? null : Math.round(+x[f] || 0)); });
+    pcPut(C, 'note', x.note); pcPut(C, 'by', x.by); pcPut(C, 'ts', x.ts);
+    day(x.pier, x.date).lt[x.bid] = C;
+  });
+  pcPkArr().forEach(function(x){
+    if(!x || !x.pier || !x.date || !x.bid) return;
+    var C = {};
+    PC_PK.concat(['amt','dock']).forEach(function(f){ pcPut(C, f, (x[f] == null) ? null : Math.round(+x[f] || 0)); });
+    pcPut(C, 'by', x.by); pcPut(C, 'ts', x.ts); pcPut(C, 'src', x.src);
+    day(x.pier, x.date).pk[x.bid] = C;
+  });
+  return V;
+}
+function pcSync(){
+  if(pcArrSame() && _PC_MEM && Object.keys(_PC_MEM).length) return;
+  var V = pcBuildViews();
+  _PC_MEM = V; _PC_V0 = pcClone(V);
+  pcArrMark();
+}
 function pcPier(pier){
+  try{ pcSync(); }catch(e){ try{ console.warn('[poCash] sync failed', e && e.message); }catch(_){} }
+  return _PC_MEM[pier] || (_PC_MEM[pier] = {});
+}
+/* อ่านจากสตริงเก่าโดยตรง · ใช้ตอนย้ายข้อมูลกับตอนตรวจยอดเท่านั้น
+   ⚠ ห้ามเอาไปใช้แสดงผล · ของจริงอยู่ในตารางแล้ว */
+function pcPierLegacy(pier){
   var b, k=pcKey(pier);
-  try{ b=laBlob(); }catch(_){ return _PC_MEM[pier]||(_PC_MEM[pier]={}); }
-  var raw=(typeof b[k]==='string')?b[k]:'';
-  /* สตริงเปลี่ยน = มีคนอื่นเซฟมา หรือเพิ่งโหลดใหม่ → อ่านใหม่ */
-  if(_PC_MEM[pier]===undefined || _PC_SRC[pier]!==raw){
-    var o={};
-    if(raw){ try{ o=JSON.parse(raw)||{}; }catch(_){ o={}; } }
-    else { try{ if(b.po_cash && typeof b.po_cash==='object' && b.po_cash[pier]) o=b.po_cash[pier]; }catch(_){} }
-    _PC_MEM[pier]=o; _PC_SRC[pier]=raw;
-  }
-  return _PC_MEM[pier];
+  try{ b=laBlob(); }catch(_){ return {}; }
+  var raw=(typeof b[k]==='string')?b[k]:'', o={};
+  if(raw){ try{ o=JSON.parse(raw)||{}; }catch(_){ o={}; } }
+  else { try{ if(b.po_cash && typeof b.po_cash==='object' && b.po_cash[pier]) o=b.po_cash[pier]; }catch(_){} }
+  return o;
 }
 /* รูปเดิม {panwa:{...},tublamu:{...}} · โค้ดที่เหลืออ่านผ่านตัวนี้เหมือนเดิม */
 function pcAll(){ var o={}; PC_PIERS.forEach(function(p){ o[p]=pcPier(p); }); return o; }
@@ -12555,17 +12614,71 @@ function pcDay(pier,ds,make){
   return D;
 }
 /* เขียนกลับเป็นสตริง · ท่าที่ยังไม่มีข้อมูลไม่ต้องเขียน key เปล่าให้รก */
+/* แตกก้อนซ้อนเป็น map ของแถว · ใช้ทั้งฝั่ง view ปัจจุบันและฝั่งภาพตอนสร้าง */
+function pcFlatten(V){
+  var R = {}, L = {}, K = {};
+  Object.keys(V || {}).forEach(function(p){
+    var P = V[p] || {};
+    Object.keys(P).forEach(function(ds){
+      var D = P[ds] || {};
+      ['in','out'].forEach(function(kind){
+        (Array.isArray(D[kind]) ? D[kind] : []).forEach(function(r){
+          if(!r || !r.id) return;
+          R[r.id] = { id:String(r.id), pier:p, date:ds, kind:kind, txt:String(r.txt || ''),
+                      amt:Math.round(+r.amt || 0), at:String(r.at || ''), by:String(r.by || ''),
+                      ts:String(r.ts || ''), src:String(r.src || '') };
+        });
+      });
+      Object.keys(D.lt || {}).forEach(function(bid){
+        var C = D.lt[bid] || {}, id = pcCellId(p, ds, bid);
+        var o = { id:id, pier:p, date:ds, bid:String(bid), note:String(C.note || ''),
+                  by:String(C.by || ''), ts:String(C.ts || '') };
+        PC_LT_F.forEach(function(f){ o[f] = (C[f] == null || C[f] === '') ? null : Math.round(+C[f] || 0); });
+        L[id] = o;
+      });
+      Object.keys(D.pk || {}).forEach(function(bid){
+        var C = D.pk[bid] || {}, id = pcCellId(p, ds, bid);
+        var o = { id:id, pier:p, date:ds, bid:String(bid), by:String(C.by || ''),
+                  ts:String(C.ts || ''), src:String(C.src || '') };
+        PC_PK.concat(['amt','dock']).forEach(function(f){ o[f] = (C[f] == null || C[f] === '') ? null : Math.round(+C[f] || 0); });
+        K[id] = o;
+      });
+    });
+  });
+  return { rows:R, lt:L, pk:K };
+}
+/* เขียนส่วนต่างลงอาเรย์ · แตะเฉพาะ id ที่เราเพิ่ม แก้ หรือลบจริง
+   id ที่ไม่ได้อยู่ในภาพทั้งสองฝั่ง = ของคนอื่นที่โผล่มาระหว่างทาง · ปล่อยไว้ ห้ามแตะ */
+function pcApplyDelta(arr, now, was){
+  var byId = {}, i;
+  for(i = 0; i < arr.length; i++) if(arr[i] && arr[i].id != null) byId[arr[i].id] = i;
+  var n = 0;
+  Object.keys(now).forEach(function(id){
+    var rec = now[id], at = byId[id];
+    if(at === undefined){ arr.push(rec); byId[id] = arr.length - 1; n++; return; }
+    if(JSON.stringify(arr[at]) !== JSON.stringify(rec)){ arr[at] = rec; n++; }
+  });
+  var del = Object.keys(was).filter(function(id){ return !now[id] && byId[id] !== undefined; });
+  if(del.length){
+    var drop = {}; del.forEach(function(id){ drop[id] = 1; n++; });
+    var keep = arr.filter(function(x){ return !(x && drop[x.id]); });
+    arr.length = 0; keep.forEach(function(x){ arr.push(x); });
+  }
+  return n;
+}
 function pcSave(){
   try{
-    var b=laBlob();
-    PC_PIERS.forEach(function(p){
-      pcPier(p);                       /* บังคับให้ย้ายของเก่าก่อน แล้วค่อยลบ po_cash ทิ้ง */
-      var v=_PC_MEM[p];
-      if(v && Object.keys(v).length){ var str=JSON.stringify(v); b[pcKey(p)]=str; _PC_SRC[p]=str; }
-      else if(b[pcKey(p)]!==undefined){ delete b[pcKey(p)]; _PC_SRC[p]=''; }
-    });
-    if(b.po_cash) delete b.po_cash;   /* ของเก่ารูป object · ย้ายมาแล้ว ไม่ต้องเก็บซ้ำ */
-    laBlobSave();
+    pcSync();
+    var A = pcFlatten(_PC_MEM), B = pcFlatten(_PC_V0);
+    var n = pcApplyDelta(pcRowsArr(), A.rows, B.rows)
+          + pcApplyDelta(pcLtArr(),   A.lt,   B.lt)
+          + pcApplyDelta(pcPkArr(),   A.pk,   B.pk);
+    if(n){
+      /* ภาพตอนสร้างต้องตามให้ทัน ไม่งั้นการเซฟรอบหน้าจะคิดว่าของที่เพิ่งเขียนคือของใหม่อีก */
+      _PC_V0 = pcClone(_PC_MEM);
+      pcArrMark();
+      laBlobSave();
+    }
   }catch(e){ try{ console.warn('[poCash] save failed', e && e.message); }catch(_){} }
 }
 /* ══ §pcRows · ย้ายเงินสดย่อยจาก "สตริงก้อนเดียว" มาเป็น "แถว" ═══════════════════════════════════
@@ -12640,7 +12753,8 @@ function pcRowsMigrate(force){
   _pcMigDone = true;
   var n = 0;
   try{
-    PC_PIERS.forEach(function(p){ n += pcRowsFromPier(p, pcPier(p)); });
+    PC_PIERS.forEach(function(p){ n += pcRowsFromPier(p, pcPierLegacy(p)); });
+    if(n > 0){ _PC_ARR = null; pcSync(); }          /* มีของเพิ่ม · สร้าง view ใหม่ให้เห็นทันที */
     if(n > 0){ laBlobSave(); try{ console.log('[poCash] ย้ายเข้าตารางแล้ว ' + n + ' แถว'); }catch(_){} }
   }catch(e){ try{ console.warn('[poCash] ย้ายไม่สำเร็จ', e && e.message); }catch(_){} }
   return n;
@@ -12650,7 +12764,7 @@ function pcRowsMigrate(force){
 function pcRowsAudit(){
   var out = { ok:true, pier:{} };
   PC_PIERS.forEach(function(p){
-    var P = pcPier(p), nS = 0;
+    var P = pcPierLegacy(p), nS = 0;
     Object.keys(P || {}).forEach(function(ds){
       var D = P[ds] || {};
       nS += (D['in'] || []).length + (D.out || []).length
