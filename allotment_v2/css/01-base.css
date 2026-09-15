@@ -1810,6 +1810,22 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
 #view-booking *{box-sizing:border-box}
 /* Shell */
 #view-booking .bkv2{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:0;box-shadow:var(--shadow)}
+/* §btTop3 (2026-09-15) · แท็บที่เหลือของ Booking · ขอบบนให้ตรงกับ sidebar เหมือน By trip
+   By trip ดันขึ้นมาตั้งแต่ §btTop/§btTop2 แต่สไตล์ก้อนนั้นอยู่ในผลลัพธ์ของ By trip เท่านั้น
+   อีก 5 แท็บ (Calendar · All bookings · Seat Locks · รออนุมัติ · Cancellations)
+   จึงยังเริ่มที่ 22 ตาม padding ของ .main = ต่ำกว่า sidebar 16px และกระโดดเวลาสลับแท็บ
+   วัดจริงที่ 1512x950: sidebar 6 · By trip 6 · อีก 5 แท็บ 22
+   ⚠ ต้องอยู่ "หลัง" #view-booking .bkv2{margin-top:0} บรรทัดบนนี้
+     specificity เท่ากัน (1,1,0) ตัวที่มาทีหลังชนะ · วางไว้ต้นไฟล์แล้ว margin-top ไม่ติด
+     (วัดเจอ: padding-top ติดที่ 6 แต่ margin ไม่ติด แถบแท็บเลยกลายเป็น 28 แทนที่จะเป็น 6)
+     -22 ดันกล่องขึ้นไปที่ 0 · +6 คือ padding ที่ทำให้แถบแท็บที่ตาเห็นลงที่ 6 พอดี
+     (กล่องพื้นโปร่งจาก 02-skins.css:46 · ที่ตาเทียบคือแถบแท็บข้างใน ไม่ใช่ตัวกล่อง)
+   ไม่แตะ margin-bottom · By trip บีบเหลือ 4px เพราะมีของตรึงต่อท้าย แท็บอื่นยังใช้ 12 ตามเดิม
+   ⚠ จอกว้างเท่านั้น · มือถือ .main มี padding-top:calc(30px + safe-area) เผื่อแถบบนที่ลอยอยู่
+     ดันขึ้นตรงนี้จะมุดเข้าไปใต้แถบนั้น (02-skins.css:672) */
+@media (min-width:821px){
+  #view-booking .bkv2-topcard{margin-top:-22px;padding-top:6px}
+}
 /* Topbar (tabs + view toggle + nav + actions) */
 #view-booking .bkv2-topbar{padding:11px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);background:var(--white);flex-wrap:wrap}
 #view-booking .bkv2-tabs{display:inline-flex;background:var(--sand-mid);border-radius:var(--r-sm);padding:2px;gap:1px}
