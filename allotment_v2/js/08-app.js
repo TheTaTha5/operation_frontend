@@ -29641,7 +29641,7 @@ function ctBtPinFit(){
   var wrapEl = v.querySelector('.t2-wrap');
   if(wrapEl){
     var topDoc = wrapEl.getBoundingClientRect().top + (window.pageYOffset || 0);
-    var maxH = Math.max(240, window.innerHeight - topDoc - 14);
+    var maxH = Math.max(240, window.innerHeight - topDoc - 8);   /* §btFill · เผื่อ 14 → 8 */
     v.style.setProperty('--t2-wrap-max', maxH + 'px');
     /* ใต้กล่องตารางยังมีบล็อกท้ายหน้าอยู่อีก (bkV2RenderL...) ที่สูงไม่คงที่
        ถ้าไม่หักออก หน้าจะยังเหลือที่ให้เลื่อนนิดหน่อย = ผู้ใช้รู้สึกว่ามีสกรอลล์สองที่
@@ -45199,8 +45199,18 @@ function bkV2RenderTab2(){
        วัดจริง: ขอบบนของแถบเมนูซ้ายอยู่ที่ 6px แต่เนื้อหาเริ่มที่ 22px
        (main มี padding-top:22) · เยื้องกัน 16px เห็นชัดเวลาวางเทียบกัน
        ดันแถบแท็บขึ้น 16 ให้ขอบบนตรงกัน แล้วบีบระยะที่เหลืออีกสองจุด
-       สไตล์ก้อนนี้อยู่ในผลลัพธ์ของหน้า By-trip เท่านั้น หน้าอื่นไม่โดน       */
-    .bkv2-topcard{margin-top:-16px !important;margin-bottom:4px !important}
+       สไตล์ก้อนนี้อยู่ในผลลัพธ์ของหน้า By-trip เท่านั้น หน้าอื่นไม่โดน
+
+       §btTop2 · -16 ยังไม่พอ · ที่ตรงกันคือ "กล่อง" ไม่ใช่สิ่งที่ตาเห็น
+         กล่องนี้พื้นโปร่ง (02-skins.css:46 บังคับ transparent) ของที่มองเห็นจริง
+         คือแถบแท็บข้างใน ซึ่งถูกดันลงอีก 6px ด้วย padding-top ของกล่องเอง
+         วัดจริงที่ 1512x950: sidebar 6 · กล่อง 6 · แถบแท็บ 12 → ยังเยื้อง 6
+         -22 ทำให้แถบแท็บลงที่ 6 พอดี และไม่กระโดดตอนเลื่อน
+         (เดิมกล่องเริ่มที่ 6 แต่ sticky top:0 พอเลื่อนแถบแท็บจึงขยับจาก 12 → 6)
+       ⚠ padding-top ต้องตั้งที่นี่ด้วย ไม่ใช่ปล่อยให้กฎตอนตรึงตั้งให้ฝ่ายเดียว
+         จอที่ไม่เข้าเกณฑ์ตรึง (1024x768) จะไม่มี padding นั้น แถบแท็บเลยไปอยู่ที่ 0
+         = ล้ำขึ้นไปเหนือ sidebar 6px · วัดเจอตอนไล่ทุกขนาดจอหลังแก้         */
+    .bkv2-topcard{margin-top:-22px !important;margin-bottom:4px !important;padding-top:6px !important}
     #view-booking .bkv2-bodycard{overflow:visible}
     .t2-hd{padding:9px 14px;background:var(--white);border-bottom:1px solid var(--border);box-shadow:0 2px 6px -3px rgba(15,23,42,.18);position:relative;z-index:45}
     .t2-hd-top{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
@@ -45710,6 +45720,26 @@ function bkV2RenderTab2(){
          ⚠ หัวคอลัมน์ต้องพื้นทึบ · ของเดิมเป็น #EDF0F5 อยู่แล้ว ไม่ต้องแตะ */
       #view-booking.bt-pinok .t2-wrap{max-height:var(--t2-wrap-max,60vh);overflow:auto}
       #view-booking.bt-pinok .t2-wrap table thead th{position:sticky;top:0;z-index:40}
+      /* ══ §btFill · ที่ว่างใต้ตารางที่ไม่มีใครใช้ ═══════════════════════════
+         วัดจริงที่ 1512x950 ก่อนแก้: ขอบล่างตารางอยู่ที่ 863 จอสูง 950
+         = เหลือช่องว่าง 87px ใต้ตารางทั้งที่ยังมีแถวให้แสดงอีก
+         ที่มา · .view{padding-bottom:64px} (01-base.css) + ระยะเผื่อ 14 ใน ctBtPinFit
+         64px นั้นมีไว้กันหน้าจบชิดขอบตอนเลื่อนทั้งหน้า
+         แต่ตอนตรึง กล่องตารางเลื่อนในตัวเองอยู่แล้ว หน้าไม่เลื่อน จึงไม่ต้องเผื่อ
+         ซ้ำร้าย ctBtPinFit หัก scrollHeight ที่เกินออกจากกล่องอีกต่อ
+         = 64px นั้นถูกหักจากความสูงตารางตรง ๆ กลายเป็นช่องว่างเปล่า
+         ⚠ อยู่ในกรอบ min-width:821px เท่านั้น · จอแคบไม่ตรึงและยังต้องการที่หายใจ
+
+         .t2-wrap เดิมมี padding-bottom:40 อยู่ข้างในกล่องเลื่อน
+         ไม่กินความสูงกล่อง แต่เป็นช่องว่างค้างท้ายลิสต์ตอนเลื่อนสุด · เหลือ 12 พอ */
+      #view-booking.bt-pinok{padding-bottom:0}
+      #view-booking.bt-pinok .t2-wrap{padding-bottom:12px}
+      /* ตัวสุดท้ายที่ยังกินอยู่คือ .main{padding-bottom:22px} ซึ่งอยู่นอก #view-booking
+         ctBtPinFit หัก scrollHeight ที่เกินออกเหมือนกัน 22px นั้นจึงกลายเป็นช่องว่างอีก
+         เหลือ 10 = เท่ากับระยะที่ sidebar เว้นจากขอบล่าง (bottom:10px)
+         ขอบล่างของตารางจึงไปจบที่เดียวกับขอบล่างของ sidebar พอดี
+         :has() ใช้อยู่แล้วในไฟล์นี้ (.main:has(#view-trippl.active)) ไม่ใช่ของใหม่ */
+      .main:has(#view-booking.bt-pinok){padding-bottom:10px}
     }
     .bt-hdtop{position:relative;display:flex;align-items:center;gap:13px;padding:0 8px 7px}
     .bt-arw{width:27px;height:27px;flex:none;border:1px solid rgba(0,0,0,.13);background:#fff;border-radius:9px;
