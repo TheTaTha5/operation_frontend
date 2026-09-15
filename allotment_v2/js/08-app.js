@@ -44775,8 +44775,17 @@ function bkV2RenderTab2(){
     /* §btUnclamp · เดิมจำกัดความสูงไว้พอดีจอ (max-height:var(--bt-wraph)) เพราะหัวข้างบนตรึงอยู่
        ตอนนี้หัวไม่ตรึงแล้ว (§btHead) จำกัดความสูงไว้ต่อจะกลายเป็นกล่องเลื่อนซ้อนอยู่กลางหน้าเปล่า ๆ
        ปล่อยให้สูงเท่าที่ตารางต้องการจริง ทั้งหน้าเลื่อนเป็นชิ้นเดียว · เหลือแค่ overflow-x ไว้ปัดตารางกว้าง */
+    /* §btWheel · overscroll-behavior:contain เป็นของตกค้างจากตอนที่กล่องนี้ยังเป็นตัวเลื่อนเอง
+       (ก่อน §btUnclamp) · ตอนนี้กล่องไม่ได้เลื่อนแล้ว แต่ยังกินล้อเมาส์อยู่
+       ⚠ กับดัก: เขียน overflow-y:visible ไว้ก็จริง แต่สเปก CSS บอกว่าถ้าแกนหนึ่งไม่ใช่ visible
+         อีกแกนที่เป็น visible จะถูกคิดเป็น auto ให้อัตโนมัติ · overflow-x:auto ตรงนี้
+         จึงทำให้ overflow-y กลายเป็น auto เงียบ ๆ กล่องนี้เลยเป็นตัวเลื่อนแนวตั้งที่เลื่อนไม่ได้
+         (scrollHeight เท่ากับ clientHeight) พอ contain ห้ามส่งต่อ ล้อเมาส์จึงตายคาที่
+         วัดจริง: กล่องสูง 1,749px คลุมเกือบทั้งหน้า หมุนล้อตรงไหนก็ไม่ลง
+       แยกเป็นรายแกน · แนวนอนยัง contain ไว้ (กันปัดซ้าย-ขวาแล้วเบราว์เซอร์ถอยหลัง)
+       ส่วนแนวตั้งปล่อยให้ส่งต่อให้หน้าเลื่อนตามปกติ */
     .t2-wrap{box-sizing:border-box;padding:0 8px 40px;overflow-x:auto;overflow-y:visible;
-      overscroll-behavior:contain}
+      overscroll-behavior-x:contain;overscroll-behavior-y:auto}
     .t2-trip{background:transparent;border:none;border-radius:0;margin-bottom:12px;overflow:visible}
     .t2-tripcard{background:var(--white);border:1px solid var(--border);border-left:5px solid var(--fam);border-radius:14px;overflow:hidden;margin-bottom:0}
     /* การ์ดหัวทริปว่างแล้ว (ชื่อทริปย้ายลงตาราง) · ไม่ต้องกินที่เป็นกล่องเปล่า */
