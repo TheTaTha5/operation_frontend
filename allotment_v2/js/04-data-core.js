@@ -2702,8 +2702,12 @@ function renderCal(){
        (แพตเทิร์นเดียวกับสกินใน 02-skins.css ที่ลบทีละชั้นได้)
      ⚠ ข้างในการ์ดขาวไม่แตะ · ตัวเลขที่นั่ง สีประจำเส้นทาง กากบาทวันนี้ ยังเหมือนเดิมหมด
        เปลี่ยนเฉพาะเปลือกนอก = พื้น แถบเครื่องมือ แถบเส้นทาง และขอบการ์ด            */
+  /* ⚠ ห้ามใส่ isolation/transform/filter/contain ที่ #cal-wrap
+       ลิ้นชักรายละเอียดวัน (.cal2-dw) เป็นลูกตรงของ #cal-wrap และเป็น position:fixed
+       ถ้า #cal-wrap กลายเป็น stacking context เมื่อไหร่ z-index:321 ของลิ้นชัก
+       จะไปแข่งแค่ข้างใน #cal-wrap ไม่ได้แข่งกับ .topbar (300) อีกต่อไป */
   #cal-wrap{background:#16265C !important;margin:0 -20px -22px !important;
-    padding:14px 18px 18px !important;position:relative;isolation:isolate;
+    padding:14px 18px 18px !important;position:relative;
     min-height:calc(100dvh - var(--topbar, 44px) - 78px)}
   #cal-wrap::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
     background:
@@ -2712,7 +2716,11 @@ function renderCal(){
       radial-gradient(52% 46% at 78% 92%, rgba(15,110,86,.38),   transparent 64%),
       radial-gradient(50% 42% at 24% 96%, rgba(24,95,165,.42),   transparent 62%);
     filter:blur(20px) saturate(120%)}
-  #cal-wrap>*{position:relative;z-index:1}
+  /* ⚠ ยกเฉพาะ .cal2-page ขึ้นเหนือไอสี · ห้ามเขียนเป็น #cal-wrap>*
+       ลูกอีกสองตัวคือ .cal2-scrim กับ .cal2-dw ที่เป็น position:fixed
+       selector แบบ id (1,0,0) ชนะ class (0,1,0) → fixed จะโดนทับเป็น relative
+       ลิ้นชักจะหลุดมากองท้ายหน้าเป็นแผ่นขาวสูง 500px แทนที่จะเลื่อนมาจากขวา */
+  #cal-wrap>.cal2-page{position:relative;z-index:1}
   .cal2-page{gap:9px}
 
   /* แถบเครื่องมือ · ชั้นที่ลอยอยู่จริง จึงเป็นแก้วได้แบบเดียวกับ .dv-hd */
