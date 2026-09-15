@@ -5328,6 +5328,18 @@
       "source": "addOns[].note",
       "kind": "scalar",
       "db_type": "text"
+    },
+    "jad": {
+      "source": "addOns[].jAd",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "longtail-join · ผู้ใหญ่ที่ลงหางยาวจริง · ว่าง = ไม่ได้ระบุ ตัวอ่านคิดทุกหัวเหมือนเดิม"
+    },
+    "jchd": {
+      "source": "addOns[].jChd",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "longtail-join · เด็กที่ลงหางยาวจริง · ว่าง = ไม่ได้ระบุ"
     }
   },
   "sb_bookings__history": {

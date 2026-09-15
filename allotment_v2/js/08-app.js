@@ -17354,6 +17354,7 @@ function bkLtState(b, routeId, date){
   if(boats>0) return {mode:'charter', boats:boats, joinBooked:false, joinExtra:0,
                       up:U.n, upDue:U.due, fromUp:(U.n>0 && booked+xBoat===0)};
   if(af.join || xPax>0) return {mode:'join', boats:0, joinBooked:!!af.join, joinExtra:xPax,
+                                joinPax:(af.joinPax!=null?af.joinPax:null),   /* §ltJoinQty */
                                 up:0, upDue:0, fromUp:false};
   return {mode:'none', boats:0, joinBooked:false, joinExtra:0, up:0, upDue:0, fromUp:false};
 }
@@ -26277,7 +26278,10 @@ function pxLongtail(date, bid){
          ฝั่งเหมาไม่หัก · สั่งเป็นลำไปแล้วตั้งแต่ก่อนออก ต่อให้ขาดคนก็ยังต้องจ่ายทั้งลำ */
       var _bk=(typeof bkV2PaxAllTot==='function')?bkV2PaxAllTot(t.pax||{}):0;
       var pax=(typeof pckOnBoard==='function')?pckOnBoard(b,date,_bk):_bk;
-      join += (LT.joinBooked?pax:0) + (+LT.joinExtra||0);
+      /* §ltJoinQty · ระบุจำนวนไว้ = ใช้เลขนั้น · แต่ยังครอบด้วยคนที่อยู่บนเรือจริง
+         คนที่ไม่มาก็ลงหางยาวไม่ได้ ต่อให้จองจอยไว้ */
+      var _jb=(LT.joinPax!=null)?Math.min(+LT.joinPax||0,pax):pax;
+      join += (LT.joinBooked?_jb:0) + (+LT.joinExtra||0);
     }
   });
   return { chtr:chtr, join:join, upg:upg, upgDue:upgDue };
@@ -42900,6 +42904,7 @@ function bkV2RenderAddOnsSection(){
             <div style="font-weight:600;font-size:12px;color:var(--ink)">${escapeHTML(o.label)} ${o.locked?'<span style="background:#0F6E56;color:#fff;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.06em;margin-left:4px;vertical-align:middle">LOCKED</span>':''}</div>
             <div style="font-size:10px;color:var(--ink-soft);margin-top:1px;font-family:'DM Mono',monospace">${o.sub}</div>
             ${(_isQty&&_on)?`<div onclick="event.preventDefault();event.stopPropagation()" style="display:inline-flex;align-items:center;gap:7px;margin-top:7px;background:#F4F8FC;border:1px solid #DCE7F2;border-radius:8px;padding:4px 8px"><span style="font-size:10px;font-weight:600;color:var(--bk-navy)">จำนวน${_qLbl}</span><button type="button" onclick="event.preventDefault();event.stopPropagation();bkV2SetAddOnQty('${o.type}',${_q-1})" style="${_btn}">&minus;</button><span style="font-size:13px;font-weight:700;min-width:16px;text-align:center;font-variant-numeric:tabular-nums">${_q}</span><button type="button" onclick="event.preventDefault();event.stopPropagation();bkV2SetAddOnQty('${o.type}',${_q+1})" style="${_btn}">+</button><span style="font-size:10px;color:var(--ink-soft)">${_qLbl}</span></div>`:''}
+            ${(_on&&o.type==='longtail-join')?(function(){ const _m=bkV2LtJoinMax(); const _ja=(_sel&&_sel.jAd!=null)?+_sel.jAd:_m.A; const _jc=(_sel&&_sel.jChd!=null)?+_sel.jChd:_m.C; const _st=(w,v,mx)=>`<span style="display:inline-flex;align-items:center;gap:5px"><span style="font-size:10px;font-weight:600;color:var(--bk-navy)">${w==='ad'?'ผู้ใหญ่':'เด็ก'}</span><button type="button" onclick="event.preventDefault();event.stopPropagation();bkV2SetAddOnJoin('${w}',${v-1})" style="${_btn}">&minus;</button><span style="font-size:13px;font-weight:700;min-width:16px;text-align:center;font-variant-numeric:tabular-nums">${v}</span><button type="button" onclick="event.preventDefault();event.stopPropagation();bkV2SetAddOnJoin('${w}',${v+1})" style="${_btn}">+</button><span style="font-size:9.5px;color:var(--ink-soft)">/${mx}</span></span>`; return `<div onclick="event.preventDefault();event.stopPropagation()" style="display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:7px;background:#F4F8FC;border:1px solid #DCE7F2;border-radius:8px;padding:4px 9px">${_st('ad',_ja,_m.A)}${_m.C>0?_st('chd',_jc,_m.C):''}<span style="font-size:9.5px;color:var(--ink-soft)">ลงหางยาวกี่คน · ตั้งต้นเท่าที่จอง</span></div>`; })():''}
             ${(_on&&(o.type==='longtail-join'||o.type==='longtail-charter'))?`<div onclick="event.preventDefault();event.stopPropagation()" style="margin-top:7px"><input type="text" value="${escapeHTML((_sel&&_sel.note)||'')}" oninput="bkV2SetAddOnNote('${o.type}',this.value)" placeholder="หมายเหตุหางยาว · เช่น จุดลงเรือ / เวลานัด / ผู้ติดต่อ" style="width:100%;box-sizing:border-box;height:28px;border:1px solid #DCE7F2;border-radius:7px;padding:0 9px;font-size:11px;font-family:inherit;background:#fff;color:var(--ink)"></div>`:''}
           </div>
           <div style="font-family:Manrope,sans-serif;font-weight:700;color:${o.locked?'var(--ink-soft)':'var(--bk-navy)'};font-size:14px;font-variant-numeric:tabular-nums;letter-spacing:-.01em">${o.locked?'—':`฿${_amt.toLocaleString()}`}</div>
@@ -44781,10 +44786,12 @@ function bkV2IsB2CFeeAddOn(a){
   return !!(a && /^b2c-ad-/i.test(String(a.type||'')));
 }
 function bkV2AddOnFlags(bk, routeId){
-  let join=false, charter=false, transfer=false, charterQty=0;
+  let join=false, charter=false, transfer=false, charterQty=0, joinPax=null;
   (bk.addOns||[]).forEach(a=>{ const ty=String(a.type||''); const lbl=String(a.label||'');
     if(ty==='longtail-charter'){ charter=true; charterQty+=(+a.qty||1); }
-    else if(ty==='longtail-join') join=true;
+    /* §ltJoinQty · จำนวนคนที่ลงจอยจริง · null = ใบเก่าที่ไม่เคยระบุ → คิดทุกหัวเหมือนเดิม */
+    else if(ty==='longtail-join'){ join=true;
+      if(a.jAd!=null || a.jChd!=null) joinPax=Math.max(0,(+a.jAd||0)+(+a.jChd||0)); }
     else if(ty.indexOf('transfer-')===0) transfer=true;
     else if(/longtail|หางยาว/i.test(ty)||/longtail|หางยาว/i.test(lbl)) join=true;
   });
@@ -44798,7 +44805,7 @@ function bkV2AddOnFlags(bk, routeId){
     if(_lbF && _rtBundleAppliesTo(_lbF, tr.bookingMode==='charter')) join=true;
   }
   if(charter) join=false;
-  return {join, charter, transfer, charterQty};
+  return {join, charter, transfer, charterQty, joinPax};
 }
 // Longtail-Join pax sold day-of via "+ extra" (SB_EXTRAS · qty = people). Optionally scoped to a trip date.
 // "Longtail Join" preset counts as Join · "Private Longtail" / เหมา = a whole boat, NOT per-person join.
@@ -49189,7 +49196,10 @@ function bkV2ToggleAddOn(type){
   const idx = d.addOns.findIndex(a => a.type === type);
   if(idx >= 0){ d.addOns.splice(idx, 1); }
   else {
-    d.addOns.push({ type, qty: 1 });
+    const _ent = { type, qty: 1 };
+    /* §ltJoinQty · ตั้งต้นเท่าที่จองไว้ · ติ๊กแล้วได้ยอดเดิมเป๊ะ ไม่มีใครต้องมากรอกซ้ำ */
+    if(type === 'longtail-join'){ const _m = bkV2LtJoinMax(); _ent.jAd = _m.A; _ent.jChd = _m.C; }
+    d.addOns.push(_ent);
     // Private Van replaces any bundled shared transfer → put the matching trip's seat on No-Transfer
     // (a PK/KL seat price already includes a transfer = double charge otherwise).
     if(type.indexOf('transfer-') === 0){
@@ -51198,7 +51208,10 @@ function bkV2CommitBooking(status){
     addOns: d.addOns.map(a => {
       const info = bkV2AddOnInfo(a.type);
       const q = a.qty||1;
-      return { type: a.type, label: info.label + (a.type==='longtail-charter'&&q>1?(' × '+q+' ลำ'):''), amount: info.total*q, qty: q, note: (a.note||'').trim() };
+      const _o = { type: a.type, label: info.label + (a.type==='longtail-charter'&&q>1?(' × '+q+' ลำ'):''), amount: info.total*q, qty: q, note: (a.note||'').trim() };
+      /* §ltJoinQty · เก็บจำนวนคนที่ลงจอยจริง · ฝั่งปฏิบัติการอ่านตัวนี้ ไม่ใช่เดาจากหัวทั้งลำ */
+      if(a.type==='longtail-join'){ _o.jAd = (info.joinAd!=null)?info.joinAd:null; _o.jChd = (info.joinChd!=null)?info.joinChd:null; }
+      return _o;
     }),
     adjustments: Array.isArray(d.adjustments)
       ? d.adjustments.filter(a => (Number(a.value)||0) > 0)
@@ -51962,6 +51975,34 @@ function bkV2TripSubtotal(trip){
   }
   return { total: seatFr + seatTh + bundle, seatFr, seatTh, bundle };
 }
+/* ══ §ltJoinQty · Longtail Join ระบุจำนวนคนได้ ══════════════════════════════════════════════════
+   ของเดิมจอยคือ "ติ๊กแล้วคิดทุกหัวบนเรือ" · ของจริงไม่เคยเป็นแบบนั้น
+   กรุ๊ป 9 คนอาจลงหางยาวแค่ 2 คน ที่เหลือนั่งรอบนเรือ
+   (เคสเดียวกับที่หน้าต้นทุนเจอ · 16 ส.ค. Oceanus 35 หัว ซื้อจอยจริง 2 คน สูตรคิดเกิน 17 เท่า
+    จนต้องปิดบรรทัดทิ้ง แล้ว P&L ก็เลยไม่คิดตามไปด้วย)
+   ⚠ ตั้งต้นเท่าที่จองไว้ · ติ๊กแล้วได้เลขเดิมเป๊ะ ใบเก่าที่ไม่มีเลขนี้ก็คิดเต็มเหมือนเดิม
+     ของใหม่จึงไม่ทำให้ตัวเลขของใครขยับโดยไม่ตั้งใจ
+   ⚠ ต้องไปถึงฝั่งปฏิบัติการด้วย · ไม่งั้นหน้าจอบอก 2 แต่ใบสั่งงานกับต้นทุนยังคิด 9
+     (bkV2AddOnFlags → bkLtState → pxLongtail) */
+function bkV2LtJoinMax(){
+  var rt = bkV2GetRT(), d = _bkV2.newBooking, A = 0, C = 0;
+  var ltn = (typeof _rtNormalizeLongtail === 'function')
+    ? _rtNormalizeLongtail(rt && rt.addOns && rt.addOns.longtail) : null;
+  if(ltn && d) (d.trips || []).forEach(function(t){
+    if(!t.routeId) return;
+    if(ltn.applies.length && ltn.applies.indexOf(t.routeId) < 0) return;
+    A += bkV2PaxTot(t.pax, 'ad'); C += bkV2PaxTot(t.pax, 'chd');
+  });
+  return { A:A, C:C };
+}
+function bkV2SetAddOnJoin(which, n){
+  var d = _bkV2.newBooking; if(!d) return;
+  var a = (d.addOns || []).filter(function(x){ return x.type === 'longtail-join'; })[0]; if(!a) return;
+  var mx = bkV2LtJoinMax(), cap = (which === 'ad') ? mx.A : mx.C;
+  var v = Math.max(0, Math.min(cap, Math.round(+n || 0)));
+  if(which === 'ad') a.jAd = v; else a.jChd = v;
+  bkV2Render();
+}
 function bkV2AddOnInfo(type){
   const rt = bkV2GetRT();
   const d = _bkV2.newBooking;
@@ -51976,8 +52017,15 @@ function bkV2AddOnInfo(type){
     // per-route Join price × that trip's pax (Surin can differ from Phuket)
     const ltn = (typeof _rtNormalizeLongtail==='function') ? _rtNormalizeLongtail(rt.addOns&&rt.addOns.longtail) : null;
     let total=0, A=0, C=0;
-    if(ltn){ d.trips.forEach(t=>{ if(!t.routeId) return; if(ltn.applies.length && !ltn.applies.includes(t.routeId)) return; const pr=(ltn.byRoute[t.routeId]||{join:ltn.join}).join||{}; const a=bkV2PaxTot(t.pax,'ad'), c=bkV2PaxTot(t.pax,'chd'); A+=a; C+=c; total += (pr.adult||0)*a + (pr.child||0)*c; }); }
-    return { label: `Longtail Join (${A}A + ${C}C)`, total };
+    /* §ltJoinQty · มีเลขที่ระบุไว้ = ใช้เลขนั้น · ไม่มี = คิดทุกหัวเหมือนเดิม
+       หลายทริปในใบเดียว · ไล่เติมทริปแรกก่อนจนครบจำนวน · เป็นกติกาที่คาดเดาได้
+       (จะไปเฉลี่ยตามสัดส่วนก็เดาเหมือนกัน แต่ไล่ตามลำดับอธิบายให้คนหน้างานเข้าใจง่ายกว่า) */
+    const _selJ=(d.addOns||[]).filter(function(x){ return x.type==='longtail-join'; })[0];
+    const _mx=bkV2LtJoinMax();
+    let remA=(_selJ&&_selJ.jAd!=null)?Math.max(0,Math.min(+_selJ.jAd||0,_mx.A)):_mx.A;
+    let remC=(_selJ&&_selJ.jChd!=null)?Math.max(0,Math.min(+_selJ.jChd||0,_mx.C)):_mx.C;
+    if(ltn){ d.trips.forEach(t=>{ if(!t.routeId) return; if(ltn.applies.length && !ltn.applies.includes(t.routeId)) return; const pr=(ltn.byRoute[t.routeId]||{join:ltn.join}).join||{}; const a=Math.min(remA,bkV2PaxTot(t.pax,'ad')), c=Math.min(remC,bkV2PaxTot(t.pax,'chd')); remA-=a; remC-=c; A+=a; C+=c; total += (pr.adult||0)*a + (pr.child||0)*c; }); }
+    return { label: `Longtail Join (${A}A + ${C}C)`, total, joinAd:A, joinChd:C };
   }
   if(type === 'longtail-charter'){
     // per-route Charter price · one boat per applied trip-route · sum across trips

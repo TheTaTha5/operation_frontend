@@ -4822,6 +4822,14 @@
       {
         "name": "note",
         "type": "text"
+      },
+      {
+        "name": "jad",
+        "type": "bigint"
+      },
+      {
+        "name": "jchd",
+        "type": "bigint"
       }
     ],
     "primary_key": "row_pk",
