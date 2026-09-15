@@ -10121,6 +10121,10 @@ function vanJobsOrderCss(scoped){ const p=scoped?'.vjo ':'';
     /* §vjTpl · ชื่อไทยใต้จุดรับ · ปิดได้จาก Template */
     +p+'.pkth{font-size:var(--vjt-locth,18px)}'
     +(vjTpl().showTh?'':(p+'.pkth{display:none}'))
+    /* §strandVjClear · ปุ่มล้างมีไว้ให้กดบนจอ · ใบที่ส่งคนขับต้องไม่มีปุ่ม
+       ใบนี้ใช้ HTML ชุดเดียวกันทั้งบนจอและในหน้าต่างพิมพ์ จึงซ่อนตอนพิมพ์แทนการแยกธง */
+    +p+'.vj-sxclr{vertical-align:middle}'
+    +'@media print{'+p+'.vj-sxclr{display:none !important}}'
     +(scoped?'':'@media print{@page{size:A4 landscape;margin:10mm}body{padding:0}}')
     +'</style>';
 }
@@ -10314,8 +10318,20 @@ function vanJobsOrderInner(date, vanId, routeId, legIgnored, grp){
       /* กดได้เฉพาะตอนเปิดโหมด · หน้าต่างพิมพ์ไม่มีฟังก์ชันพวกนี้ จึงต้องไม่ติดไปด้วย */
       const _hlClick = _VJ_HL_ON ? ` onclick="vjHlClick('${_hlKey}')"` : '';
       const _sxMv = x.strand==='mv';
+      /* ══ §strandVjClear · ปุ่มล้างต้องอยู่ตรงที่คนเห็นปัญหา ══════════════════════════════
+         แถวค้างขึ้นเด่นที่สุดในใบงานรถ · แต่ปุ่มล้างมีแค่ที่เช็คอินรถ / เช็คอินหน้าท่า /
+         Travel Summary · ป้ายบอกเองด้วยซ้ำว่า "กดล้างการจัดรถที่หน้าเช็คอินรถ"
+         คือระบบรู้ว่าต้องไปกดที่อื่น แล้วให้คนเดินไปเอง
+
+         ⚠ เคสเลื่อนวันยิ่งหนัก · แถวนั้นมาจากภาพที่ถ่ายไว้ (ops_stranded) ไม่ได้มาจาก ops.vanId
+           ปลดรถที่หน้าจัดรถจึงไม่มีผลอะไรเลย เพราะวันเดิมไม่เหลือ ops ให้ปลดอยู่แล้ว
+           ckStrandMvDrop ถูกเรียกจากที่เดียวคือปุ่มนี้ · ไม่มีทางอื่นให้มันหาย
+         ⚠ ซ่อนตอนพิมพ์ · ใบที่ส่งคนขับไม่ควรมีปุ่ม และหน้าต่างพิมพ์ไม่มีฟังก์ชันพวกนี้ */
+      const _sxClr = (_sxR && b && b.id)
+        ? `<button class="vj-sxclr" onclick="event.stopPropagation();ckStrandClear('${b.id}','${date}')" title="ล้างแถวค้างนี้ออกจากใบงานของวันนี้ · ใบจองไม่ถูกแตะ" style="margin-left:6px;background:#fff;border:1px solid #E4C0C0;color:#A32D2D;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">ล้างออก</button>`
+        : '';
       const _sxTag = _sxR
-        ? `<div style="margin-top:3px"><span style="display:inline-block;background:${_sxMv?'#EDE3FB':'var(--vjt-hlcxl-bg,#FBE3E1)'};color:${_sxMv?'#5B289A':'var(--vjt-hlcxl,#B5271F)'};font-weight:700;font-size:11px;border-radius:7px;padding:2px 8px;-webkit-print-color-adjust:exact;print-color-adjust:exact">&#10007; ${_sxMv?('เลื่อนวันแล้ว'+(x.strandWhy?(' · '+e(String(x.strandWhy).split(' · ')[0])):'')):'ยกเลิกแล้ว'} · ไม่ต้องไปรับ</span></div>`
+        ? `<div style="margin-top:3px"><span style="display:inline-block;background:${_sxMv?'#EDE3FB':'var(--vjt-hlcxl-bg,#FBE3E1)'};color:${_sxMv?'#5B289A':'var(--vjt-hlcxl,#B5271F)'};font-weight:700;font-size:11px;border-radius:7px;padding:2px 8px;-webkit-print-color-adjust:exact;print-color-adjust:exact">&#10007; ${_sxMv?('เลื่อนวันแล้ว'+(x.strandWhy?(' · '+e(String(x.strandWhy).split(' · ')[0])):'')):'ยกเลิกแล้ว'} · ไม่ต้องไปรับ</span>${_sxClr}</div>`
         : '';
       return `<tr${_rowBg}${_hlClick}>
         <td style="text-align:center;${_sxR?'color:#B5271F;font-weight:700':''}">${_no}</td>
