@@ -2762,12 +2762,21 @@ function renderCal(){
   .cal2-routes .cal2-rc b,.cal2-routes .cal2-rc .n{color:#fff !important}
   .cal2-routes .cal2-rc:hover{border-color:rgba(255,255,255,.46) !important}
 
-  /* ① ติ๊กอยู่ + มีทริป · สว่างสุด แถบสีเส้นทางเต็มสี ตัวเลขขาวล้วน */
-  .cal2-routes .cal2-rc:not(.dead):not(.off){background:rgba(255,255,255,.18) !important;
-    border-color:rgba(255,255,255,.34) !important;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 2px 12px rgba(2,10,30,.28)}
+  /* ① ติ๊กอยู่ + มีทริป · ทั้งใบเป็นสีของเกาะตัวเอง ไม่ใช่แก้วขาวเหมือนกันหมด
+        --rc-* มาจากตัวสร้างชิป (§calRcCol) · ผ่าน _calVivid มาแล้วเหมือนชิปในตาราง
+        ⚠ ถ้าตัวแปรหาย (โค้ดเก่าค้าง cache) จะ fallback เป็นแก้วขาวแบบเดิม ไม่ใช่โปร่งใส */
+  .cal2-routes .cal2-rc:not(.dead):not(.off){
+    background:var(--rc-bg, rgba(255,255,255,.18)) !important;
+    border-color:var(--rc-bd, rgba(255,255,255,.34)) !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.20), 0 2px 14px var(--rc-gl, rgba(2,10,30,.28))}
+  .cal2-routes .cal2-rc:not(.dead):not(.off) *{color:#EDF3FF !important}
+  /* ตัวเลข free/day เป็นของหลักในชิป · ขาวล้วนบนพื้นสีถึงจะอ่านขาด */
+  .cal2-routes .cal2-rc:not(.dead):not(.off)>div:last-of-type>div:first-child{color:#fff !important}
   .cal2-routes .cal2-rc:not(.dead):not(.off) i{width:5px !important;
-    box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+    background:var(--rc-v, currentColor) !important;
+    box-shadow:0 0 0 1px rgba(255,255,255,.30)}
+  .cal2-routes .cal2-rc:not(.dead):not(.off):hover{
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.26), 0 3px 18px var(--rc-gl, rgba(2,10,30,.30))}
 
   /* ② ติ๊กอยู่ + เดือนนี้ไม่มีทริป · จางลงแต่ยังมีสี = ยังนับอยู่ในปฏิทิน */
   .cal2-routes .cal2-rc.dead:not(.off){opacity:.5;background:rgba(255,255,255,.06) !important;
@@ -3060,9 +3069,14 @@ function renderCal(){
     const per=dd?Math.round(st.free/dd):0;
     const col=dead?'#8a8a82':_calDk(rt.color,.45);
     const dep=((rt.times||[])[0]||'').trim();
+    /* §calRcCol · ส่งสีของเส้นทางออกมาเป็นตัวแปร ให้ชั้นสกินหยิบไปใช้ได้
+       ใช้ _calVivid ตัวเดียวกับที่ชิปในตารางใช้ สีในแถบกับในตารางจะได้เป็นสีเดียวกัน
+       บนพื้นสว่างไม่มีใครอ่านตัวแปรพวกนี้ · ทาสีเดิมยังไงก็ยังเป็นอย่างนั้น */
+    const _v=_calVivid(rt.color);
+    const _rcv=`--rc:${rt.color};--rc-v:${_v};--rc-bg:${_calRgba(_v,.34)};--rc-bd:${_calRgba(_v,.70)};--rc-gl:${_calRgba(_v,.34)};`;
     return `<div class="cal2-rc${dead?' dead':''}${_hidRt.has(rt.id)?' off':''}" title="${rt.name}"
       onclick="${_hidRt.has(rt.id)?`calUnhideRoute('${rt.id}')`:`calHideRoute('${rt.id}')`}"
-      style="${dead?'':`background:${_calRgba(rt.color,.07)};border-color:${_calRgba(rt.color,.30)}`}">
+      style="${_rcv}${dead?'':`background:${_calRgba(rt.color,.07)};border-color:${_calRgba(rt.color,.30)}`}">
       <i style="background:${rt.color};${dead?'opacity:.4':''}"></i>
       <div><div style="font-size:11.5px;font-weight:${dead?500:600};color:${dead?ink[3]:ink[1]};line-height:1.25">${_calName(rt)}
         <span onclick="event.stopPropagation();calEditRouteName('${rt.id}')" title="Rename for the calendar" style="opacity:.34;font-size:11px;cursor:pointer;padding:0 2px">&#9998;</span></div>
