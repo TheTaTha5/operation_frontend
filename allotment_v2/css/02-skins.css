@@ -922,3 +922,62 @@ body.la-nav-open .la-burger{background:#1683C7;color:#fff;box-shadow:inset 2px 2
   #view-agents .ct-wiz-card{max-height:92dvh}
   .ct-doc-card{height:92dvh}
 }
+/* ==== sb-theme-skin ==== */
+
+/* §sbTheme · โหมดมืดของ sidebar · ใช้ภาษาดีไซน์เดียวกับ Dashboard/Calendar
+   ⚠ ชั้นนี้เป็น "ชั้นทับ" ล้วน · ลบทั้งบล็อกนี้ = เหลือแต่โหมดสว่างเดิม (sidebar-glass-skin)
+     ไม่ได้แก้กฎของ sidebar-glass-skin สักบรรทัด
+   ⚠ ทุกกฎกำกับด้วย html[data-sb-theme="dark"] · ไม่มี attribute = สว่าง = ของเดิมเป๊ะ
+     js/02-sidebar.js เป็นคนติด attribute ให้ตั้งแต่สคริปต์เริ่มรัน
+   ⚠ sidebar-glass-skin เขียน !important ไว้แทบทุกบรรทัด · ชั้นนี้จึงต้อง !important
+     ตามไปด้วย ถึงจะทับได้ (น้ำหนักเท่ากัน อยู่ทีหลัง = ชนะ)
+   สีเน้นยังเป็น Ocean #1683C7 ทั้งสองโหมด · สลับธีมแล้วสีแบรนด์ไม่ขยับ    */
+
+html[data-sb-theme="dark"] .sidebar{
+  background:
+    radial-gradient(120% 28% at 50% 0%,   rgba(24,95,165,.55), transparent 62%),
+    radial-gradient(110% 24% at 50% 100%, rgba(15,110,86,.34), transparent 60%),
+    linear-gradient(180deg, rgba(22,38,92,.93), rgba(14,24,62,.90)) !important;
+  border:1px solid rgba(255,255,255,.14) !important;
+  box-shadow:0 22px 52px -18px rgba(2,10,30,.62), inset 0 1.5px 0 rgba(255,255,255,.16) !important;
+}
+html[data-sb-theme="dark"] .sidebar .nav-section{ color:rgba(214,226,245,.66) !important; }
+html[data-sb-theme="dark"] .sidebar .nav-item{ color:#C3D2EC !important; }
+html[data-sb-theme="dark"] .sidebar .nav-item svg{ color:#8FA6CC !important; }
+html[data-sb-theme="dark"] .sidebar .nav-item:hover{ background:rgba(255,255,255,.10) !important; color:#fff !important; }
+html[data-sb-theme="dark"] .sidebar .nav-item:hover svg{ color:#fff !important; }
+/* ตัวที่เปิดอยู่ · คุมสีเน้นเดิมไว้ เงาแรงขึ้นเพราะพื้นเข้มกลืนเงาอ่อน */
+html[data-sb-theme="dark"] .sidebar .nav-item.active{
+  background:#1683C7 !important; color:#fff !important;
+  box-shadow:0 8px 20px -4px rgba(22,131,199,.62) !important; }
+
+/* หัวโปรไฟล์ · ค่าเดิมเป็นหมึกเข้ม (#1e2633/#5a6472) ซึ่งบนพื้น navy คืออ่านไม่ออก */
+html[data-sb-theme="dark"] .sb-greet{ color:rgba(214,226,245,.62) !important; }
+html[data-sb-theme="dark"] .sb-name{ color:#fff !important; }
+html[data-sb-theme="dark"] .sb-avatar{ border-color:rgba(255,255,255,.30) !important; }
+html[data-sb-theme="dark"] .sb-divider{ background:rgba(255,255,255,.14) !important; }
+html[data-sb-theme="dark"] .sidebar-footer{
+  color:rgba(214,226,245,.66) !important; border-top:1px solid rgba(255,255,255,.10) !important; }
+
+/* กล่องผู้ใช้/ออกจากระบบ · ปักอยู่ก้น sidebar จึงต้องเปลี่ยนตามกัน */
+html[data-sb-theme="dark"] #la-userbadge{
+  background:rgba(12,24,62,.72) !important; color:#C3D2EC !important;
+  border-top:1px solid rgba(255,255,255,.10) !important; }
+html[data-sb-theme="dark"] #la-userbadge b{ color:#fff !important; }
+html[data-sb-theme="dark"] .la-ub-btn{ background:rgba(255,255,255,.12) !important; color:#E2EAF7 !important; }
+html[data-sb-theme="dark"] .la-ub-btn:hover{ background:rgba(255,255,255,.22) !important; }
+
+/* รางแบบย่อ · เส้นคั่นที่แทนหัวข้อกลุ่มเป็นสีดำจาง มองไม่เห็นบนพื้นเข้ม */
+html[data-sb-theme="dark"] .sidebar.sb-collapsed .nav-section{ background:rgba(255,255,255,.13) !important; }
+
+/* ── ปุ่มสลับธีม · มีทั้งสองโหมด จึงอยู่นอกวงเล็บ dark ── */
+.sb-theme{ width:26px; height:26px; flex:none; border:none; border-radius:8px;
+  background:rgba(255,255,255,.72); color:#5a6472; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; }
+.sb-theme:hover{ background:rgba(255,255,255,.95); }
+html[data-sb-theme="dark"] .sb-theme{ background:rgba(255,255,255,.12); color:#D6E2F5; }
+html[data-sb-theme="dark"] .sb-theme:hover{ background:rgba(255,255,255,.24); }
+html[data-sb-theme="dark"] .sb-toggle{ background:rgba(255,255,255,.12) !important; color:#D6E2F5 !important; }
+html[data-sb-theme="dark"] .sb-toggle:hover{ background:rgba(255,255,255,.24) !important; }
+/* ย่อแล้วเหลือที่แนวนอนไม่พอทั้งสองปุ่ม · ปุ่มธีมซ่อน กดกางก่อนค่อยสลับ */
+.sidebar.sb-collapsed .sb-theme{ display:none; }
