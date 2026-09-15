@@ -6486,6 +6486,29 @@ function pfmFilterRows(){
 function pfmSetDate(delta){ const d=new Date(_pfmDate+'T12:00:00'); const m=_pfmMode||'daily'; if(m==='week') d.setDate(d.getDate()+delta*7); else if(m==='month') d.setMonth(d.getMonth()+delta); else if(m==='year') d.setFullYear(d.getFullYear()+delta); else d.setDate(d.getDate()+delta); _pfmDate=bkV2LocalYMD(d); renderDailyPFM(); }
 function pfmIsProforma(bk){ const a=sbGetAgent(bk.agentId); return !!(a && a.payType==='proforma'); }
 function pfmSalesName(bk){ const sid = bk.soldBy || (sbGetAgent(bk.agentId)||{}).sales; const s=sid?sbGetSales(sid):null; return s?(s.name||sid):'—'; }
+/* §pfmCotWarn (2026-09-15) · Daily PFM กับคำตัดสิน COT ยังไม่รู้จักกัน
+   PFM คิดยอดจาก acctBookingTotal() ตรง ๆ · ไม่เคยเรียก tsCotGet/bkV2CotOf เลย
+   ส่วน acctCreateInvoice() ก็ใช้ acctBookingTotal() เหมือนกัน
+   ผลคือ ใบที่เก็บเงินสดหน้าท่าแล้วกด "หักทั้งก้อน" ที่ Travel Summary
+   ยังขึ้นค้างเต็มจำนวนที่นี่ · กด Issue PFM ต่อ = ออกบิลเต็ม = เก็บซ้ำ
+
+   ⚠ ก้อนนี้เตือนอย่างเดียว ไม่แตะยอดเงินสักบาท (ตัวเลือก ก ที่ตกลงกันไว้)
+     ยอดรวม ยอดค้าง และยอดในใบแจ้งหนี้ ยังคิดเหมือนเดิมทุกประการ
+     ถ้าจะให้หักจริงต้องเปลี่ยน bal/unpaidAmt ไปใช้ bkV2PayOf().billable
+     ซึ่งคิดเผื่อไว้แล้วว่า billable = bkTot - cot.use
+
+   ⚠ เกณฑ์คือ deduct > 0 ไม่ใช่ "มี COT" · COT ที่เป็นค่าอุทยาน (handling 'separate')
+     จะถูกกด "ไม่หัก" ซึ่งถูกต้องแล้ว ห้ามไปลดบิล agent · เตือนเคสนั้นคือเตือนผิด */
+function pfmCotWarn(bk){
+  try{
+    if(typeof bkV2CotOf!=='function') return null;
+    var c=bkV2CotOf(bk);
+    if(!c || !c.settled) return null;              // ยังไม่มีใครตัดสิน = ยังไม่มีอะไรให้เตือน
+    var d=+c.deduct||0;
+    if(!(d>0)) return null;                        // ไม่หัก / โอนออก / เก็บไม่ได้ = บิล agent ไม่เกี่ยว
+    return { deduct:d, amt:+c.amt||0, mode:c.mode||'' };
+  }catch(_){ return null; }
+}
 function pfmCutoff(date){ const c=new Date(date+'T18:00:00'); c.setDate(c.getDate()-1); return c; }   // 18:00 day before
 function pfmBookingsFor(date){
   return (SB_BOOKINGS||[]).filter(b=>{
@@ -6534,6 +6557,18 @@ function pfmChartBuckets(date, mode){
 function pfmIssueInvoice(bkId){
   const b=SB_BOOKINGS.find(x=>x.id===bkId); if(!b) return;
   if(acctBookingInvoice(bkId)){ alert('Invoice already exists for this booking'); return; }
+  /* §pfmCotWarn · ใบนี้เก็บเงินสดหน้าท่าแล้วและตัดสินว่าหักจากบิล · ออกบิลเต็มจำนวน
+     = เก็บซ้ำ · ยังไม่หักให้อัตโนมัติ (ตัวเลือก ก) แต่ต้องให้คนเห็นก่อนกดผ่าน */
+  const _cw=pfmCotWarn(b);
+  if(_cw){
+    const _t=(typeof acctBookingTotal==='function')?acctBookingTotal(b):0;
+    if(!confirm('ใบนี้เก็บเงินสดหน้าท่าไปแล้ว '+Math.round(_cw.deduct).toLocaleString()+' บาท'
+      +' และตัดสินไว้ว่าหักจากบิล agent\n\n'
+      +'ใบแจ้งหนี้ที่กำลังจะออกเป็นยอดเต็ม '+Math.round(_t).toLocaleString()+' บาท'
+      +' ยังไม่ได้หักก้อนนั้นออกให้\n'
+      +'ถ้าออกแบบนี้แล้วเก็บเงินตามบิล = เก็บซ้ำ\n\n'
+      +'ยืนยันออกใบแจ้งหนี้ยอดเต็ม?')) return;
+  }
   acctCreateInvoice(b.agentId,[bkId],0);   // proforma · due now
   renderDailyPFM();
 }
@@ -6651,7 +6686,14 @@ function pfmHold(bkId){
 function pfmIssueAll(){
   const list=pfmBookingsForPeriod(_pfmDate,_pfmMode); const todo=list.filter(b=>!acctBookingInvoice(b.id));
   if(!todo.length){ alert('All bookings already have a PFM invoice.'); return; }
-  if(!confirm('Issue PFM invoices for '+todo.length+' booking(s) on '+_pfmDate+'?')) return;
+  /* §pfmCotWarn · ออกทีเดียวทั้งชุด · ถ้ามีใบที่หักหน้าท่าไปแล้วปนอยู่ ต้องบอกก่อน
+     ไม่งั้นเก็บซ้ำทีละหลายใบโดยไม่มีใครทันเห็น */
+  const _cwN=todo.map(pfmCotWarn).filter(Boolean);
+  const _cwSum=_cwN.reduce((s,x)=>s+x.deduct,0);
+  if(!confirm('Issue PFM invoices for '+todo.length+' booking(s) on '+_pfmDate+'?'
+    +(_cwN.length ? ('\n\n\u26a0 ในนั้นมี '+_cwN.length+' ใบที่เก็บเงินสดหน้าท่าไปแล้ว รวม '
+       +Math.round(_cwSum).toLocaleString()+' บาท และตัดสินว่าหักจากบิล agent\n'
+       +'ใบแจ้งหนี้จะออกยอดเต็ม ยังไม่ได้หักก้อนนั้นออกให้') : ''))) return;
   let n=0; todo.forEach(b=>{ try{ acctCreateInvoice(b.agentId,[b.id],0); n++; }catch(e){} });
   alert('Issued '+n+' PFM invoice(s).');
   renderDailyPFM();
@@ -6713,6 +6755,16 @@ function renderDailyPFM(){
     else if(alert) chip=_dot('#E24B4A')+`<span style="font-size:11px;color:#A32D2D;font-weight:500">Unpaid · เลย cutoff</span>`;
     else if(inv) chip=_dot('#EF9F27')+`<span style="font-size:11px;color:#7A4A00">Awaiting payment</span>`;
     else chip=_dot('#B4B2A9')+`<span style="font-size:11px;color:#5F5E5A">No invoice yet</span>`;
+    /* §pfmCotWarn · หักที่ท่าไปแล้วเท่าไร · แดงเมื่อยังมียอดค้างอยู่ = จุดที่เก็บซ้ำได้ */
+    const _cw=pfmCotWarn(b);
+    if(_cw){
+      const _risk=bal>0;
+      chip+=`<div style="margin-top:3px"><span title="${esc('เก็บเงินสดหน้าท่าแล้ว '+Math.round(_cw.deduct).toLocaleString()+' บาท และตัดสินว่าหักจากบิล agent'
+        +(_risk?' · ยอดค้างที่แสดงยังไม่ได้หักก้อนนี้ออก ตรวจก่อนออกบิลหรือรับเงิน':' · บิลนี้ไม่มียอดค้างแล้ว'))}"
+        style="font-size:10px;font-weight:600;border-radius:7px;padding:2px 7px;white-space:nowrap;`
+        +(_risk?'color:#A32D2D;background:#FCEBEB;border:0.5px solid #E6C9C3"':'color:#5F5E5A;background:#F1EFE8;border:0.5px solid #E1DED5"')
+        +`>&#9888; หักที่ท่าแล้ว &#3647;${sbFmtTHB(_cw.deduct)}</span></div>`;
+    }
     // actions — Finexy green
     const _gbtn='background:#163d2b;color:#eafbe0;border:none;border-radius:7px;padding:5px 11px;font-size:11px;font-weight:500;cursor:pointer;font-family:inherit';
     const _obtn='background:#fff;border:0.5px solid #cfcabf;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:500;cursor:pointer;font-family:inherit';
@@ -6747,7 +6799,7 @@ function renderDailyPFM(){
     if(!_byDate[_btDate]){ _byDate[_btDate]=[]; _dateOrder.push(_btDate); }
     _byDate[_btDate].push({tr:_trHtml, total, paid, bal, alert});
     if(unpaid && !approved && !held){   // outstanding → surface at top, ordered by nearest travel date
-      _prio.push({ btDate:_btDate, bal, alert, act,
+      _prio.push({ btDate:_btDate, bal, alert, act, cotDed:(_cw?_cw.deduct:0),
         voucher:esc(b.voucherRef||b.code||b.id), agentName:esc(a?a.name:b.agentId),
         routeName:esc(route?route.name:trip.routeId), pax });
     }
@@ -6783,12 +6835,13 @@ function renderDailyPFM(){
       <span style="font-size:12px;color:#1B2A55;font-weight:500;flex:1;min-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.agentName}</span>
       <span style="font-size:11px;color:#8a8a82;flex:1;min-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.routeName}</span>
       <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#A32D2D;text-align:right;min-width:80px">&#3647;${sbFmtTHB(x.bal)}</span>
+      ${x.cotDed>0?`<span title="เก็บเงินสดหน้าท่าแล้ว ${Math.round(x.cotDed).toLocaleString()} บาท และตัดสินว่าหักจากบิล agent · ยอดค้างข้างซ้ายยังไม่ได้หักก้อนนี้ออก" style="font-size:10px;font-weight:600;color:#A32D2D;background:#FCEBEB;border:0.5px solid #E6C9C3;border-radius:7px;padding:2px 7px;white-space:nowrap">&#9888; หักที่ท่า &#3647;${sbFmtTHB(x.cotDed)}</span>`:''}
       <span style="white-space:nowrap">${x.act}</span>
     </div>`; };
   const prioCard = (mode!=='daily' && _prio.length) ? `
     <div style="background:#fff;border:1px solid #F0D7BE;border-radius:14px;box-shadow:0 1px 3px rgba(20,45,28,.06);overflow:hidden;margin-bottom:13px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 15px;background:#FBF1E4;border-bottom:0.5px solid #F0D7BE;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:9px"><span style="font-size:13px;font-weight:700;color:#7A4A00">&#9888; ต้องเก็บก่อนเดินทาง · ค้างชำระ</span><span style="font-size:11px;color:#9a7b4a">${_prio.length} รายการ · เรียงตามใกล้วันเดินทาง</span></div>
+        <div style="display:flex;align-items:center;gap:9px"><span style="font-size:13px;font-weight:700;color:#7A4A00">&#9888; ต้องเก็บก่อนเดินทาง · ค้างชำระ</span><span style="font-size:11px;color:#9a7b4a">${_prio.length} รายการ · เรียงตามใกล้วันเดินทาง</span>${(function(){var n=_prio.filter(x=>x.cotDed>0),t=n.reduce((s,x)=>s+x.cotDed,0);return n.length?`<span title="ตรวจก่อนออกบิลหรือรับเงิน · ยอดค้างที่แสดงยังไม่ได้หักเงินที่เก็บหน้าท่าออก" style="font-size:10px;font-weight:700;color:#A32D2D;background:#FCEBEB;border:0.5px solid #E6C9C3;border-radius:8px;padding:2px 8px">&#9888; ${n.length} ใบหักที่ท่าแล้ว &#3647;${sbFmtTHB(t)}</span>`:'';})()}</div>
         <div style="font-size:12px;color:#A32D2D;font-weight:700;font-family:'DM Mono',monospace">ค้าง &#3647;${sbFmtTHB(_prioDue)}</div>
       </div>
       ${_prioShown.map(prioRow).join('')}
