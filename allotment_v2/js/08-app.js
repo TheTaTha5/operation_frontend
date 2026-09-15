@@ -30767,7 +30767,16 @@ function ctOvrHtml(){
     + '<div class="ct-navbar" id="ct-navbar"><span class="ct-navref" id="ct-navref">คลิกช่องไหนก็ได้ แล้วใช้ลูกศรเดินต่อ</span>'
     + '<span class="ct-navval" id="ct-navval"></span><span class="ct-navsp"></span>'
     + '<span class="ct-navkeys"><kbd>&uarr;</kbd><kbd>&darr;</kbd> ข้ามแถว <kbd>&larr;</kbd><kbd>&rarr;</kbd> ข้ามทริป <kbd>Enter</kbd> ลงแถวถัดไป</span></div>'
-    + '<div class="ct-card ct-tblcard"><div class="ct-scroll ct-sheet"><table class="ct-otbl"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
+    /* §ctColMin · ตารางนี้เป็น table-layout:fixed + width:100% · ยิ่งมีแผนเยอะ คอลัมน์ยิ่งถูกหารให้แคบลง
+       วัดจริง · 1 แผน ช่องกรอกกว้าง 130px · 4 แผน 130px · 10 แผน เหลือ 29px
+       ที่ 29px ช่องกรอกยุบจนเห็นแต่ไอคอนคืนค่า คนใช้อ่านว่า "หน้าพัง" ซึ่งก็ถูกแล้ว
+       ⚠ ไม่ใช่ของที่เพิ่งเปลี่ยน · เป็นเพดานที่ §ctFldGrid ไม่เคยถูกออกแบบเผื่อไว้
+         โผล่ตอนทีมเพิ่มแผนจาก 8 เป็น 10 เมื่อคืนก่อนจึงยังดีอยู่
+       → ตั้งความกว้างขั้นต่ำต่อคอลัมน์ แล้วให้ตารางล้นกล่องไปเลย
+         .ct-sheet มี overflow:auto อยู่แล้ว (ตั้งแต่ §ctSheet) จึงปัดซ้าย-ขวาดูได้
+         เลื่อนแล้วคอลัมน์ชื่อรายการกับหัวตารางยังตรึงอยู่เหมือนเดิม */
+    + '<div class="ct-card ct-tblcard"><div class="ct-scroll ct-sheet"><table class="ct-otbl" style="min-width:'
+      + (250 + Math.max(1, P.length) * 260) + 'px"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
 }
 
 // ── mutators ────────────────────────────────────────────────────────────────────────────────────

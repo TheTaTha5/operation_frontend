@@ -594,7 +594,9 @@
 #view-costing .ct-fgh{font-size:9.5px;font-weight:600;color:rgba(74,62,54,.5);text-align:center}
 #view-costing .ct-fgr{font-size:10px;color:rgba(74,62,54,.6);white-space:nowrap;text-align:right}
 #view-costing .ct-fw{position:relative;display:flex;align-items:center}
-#view-costing .ct-fw .ct-in.fin{width:100%;min-width:0;text-align:right;padding-right:20px}
+/* §ctColMin · กันชั้นที่สอง · ช่องกรอกห้ามยุบจนเหลือแต่ไอคอน ไม่ว่าคอลัมน์จะแคบแค่ไหน
+   min-width:0 เดิมแปลว่า "ยอมให้หดเท่าไหร่ก็ได้" ซึ่งกริดก็หดให้จริง ๆ จนเหลือ 29px */
+#view-costing .ct-fw .ct-in.fin{width:100%;min-width:54px;text-align:right;padding-right:20px}
 #view-costing .ct-fw .ct-undo{position:absolute;right:4px;opacity:.55}
 #view-costing .ct-fw .ct-undo:hover{opacity:1}
 #view-costing .ct-fnone{font-size:11px;color:rgba(74,62,54,.25);text-align:center}
