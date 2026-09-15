@@ -25537,6 +25537,7 @@ var CT_RENT_EX = [
 ];
 function ctRentBlank(){
   return { on:1, mode:'lump', amt:0, seat:0, days:30, off:2, trips:1, vat:0, note:'',
+           from:'', to:'',                    /* §rentSpan · ช่วงสัญญา · ว่าง = ไม่จำกัด */
            ex:{ dep:1, cap:1, crew:1 } };
 }
 function ctRentAll(){ var r = ctRead('boat_rent'); return (r && typeof r === 'object' && !Array.isArray(r)) ? r : {}; }
@@ -25556,23 +25557,57 @@ function ctRentOf(boatId){
   var perDay = amt / runD;
   return { boatId:boatId, name:b.name || boatId, seats:seats, mode:R.mode || 'lump',
            amt:amt, seat:+R.seat || 0, days:days, off:off, runDays:runD, trips:trips,
-           perDay:perDay, perTrip:perDay / trips, vat:!!R.vat,
+           perDay:perDay, perTrip:perDay / trips, perCalDay:amt / days, vat:!!R.vat,
+           from:R.from || '', to:R.to || '',              /* §rentSpan */
            ex:R.ex || { dep:1, cap:1, crew:1 }, note:R.note || '' };
 }
 function ctRentSet(boatId, k, v){
   if(!boatId) return;
   var all = ctRentAll(), R = all[boatId] || ctRentBlank();
   if(k.indexOf('ex.') === 0){ R.ex = R.ex || {}; R.ex[k.slice(3)] = v ? 1 : 0; }
-  else if(k === 'mode' || k === 'note') R[k] = v;
+  else if(k === 'mode' || k === 'note' || k === 'from' || k === 'to') R[k] = v;   /* §rentSpan */
   else if(k === 'on' || k === 'vat') R[k] = v ? 1 : 0;
   else R[k] = (v === '') ? 0 : (+v || 0);
   all[boatId] = R; ctRentAllSave(all); ctRender();
 }
-/* ค่าเช่าที่ "ลงไปแล้ว" เทียบกับที่ "จ่ายจริงทั้งงวด" · ส่วนต่าง = ค่าเช่าวันที่เรือไม่ได้วิ่ง */
-function ctRentIdle(RN, tripsRan){
+/* ══ §rentSpan · ช่วงสัญญา ══════════════════════════════════════════════════
+   สัญญาเช่ามีวันเริ่มวันจบ · เรือลำเดิมก่อนเริ่มสัญญาหรือหลังจบสัญญา
+   ต้องกลับไปเป็นเรือปกติทันที (มีกัปตัน มีค่าเสื่อม ไม่มีค่าเช่า)
+   ไม่งั้นย้อนดู P&L เดือนก่อนหน้าจะเห็นค่าเช่าที่ยังไม่ได้เริ่มจ่าย
+   ว่างทั้งคู่ = ไม่จำกัด · ใช้กับสัญญาที่ยังไม่รู้วันจบ */
+function ctRentActiveOn(RN, ymd){
+  if(!RN) return false;
+  if(!ymd) return true;                       /* หน้าแผนคำนวณไม่มีวันที่ · เป็นเครื่องมือออกแบบ */
+  if(RN.from && ymd < RN.from) return false;
+  if(RN.to   && ymd > RN.to)   return false;
+  return true;
+}
+function ctYmdAdd(ymd, n){
+  var d = new Date(String(ymd) + 'T12:00:00'); d.setDate(d.getDate() + n);
+  return (typeof bkV2LocalYMD === 'function') ? bkV2LocalYMD(d) : d.toISOString().slice(0, 10);
+}
+function ctYmdDiff(a, b){                     /* จำนวนวันแบบนับหัวนับหาง */
+  return Math.round((Date.parse(b + 'T12:00:00') - Date.parse(a + 'T12:00:00')) / 86400000) + 1;
+}
+/* สัญญาทับกับหน้าต่างรายงาน (d0..d1) กี่วัน และคิดเป็นค่าเช่าเท่าไหร่
+   ค่าเช่าต่อวันตามปฏิทิน = ค่าเช่า ÷ วันในงวด · ต่างจากค่าเช่าต่อ "วันวิ่ง" ที่หารด้วยวันที่วิ่งจริง
+   ตัวแรกใช้ตอบว่า "งวดนี้ต้องจ่ายเท่าไหร่" · ตัวหลังใช้ตอบว่า "ทริปนึงแบกเท่าไหร่" */
+function ctRentSpan(RN, d0, d1){
+  if(!RN || !(RN.amt > 0) || !d0 || !d1) return null;
+  var s = (RN.from && RN.from > d0) ? RN.from : d0;
+  var e = (RN.to   && RN.to   < d1) ? RN.to   : d1;
+  if(s > e) return null;
+  var n = ctYmdDiff(s, e);
+  return { from:s, to:e, calDays:n, perCalDay:RN.perCalDay,
+           due:RN.perCalDay * n, opDays:n * (RN.runDays / RN.days) };
+}
+/* ค่าเช่าที่ "ลงไปแล้ว" เทียบกับที่ "ต้องจ่ายจริง" · ส่วนต่าง = ค่าเช่าวันที่เรือไม่ได้วิ่ง
+   due ว่าง = คิดเต็มหนึ่งงวด · ส่งมาเมื่อรายงานครอบคลุมไม่เต็มงวด (ต้นเดือน · สัญญาเริ่มกลางเดือน) */
+function ctRentIdle(RN, tripsRan, due){
   if(!RN) return null;
   var t = Math.max(0, +tripsRan || 0), booked = RN.perTrip * t;
-  return { trips:t, booked:booked, full:RN.amt, gap:Math.max(0, RN.amt - booked),
+  var full = (due != null) ? +due : RN.amt;
+  return { trips:t, booked:booked, full:full, gap:Math.max(0, full - booked),
            daysRan:t / RN.trips, daysPlan:RN.runDays };
 }
 /* §boatRent · ความจุ/ลำ · ปักเรือไว้แล้วต้องอิงที่นั่งของลำนั้น จะได้ไม่หลุดจากทะเบียนจริง */
@@ -25702,6 +25737,8 @@ function ctCalc(pl, ctx, tpl){
   /* §boatRent · ดูจาก "ลำที่วิ่ง" ไม่ใช่จากแผน · หน้าแผนส่งลำที่ปักไว้ · P&L ส่งลำที่ออกวันนั้น
      ลำบริษัทวิ่งเส้นทางเดียวกัน = ไม่มีค่าเช่า แต่มีกัปตัน/เด็กเรือ/ค่าเสื่อม ตามปกติ */
   var RN = ctRentOf(ctx && ctx.boatId);
+  /* §rentSpan · นอกช่วงสัญญาให้กลับไปเป็นเรือปกติทั้งชุด — ทั้งค่าเช่าและบรรทัดที่ตัดออก */
+  if(RN && !ctRentActiveOn(RN, ctx && ctx.date)) RN = null;
   var out = { gross:0, vin:0, net:0, fixNet:0, varNet:0, rows:[], rent:RN };
   ctLinesByGroup(T).forEach(function(x){
     var ln = x.ln, g = ln.g || 'อื่นๆ';
@@ -25747,6 +25784,7 @@ function ctCtxAt(pl, n){
   var th = Math.min(Math.max(0, +pl.paxTH || 0), n), ch = ctChdAt(pl, n);
   return { eng:pl.eng, boats:Math.max(1, +pl.boats || 1), fuel:+pl.fuel || 0,
            boatId:(pl.boatId || ''),                      /* §boatRent · ลำที่ปักไว้กับแผนนี้ */
+           date:(pl._asOf || ''),                          /* §rentSpan · ว่าง = ไม่เช็คช่วงสัญญา */
            pax:n, paxTH:th, paxFR:Math.max(0, n - th), paxCh:ch };
 }
 function ctProfitAt(pl, n, tpl){
@@ -26052,7 +26090,7 @@ function pxTrip(date, bid){
   /* §pxOd · จำนวนที่ลูกค้าสั่งจริงของลำนี้ · ป้อนเข้าสูตรแทนจำนวนที่คาดไว้ในแผน */
   var LT=(typeof pxLongtail==='function')?pxLongtail(date,bid):{chtr:0,join:0};
   var ctx={ eng:((+boat.engineCount||3)>=4?'4EN':'3EN'), boats:1, fuel:fuelPr,
-            boatId:bid,                       /* §boatRent · ลำที่ออกจริง ไม่ใช่ลำที่แผนปักไว้ */
+            boatId:bid, date:date,            /* §boatRent · ลำที่ออกจริง · §rentSpan · วันที่เทียบช่วงสัญญา */
             odQty:{ ltj:LT.join, ltc:LT.chtr },
             pax:PX.tot, paxTH:PX.th, paxFR:PX.fr,
             /* §ctChd · ทารกนับรวมกับเด็ก · ไม่มีทางที่ทารกจะกินเท่าผู้ใหญ่ */
@@ -26175,8 +26213,9 @@ function pxTrip(date, bid){
   var be=null;
   try{ if(typeof ctBreakEven==='function'){
     var cap=(typeof boatCapFor==='function')?boatCapFor(bid,date):(boat.cap||0);
+    /* §boatRent · จุดคุ้มทุนของทริปนี้ต้องรู้ว่าลำที่ออกเป็นเรือเช่าไหม ไม่งั้นคิดต้นทุนผิดชุด */
     be=ctBreakEven(Object.assign({}, plan||{}, {eng:ctx.eng, boats:1, fuel:fuelPr, paxTH:PX.th,
-        price:(PX.tot?revGross/PX.tot:0), comm:0}), Math.max(1,cap||60), T);
+        boatId:bid, _asOf:date, price:(PX.tot?revGross/PX.tot:0), comm:0}), Math.max(1,cap||60), T);
   } }catch(_){}
   return { bid:bid, boat:boat, name:boat.name||bid, rid:rid, route:rt, dep:(rt.times&&rt.times[0])||'',
            px:PX, ctx:ctx, plan:plan, rows:rows, cost:Math.round(cost), up:UP, lt:LT, fp:FP,
@@ -26400,6 +26439,8 @@ function pxCSS(){ return ''
  +'#trippl-host table.sum tr.tot td.l{color:#312E81;font-size:13.5px;font-weight:800}'
  +'#trippl-host table.sum tr.tot .num{font-size:14.5px}'
  +'#trippl-host table.sum tr.tot td.netc{background:#E3F6EE}'
+ /* §totNeg · แถวรวมที่ติดลบเคยได้พื้นเขียวเหมือนกำไร · ตัวเลขแดงบนพื้นเขียวอ่านผิดได้ทันที */
+ +'#trippl-host table.sum tr.tot td.netc.neg{background:#FDE8ED}'
  +'#trippl-host table.sum tr.tot .net{font-size:17px}'
  +'#trippl-host table.sum tr.loss td{background:#FFF7F8}'
  +'#trippl-host table.sum tr.loss:hover td{background:#FFEFF2}'
@@ -27192,6 +27233,93 @@ function pxDW(ymd){
   return { w:w, d:+p[2], txt:(w>=0?PX_DOW[w]+' ':'')+(+p[2])+' '+(PX_MON[(+p[1])-1]||''), we:(w===0||w===6) };
 }
 
+/* ══ §rentIdle · ค่าเช่าวันที่เรือไม่ได้วิ่ง ═══════════════════════════════════
+   P&L รายทริปลงค่าเช่า = ค่าเช่า/ทริป x ทริปที่วิ่งจริง
+   แต่ค่าเช่าจ่ายเต็มก้อนทุกงวดไม่ว่าเรือจะออกหรือไม่ · วิ่งน้อยกว่าที่ตั้งไว้เมื่อไหร่
+   ค่าเช่าจะลงไม่ครบ และกำไรของเดือนจะดูสวยเกินจริงโดยไม่มีใครเห็น
+   ก้อนนี้คือส่วนที่หายไป · เป็นตัวชี้ว่าการเช่าลำนี้คุ้มหรือไม่คุ้ม
+   ไม่ใช่กำไรรายทริป ซึ่งคุ้มอยู่แล้วเพราะแบกค่าเช่าแค่ส่วนของตัวเอง
+
+   ไม่ผูกกับตัวกรองท่า · ค่าเช่าจ่ายทั้งลำ ไม่ได้จ่ายเป็นท่า
+   กรองท่าไว้แล้วซ่อนก้อนนี้ = ซ่อนเงินที่จ่ายจริง */
+function pxRentIdle(days){
+  if(typeof ctRentAll !== 'function' || !days || !days.length) return [];
+  var d0 = days[0], d1 = days[days.length - 1], out = [];
+  var ALL = ctRentAll();
+  Object.keys(ALL).forEach(function(bid){
+    var RN = ctRentOf(bid); if(!RN) return;
+    var SP = ctRentSpan(RN, d0, d1); if(!SP) return;
+    var slots = 0, sail = 0;
+    days.forEach(function(d){
+      if(d < SP.from || d > SP.to) return;
+      var op = (typeof TRIPS !== 'undefined' && TRIPS[d]) ? TRIPS[d][bid] : null;
+      if(!op || !op.route) return;
+      slots++;
+      var t = pxTrip(d, bid);
+      if(!t.noSail) sail++;                   /* ลำที่อยู่บนกระดานแต่ไม่ได้ออก ไม่ได้ดูดซับค่าเช่า */
+    });
+    var I = ctRentIdle(RN, sail, SP.due);
+    out.push({ bid:bid, name:RN.name, RN:RN, SP:SP, slots:slots, sail:sail,
+               daysRan:sail / RN.trips, opPlan:SP.opDays,
+               booked:I.booked, due:SP.due, gap:I.gap });
+  });
+  return out.sort(function(a, b){ return b.gap - a.gap; });
+}
+/* แถบสรุปในงบรายเดือน · ไม่ไปแตะยอด Net MTD ด้านบน
+   เพราะนั่นคือผลรวมของทริป · ก้อนนี้เป็นต้นทุนของงวดที่ไม่มีทริปไหนรับไป
+   แสดงคู่กันแล้วบอกยอดหลังหักให้ชัด ดีกว่าแอบเอาไปบวกลบข้างบนเงียบ ๆ */
+function pxRentIdleHtml(e, rows, netMTD){
+  if(!rows.length) return '';
+  var gap = rows.reduce(function(a, r){ return a + r.gap; }, 0);
+  var due = rows.reduce(function(a, r){ return a + r.due; }, 0);
+  var bkd = rows.reduce(function(a, r){ return a + r.booked; }, 0);
+  var adj = netMTD - gap;
+  var tr = rows.map(function(r){
+    var bad = r.gap > 0, run = Math.round(r.daysRan), plan = Math.round(r.opPlan);
+    return '<tr class="br' + (bad ? ' loss' : '') + '">'
+      + '<td class="l"><b style="font-size:12.5px">' + e(r.name) + '</b>'
+        + '<div class="per">' + e(r.SP.from) + ' → ' + e(r.SP.to)
+        + (r.RN.to ? '' : ' · ไม่ระบุวันจบ') + '</div></td>'
+      + '<td class="c"><span class="num n">' + run + ' / ' + plan + '</span></td>'
+      + '<td><span class="num n">' + pxN(r.due) + '</span></td>'
+      + '<td><span class="num n">' + pxN(r.booked) + '</span></td>'
+      + '<td class="netc' + (bad ? ' neg' : '') + '"><span class="net' + (bad ? ' neg' : '') + ' n">'
+        + (bad ? ('−' + pxN(r.gap)) : '0') + '</span></td>'
+      + '<td class="c"><span class="pill ' + (bad ? (r.gap / Math.max(1, r.due) > .25 ? 'ro' : 'am') : 'em') + '">'
+        + Math.round(r.booked / Math.max(1, r.due) * 100) + '%</span></td></tr>';
+  }).join('');
+  return '<div class="eg mb"><div class="phd"><div><h2>Unabsorbed boat rent '
+      + '<span class="pill ' + (gap > 0 ? 'ro' : 'em') + '">' + pxN(gap) + ' ฿</span></h2>'
+      + '<p>ค่าเช่าเรือที่จ่ายจริงทั้งงวด เทียบกับส่วนที่ทริปรับไปแล้ว · '
+      + 'ส่วนต่างคือ<b>ค่าเช่าวันที่เรือไม่ได้วิ่ง</b> ซึ่งไม่มีทริปไหนแบกให้</p></div></div>'
+    + '<div class="twrap"><div class="tscroll"><table class="sum" style="min-width:620px">'
+    + '<thead><tr><th class="l">Boat · contract</th><th class="c">Days run / plan</th>'
+    + '<th>Rent due</th><th>Absorbed by trips</th><th>Unabsorbed</th><th class="c">Coverage</th></tr></thead>'
+    + '<tbody>' + tr
+    + '<tr class="tot"><td class="l">Σ ' + rows.length + ' rented boat' + (rows.length === 1 ? '' : 's') + '</td>'
+    + '<td class="c"></td><td><span class="num n">' + pxN(due) + '</span></td>'
+    + '<td><span class="num n">' + pxN(bkd) + '</span></td>'
+    + '<td class="netc' + (gap > 0 ? ' neg' : '') + '"><span class="net' + (gap > 0 ? ' neg' : '') + ' n">'
+    + (gap > 0 ? ('−' + pxN(gap)) : '0') + '</span></td>'
+    + '<td class="c"><span class="pill ' + (gap > 0 ? 'ro' : 'em') + '">'
+    + Math.round(bkd / Math.max(1, due) * 100) + '%</span></td></tr></tbody></table></div></div>'
+    + '<div class="mst"><div class="b"><small>Net profit MTD (จากทริป)</small>'
+      + '<b class="n" style="color:' + (netMTD < 0 ? '#BE123C' : '#0F172A') + '">'
+      + (netMTD < 0 ? '−' : '+') + pxN(Math.abs(netMTD)) + ' ฿</b>'
+      + '<u class="n">ผลรวมของทุกทริปในเดือนนี้</u></div>'
+    + '<div class="b"><small>ค่าเช่าที่ยังไม่ถูกดูดซับ</small>'
+      + '<b class="n" style="color:#BE123C">−' + pxN(gap) + ' ฿</b>'
+      + '<u class="n">จ่ายจริงแต่ไม่มีทริปไหนรับไป</u></div>'
+    + '<div class="b"><small>Net หลังหักค่าเช่าเต็มก้อน</small>'
+      + '<b class="n" style="color:' + (adj < 0 ? '#BE123C' : '#047857') + '">'
+      + (adj < 0 ? '−' : '+') + pxN(Math.abs(adj)) + ' ฿</b>'
+      + '<u class="n">ตัวเลขนี้คือคำตอบว่าการเช่าคุ้มหรือไม่</u></div>'
+    + '<div class="b"><small>ต้องวิ่งเพิ่มอีก</small>'
+      + '<b class="n">' + rows.reduce(function(a, r){
+          return a + Math.max(0, Math.ceil(r.gap / Math.max(1, r.RN.perTrip * r.RN.trips))); }, 0) + ' วัน</b>'
+      + '<u class="n">ถึงจะดูดซับค่าเช่าที่เหลือหมด</u></div></div></div>';
+}
+
 /* ══ MONTHLY ════════════════════════════════════════════════════════════════ */
 function pxMonth(e){
   var ym=_px.mon||String(_px.date||'').slice(0,7);
@@ -27304,7 +27432,9 @@ function pxMonth(e){
       +'<td class="c"><span class="pill '+(mg<0?'ro':(mg<12?'am':'em'))+'">'+mg+'%</span></td></tr>';
   }).join('');
 
-  return hero+kpi
+  var rentIdle=pxRentIdleHtml(e, pxRentIdle(days), T.profit);   /* §rentIdle */
+
+  return hero+kpi+rentIdle
     +'<div class="eg mb"><div class="phd"><div><h2>Daily revenue and net '
       +'<span class="pill bl">'+e(mLbl)+'</span></h2>'
       +'<p>Light blue = revenue · green/red = the net result of that day · click a bar to open that day</p></div>'
@@ -28441,6 +28571,17 @@ function ctPlanHtml(){
       + '<label class="ct-f"><span>รอบต่อวัน</span>' + RS('trips', rr.trips, 70, 1) + '</label>'
       + '<label class="ct-rchk" style="align-self:end;padding-bottom:8px"><input type="checkbox"' + (rr.vat ? ' checked' : '')
         + ' onchange="ctRentSet(\'' + bid + '\',\'vat\',this.checked?1:0)"> ค่าเช่ามี VAT ขอคืนได้</label>'
+      + '</div>'
+      /* §rentSpan · ช่วงสัญญา · ก่อนเริ่ม/หลังจบ เรือกลับไปเป็นเรือปกติเองทั้งชุด */
+      + '<div class="ct-rrow">'
+      + '<label class="ct-f"><span>สัญญาเริ่ม</span><input type="date" class="ct-in" style="width:150px"'
+        + ' data-fk="rn.' + bid + '.from" value="' + ctE(rr.from || '') + '"'
+        + ' onchange="ctRentSet(\'' + bid + '\',\'from\',this.value)"></label>'
+      + '<label class="ct-f"><span>สัญญาจบ</span><input type="date" class="ct-in" style="width:150px"'
+        + ' data-fk="rn.' + bid + '.to" value="' + ctE(rr.to || '') + '"'
+        + ' onchange="ctRentSet(\'' + bid + '\',\'to\',this.value)"></label>'
+      + '<span class="ct-u" style="align-self:end;padding-bottom:9px">ว่าง = ไม่จำกัด · '
+        + 'นอกช่วงนี้ลำนี้คิดแบบเรือบริษัทตามปกติ</span>'
       + '</div>';
 
     if(RN && RN.amt > 0){
@@ -28481,7 +28622,59 @@ function ctPlanHtml(){
       body += '<div class="ct-hint" style="padding:6px 0 0">'
         + '⚠ <b>P&amp;L รายทริปลงค่าเช่าตามทริปที่วิ่งจริง</b> ไม่ใช่เต็มก้อน · วิ่งน้อยกว่า ' + RN.runDays
         + ' วัน ค่าเช่าจะลงไม่ครบและกำไรจะดูสวยเกินจริง '
-        + 'ส่วนที่ขาดคือ<b>ค่าเช่าวันที่เรือไม่ได้วิ่ง</b> ซึ่งเป็นตัวชี้ว่าการเช่าคุ้มหรือไม่คุ้ม</div>';
+        + 'ส่วนที่ขาดคือ<b>ค่าเช่าวันที่เรือไม่ได้วิ่ง</b> ซึ่งไปโผล่ที่ '
+        + '<b>P&amp;L รายทริป → รายเดือน → Unabsorbed boat rent</b></div>';
+
+      /* ══ §rentPlan · ตารางวางแผน · "ต้องหาลูกค้ากี่คนต่อเดือน" ══════════════
+         คำถามจริงตอนตัดสินใจเช่าไม่ใช่ "ทริปนี้กำไรเท่าไหร่" แต่คือ
+         "ทั้งเดือนต้องขายให้ได้กี่หัว ค่าเช่าถึงจะไม่กิน"
+         ยิ่งคนต่อทริปเยอะ ยิ่งใช้วันน้อยลง แต่หัวรวมทั้งเดือนอาจไม่ได้ลดตาม
+         ตารางนี้จึงโชว์ทั้งสองตัว ให้เลือกได้ว่าจะไล่วันหรือไล่หัว */
+      var lv = {}, capAll = cap;
+      [0.2, 0.35, 0.5, 0.65, 0.8, 1].forEach(function(f){ lv[Math.max(1, Math.round(capAll * f))] = 1; });
+      lv[pax] = 1;
+      var levels = Object.keys(lv).map(Number).sort(function(a, b){ return a - b; });
+      var prows = levels.map(function(n){
+        var pN  = ctProfitAt(pl, n, T).p;
+        var pEx = pN + rentNetTrip;                       /* กำไรก่อนแบกค่าเช่า */
+        var dN  = (pEx > 0) ? Math.ceil(rentNetAll / (pEx * RN.trips)) : null;
+        var ok  = (dN != null && dN <= RN.runDays);
+        var heads = ok ? (dN * RN.trips * n) : null;
+        var hi = (n === pax);
+        return '<tr class="' + (ok ? '' : 'ct-rbad') + (hi ? ' ct-rnow' : '') + '">'
+          + '<td><b>' + n + '</b> คน' + (hi ? ' <span class="ct-u">← ที่ตั้งไว้</span>' : '')
+            + (n === capAll ? ' <span class="ct-u">เต็มลำ</span>' : '') + '</td>'
+          + '<td class="ct-r">' + (pEx >= 0 ? '' : '−') + ctB(Math.abs(pEx)) + '</td>'
+          + '<td class="ct-r">' + (dN == null ? '<span class="ct-u">ไม่คุ้ม</span>'
+              : (dN + ' วัน' + (ok ? '' : ' <span class="ct-u">เกิน ' + RN.runDays + '</span>'))) + '</td>'
+          + '<td class="ct-r"><b>' + (heads == null ? '—' : heads.toLocaleString()) + '</b></td>'
+          + '<td class="ct-r">' + (pN >= 0 ? '+' : '−') + ctB(Math.abs(pN)) + '</td></tr>';
+      }).join('');
+      /* สรุปทั้งสัญญา · ใช้วางแผนทั้งปี ไม่ใช่แค่เดือนเดียว */
+      var spanTxt = '';
+      if(RN.from && RN.to && RN.to >= RN.from){
+        var nd = ctYmdDiff(RN.from, RN.to), tot = RN.perCalDay * nd;
+        spanTxt = '<div class="ct-rcalc">ทั้งสัญญา ' + RN.from + ' → ' + RN.to + ' · ' + nd + ' วัน ('
+          + (Math.round(nd / 30 * 10) / 10) + ' งวด) · ค่าเช่ารวม <b>' + ctB(tot) + '</b>'
+          /* ที่จำนวนคนซึ่งวิ่งกี่วันก็ไม่พอในหนึ่งงวด อย่าไปคูณยาวเป็นทั้งสัญญา
+             จะได้เลขวันที่ดูเหมือนทำได้ ทั้งที่งวดหนึ่งยังไม่ผ่านเลย */
+          + ' · ที่ ' + pax + ' คน/ทริป '
+          + (!okD ? '<b style="color:#9f1239">ไม่คุ้มตั้งแต่งวดแรก</b>'
+                  : ('ต้องวิ่งรวม <b>' + Math.ceil(dNd * nd / RN.days) + ' วัน</b> จาก '
+                     + Math.round(nd * RN.runDays / RN.days) + ' วันที่มี')) + '</div>';
+      } else {
+        spanTxt = '<div class="ct-rcalc warn">ยังไม่ได้ใส่ช่วงสัญญา · ใส่แล้วจะคำนวณยอดรวมทั้งสัญญาให้ '
+          + 'และเรือจะกลับไปคิดแบบเรือบริษัทเองเมื่อพ้นสัญญา</div>';
+      }
+      body += '<div class="ct-rsec"><div class="ct-rsech">วางแผน · ต้องหาลูกค้าเท่าไหร่ถึงจะคุ้มค่าเช่า '
+        + ctB(RN.amt) + '/งวด</div>'
+        + '<div class="ct-rscroll"><table class="ct-rtbl">'
+        + '<thead><tr><th>คน/ทริป</th><th class="ct-r">กำไร/ทริป<br><span class="ct-u">ก่อนค่าเช่า</span></th>'
+        + '<th class="ct-r">ต้องวิ่ง<br><span class="ct-u">วัน/งวด</span></th>'
+        + '<th class="ct-r">ลูกค้าทั้งงวด<br><span class="ct-u">รวมกี่หัว</span></th>'
+        + '<th class="ct-r">กำไร/ทริป<br><span class="ct-u">หลังค่าเช่า</span></th></tr></thead>'
+        + '<tbody>' + prows + '</tbody></table></div>'
+        + spanTxt + '</div>';
     }
     if(+pl.boats > 1){
       body += '<div class="ct-rcalc warn">แผนนี้ตั้งไว้ ' + (+pl.boats) + ' ลำ แต่ค่าเช่าคิดจากสัญญาของลำเดียว · '

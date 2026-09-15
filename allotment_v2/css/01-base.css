@@ -112,6 +112,18 @@
 #view-costing .ct-rbe.bad{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
 #view-costing .ct-rbe-lb{font-size:10px;font-weight:700;letter-spacing:.04em;color:rgba(74,62,54,.55);
   text-transform:uppercase}
+/* §rentPlan · ตารางวางแผนรายเดือน · แถวที่ทำไม่ได้จริงต้องซีดทันที
+   ไม่งั้นคนอ่านจะไปหยุดที่ "ต้องวิ่ง 42 วัน" โดยไม่ทันเห็นว่างวดมีแค่ 28 วัน */
+#view-costing .ct-rscroll{overflow-x:auto;border-radius:10px;border:1px solid var(--sd200);background:#fff}
+#view-costing .ct-rtbl{width:100%;border-collapse:collapse;font-size:11.5px;min-width:480px;
+  font-variant-numeric:tabular-nums}
+#view-costing .ct-rtbl th{padding:6px 10px;text-align:left;font-size:10px;font-weight:700;
+  color:rgba(74,62,54,.5);background:rgba(247,242,234,.7);border-bottom:1px solid var(--sd200);line-height:1.35}
+#view-costing .ct-rtbl td{padding:6px 10px;border-bottom:1px solid rgba(247,242,234,.9);color:var(--es900)}
+#view-costing .ct-rtbl .ct-r{text-align:right}
+#view-costing .ct-rtbl tr:last-child td{border-bottom:none}
+#view-costing .ct-rtbl tr.ct-rbad td{color:rgba(74,62,54,.38)}
+#view-costing .ct-rtbl tr.ct-rnow td{background:var(--b50);font-weight:600}
 
 /* การ์ดตัวเลข */
 #view-costing .ct-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
