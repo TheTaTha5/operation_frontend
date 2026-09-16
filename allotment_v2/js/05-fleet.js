@@ -8514,6 +8514,99 @@ function flExtraDelBtn(){
   flExtraDel(_FLX_EX.ds,_FLX_EX.bid,_FLX_EX.id);
   flxClose();
 }
+/* ══ §drReq · ผู้เบิกใหม่ · ผู้เบิก/เรือนอกฝูงเรือ (พิมพ์ชื่อเอง) ที่ต้องลง Daily Fleet Log เต็มรูปแบบ
+   ต่างจาก fl_extra (ของจิปาถะผูกกับเรือในฝูง) ตัวนี้ไม่ผูกกับเรือเลย — พิมพ์ชื่อผู้เบิกเอง
+   เก็บทุกช่องเหมือนแถวเรือปกติ: PAX · น้ำมัน+ราคา · ชั่วโมงเครื่อง (รวมช่องเดียว) · มิเตอร์น้ำ · เบิกของ
+   โครง { 'วันที่|ท่า': [{id,name,pax,fuel,price,eng,wo,wc,iss:{itemId:qty}}] } */
+function flReqAll(){ return _flJson('fl_req')||{}; }
+function flReqKey(ds,pierKey){ return String(ds||'')+'|'+String(pierKey||''); }
+function flReqGet(ds,pierKey){
+  var a=flReqAll()[flReqKey(ds,pierKey)];
+  return Array.isArray(a)?a:[];
+}
+function flReqSaveMap(A){
+  try{
+    var cut=new Date(); cut.setDate(cut.getDate()-120);
+    var cs=cut.getFullYear()+'-'+String(cut.getMonth()+1).padStart(2,'0')+'-'+String(cut.getDate()).padStart(2,'0');
+    Object.keys(A).forEach(function(k){ var d=String(k).split('|')[0]; if(d && d<cs) delete A[k]; });
+  }catch(_e){}
+  _flJsonSave('fl_req',A,!Object.keys(A).length);
+}
+function flReqSet(ds,pierKey,id,data){
+  var A=flReqAll(), k=flReqKey(ds,pierKey);
+  var L=Array.isArray(A[k])?A[k].slice():[];
+  var nm=String((data&&data.name)||'').trim();
+  if(!nm) return false;
+  var num=function(v){ v=(v===''||v==null)?null:parseFloat(v); return (v!=null&&isFinite(v))?v:null; };
+  var row={
+    id:id||('rq'+Date.now()+Math.floor(Math.random()*1000)),
+    name:nm, pax:num(data.pax), fuel:num(data.fuel), price:num(data.price),
+    eng:num(data.eng), wo:num(data.wo), wc:num(data.wc), iss:(data.iss||{})
+  };
+  var at=-1; L.forEach(function(x,i){ if(x&&x.id===row.id) at=i; });
+  if(at>=0) L[at]=row; else L.push(row);
+  A[k]=L; flReqSaveMap(A); flRenderDR(); return true;
+}
+function flReqDel(ds,pierKey,id){
+  var A=flReqAll(), k=flReqKey(ds,pierKey);
+  var L=(Array.isArray(A[k])?A[k]:[]).filter(function(x){ return x && x.id!==id; });
+  if(L.length) A[k]=L; else delete A[k];
+  flReqSaveMap(A); flRenderDR();
+}
+/* ── กล่องกรอกผู้เบิกใหม่ ── */
+var _FLX_RQ={ds:'',pier:'',id:''};
+function flReqOpen(ds,pierKey,id){
+  if(typeof window.laCanEditArea==='function' && !window.laCanEditArea('fleet') && !window.laCanEditArea('operations')){ alert('ดูอย่างเดียว · แก้ไม่ได้'); return; }
+  _FLX_RQ={ds:ds,pier:pierKey||'',id:id||''};
+  var cur=null;
+  if(id) flReqGet(ds,pierKey).forEach(function(x){ if(x.id===id) cur=x; });
+  var ISS=flIssueFor(pierKey);
+  _flxHost().innerHTML='<div class="flx-ovl" onclick="if(event.target===this)flxClose()"><div class="flx-dlg">'
+   +'<div class="flx-h">&#128100; '+(cur?'แก้ผู้เบิก':'เพิ่มผู้เบิกใหม่')+' · '+_flEsc(_flPierLbl(pierKey))
+   +'<button class="x" onclick="flxClose()">&times;</button></div>'
+   +'<label class="flx-l">ชื่อผู้เบิก<input id="flx-rn" placeholder="เช่น ออฟฟิศ · เรือภายนอก" value="'+_flEsc(cur?cur.name:'')+'" autocomplete="off"></label>'
+   +'<div style="display:flex;gap:8px">'
+     +'<label class="flx-l" style="flex:1">PAX<input id="flx-rp" type="number" step="1" placeholder="0" value="'+(cur&&cur.pax!=null?cur.pax:'')+'"></label>'
+     +'<label class="flx-l" style="flex:1">น้ำมัน (L)<input id="flx-rf" type="number" step="1" placeholder="0" value="'+(cur&&cur.fuel!=null?cur.fuel:'')+'"></label>'
+     +'<label class="flx-l" style="flex:1">฿/L<input id="flx-rc" type="number" step="0.01" placeholder="0.00" value="'+(cur&&cur.price!=null?cur.price:'')+'"></label>'
+   +'</div>'
+   +'<div style="display:flex;gap:8px">'
+     +'<label class="flx-l" style="flex:1">ชั่วโมงเครื่อง<input id="flx-re" type="number" step="0.1" placeholder="0" value="'+(cur&&cur.eng!=null?cur.eng:'')+'"></label>'
+     +'<label class="flx-l" style="flex:1">มิเตอร์น้ำ เปิด<input id="flx-rwo" type="number" step="0.1" placeholder="0" value="'+(cur&&cur.wo!=null?cur.wo:'')+'"></label>'
+     +'<label class="flx-l" style="flex:1">มิเตอร์น้ำ ปิด<input id="flx-rwc" type="number" step="0.1" placeholder="0" value="'+(cur&&cur.wc!=null?cur.wc:'')+'"></label>'
+   +'</div>'
+   +(ISS.length?('<div class="flx-l" style="margin-top:4px">&#128230; เบิกของ</div>'
+     +'<div style="display:flex;flex-wrap:wrap;gap:8px">'+ISS.map(function(it){
+       var v=(cur&&cur.iss&&cur.iss[it.id]!=null)?cur.iss[it.id]:'';
+       return '<label class="flx-l" style="flex:1;min-width:90px">'+_flEsc(it.name)+' <em>'+_flEsc(it.unit||'')+'</em>'
+        +'<input class="flx-riss" data-id="'+it.id+'" type="number" step="0.1" placeholder="0" value="'+v+'"></label>';
+     }).join('')+'</div>'):'')
+   +'<button class="flx-ok" onclick="flReqSaveBtn()">'+(cur?'บันทึก':'เพิ่มผู้เบิก')+'</button>'
+   +(cur?('<button class="flx-ok" style="background:#fff;color:#A32D2D;border:1px solid #E7C4C0;margin-top:7px" onclick="flReqDelBtn()">ลบผู้เบิกนี้</button>'):'')
+   +'<div class="flx-n">ผู้เบิกที่ไม่ใช่เรือในฝูง — พิมพ์ชื่อเอง เช่น ออฟฟิศ หรือเรือภายนอก · เก็บเฉพาะวันที่ '+_flEsc(ds)+'</div>'
+   +'</div></div>';
+  setTimeout(function(){ var e=document.getElementById('flx-rn'); if(e) e.focus(); },40);
+}
+function flReqSaveBtn(){
+  var n=document.getElementById('flx-rn');
+  var nm=n?n.value.trim():'';
+  if(!nm){ alert('ใส่ชื่อผู้เบิกก่อน'); if(n)n.focus(); return; }
+  var g=function(id){ var e=document.getElementById(id); return e?e.value:''; };
+  var iss={};
+  document.querySelectorAll('.flx-riss').forEach(function(e){
+    var v=e.value; if(v!==''&&v!=null){ var f=parseFloat(v); if(isFinite(f)) iss[e.getAttribute('data-id')]=f; }
+  });
+  flReqSet(_FLX_RQ.ds,_FLX_RQ.pier,_FLX_RQ.id,{
+    name:nm, pax:g('flx-rp'), fuel:g('flx-rf'), price:g('flx-rc'),
+    eng:g('flx-re'), wo:g('flx-rwo'), wc:g('flx-rwc'), iss:iss
+  });
+  flxClose();
+}
+function flReqDelBtn(){
+  if(!_FLX_RQ.id) return;
+  flReqDel(_FLX_RQ.ds,_FLX_RQ.pier,_FLX_RQ.id);
+  flxClose();
+}
 /* ── ชิปกรองท่า · '' = ทุกท่า ── */
 var _FL_DR_PIER='';
 function flDRSetPier(k){ _FL_DR_PIER=(k===_FL_DR_PIER&&k!=='')?'':k; flRenderDR(); }
@@ -8971,6 +9064,27 @@ function flRenderDR(){
       ${_engTd}${_wTd}${_issTd}</tr>`;
   };
 
+  /* §drReq · แถวผู้เบิกใหม่ · ไม่ใช่เรือในฝูง ไม่มีอินพุตแบบเรือ (แก้ผ่านกล่อง flReqOpen เท่านั้น)
+     ชั่วโมงเครื่องไม่มีตำแหน่งจริงให้ผูก จึงกิน colspan ทั้งชุด ENG_COLS เป็นเลขเดียว */
+  const buildReqRow=(r,pierKeyX,ENG_COLS,ISS,lockedX)=>{
+    const fp=(r.fuel!=null&&r.price!=null)?Math.round(r.fuel*r.price):null;
+    const wu=(r.wo!=null&&r.wc!=null)?Math.round((r.wc-r.wo)*10)/10:null;
+    const issTds=ISS.length
+      ? ISS.map(it=>`<td class="fs-n fs-i">${(r.iss&&r.iss[it.id]!=null)?r.iss[it.id]:'—'}</td>`).join('')
+      : '<td class="fs-n fs-i">—</td>';
+    return `<tr class="fs-rq">
+      <td class="fs-bt"><span class="fs-av" style="background:#8B5CF6">${_e(String(r.name||'?').slice(0,2).toUpperCase())}</span>
+        <span class="fs-nm"><b>${_e(r.name)}</b><em style="color:#8B5CF6">ผู้เบิกภายนอก</em></span>
+        ${lockedX?'':`<button class="fs-xe" onclick="flReqOpen('${ds}','${pierKeyX}','${r.id}')">แก้ / ลบ</button>`}</td>
+      <td class="fs-rt"><span style="font-size:10px;color:${dim.ink3};font-style:italic">— ไม่ใช่เรือในฝูง</span></td>
+      <td class="fs-n fs-ro">${r.pax!=null?r.pax:'—'}</td>
+      <td class="fs-n fs-f">${r.fuel!=null?r.fuel:'—'}</td>
+      <td class="fs-n fs-p">${r.price!=null?r.price:'—'}${fp!=null?`<em>฿${fp.toLocaleString()}</em>`:''}</td>
+      <td class="fs-n fs-e" colspan="${ENG_COLS.length}">${r.eng!=null?r.eng:'—'}</td>
+      <td class="fs-n fs-w">${r.wo!=null?r.wo:'—'}</td>
+      <td class="fs-n fs-w">${r.wc!=null?r.wc:'—'}${wu!=null?`<em>${wu>=0?'+':''}${wu}</em>`:''}</td>
+      ${issTds}</tr>`;
+  };
 
   const _e=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   // Pier section card
@@ -8997,6 +9111,10 @@ function flRenderDR(){
       if(op?.booked){pPAX+=op.booked;pTrips++;}
       const fl=(FL_DAILY[ds]||{})[b.id]?.fuel;
       if(fl){ pFuel+=fl; const pr=(typeof flFuelPriceForBoat==='function')?flFuelPriceForBoat(ds,b):null; if(pr!=null) pCost+=fl*pr; else pCostMissing=true; }
+    });
+    flReqGet(ds,pierKey).forEach(r=>{
+      if(r.pax) pPAX+=r.pax;
+      if(r.fuel){ pFuel+=r.fuel; if(r.price!=null) pCost+=r.fuel*r.price; else pCostMissing=true; }
     });
     const operating=boats.filter(b=>(TRIPS[ds]||{})[b.id]?.booked).length;
     const locked=flDRLocked(ds, pierKey);   // saved → read-only until Edit
@@ -9067,7 +9185,7 @@ function flRenderDR(){
               :'<th class="fs-i fs-na"><em>ยังไม่มีรายการ · กด +</em></th>'}
           </tr>
         </thead>
-        <tbody>${boats.map(b=>buildBoatRow(b,maxEng,locked,ENG_COLS,ISS)).join('')}${(function(){
+        <tbody>${boats.map(b=>buildBoatRow(b,maxEng,locked,ENG_COLS,ISS)).join('')}${flReqGet(ds,pierKey).map(r=>buildReqRow(r,pierKey,ENG_COLS,ISS,locked)).join('')}${(function(){
           /* §drExtra3 · ของจิปาถะ · ปุ่มเดียวล่างสุด เหมือนปุ่มเพิ่มแถว
              ของเดิมทำเป็นคอลัมน์ขวาสุด + ปุ่มติดทุกแถว ซึ่งผิดสองอย่าง
                1) ตารางกว้าง 14 คอลัมน์อยู่แล้ว ปุ่มขวาสุดต้องเลื่อนไปหาทุกครั้ง
@@ -9094,7 +9212,9 @@ function flRenderDR(){
           });
           if(!locked) h+=`<tr class="fs-xa"><td colspan="${NCOL}">`
             + `<button class="fs-xab" onclick="flExtraOpen('${ds}','${pierKey}','','')"><span>+</span> เพิ่มรายการอื่นๆ</button>`
-            + `<span class="fs-xah">ของที่ไม่ได้เบิกทุกวัน · เลือกเรือแล้วพิมพ์เอง เช่น ดิงกี้ · น้ำมัน 20 ลิตร</span></td></tr>`;
+            + `<span class="fs-xah">ของที่ไม่ได้เบิกทุกวัน · เลือกเรือแล้วพิมพ์เอง เช่น ดิงกี้ · น้ำมัน 20 ลิตร</span>`
+            + `<button class="fs-xab" style="margin-left:8px" onclick="flReqOpen('${ds}','${pierKey}','')"><span>+</span> เพิ่มผู้เบิกใหม่</button>`
+            + `<span class="fs-xah">ผู้เบิกที่ไม่ใช่เรือในฝูง · เช่น ออฟฟิศ หรือเรือภายนอก</span></td></tr>`;
           return h; })()}</tbody>
         <tfoot>${(function(){
           /* แถวรวมท้ายตาราง · ของเดิมไม่มี ต้องเลื่อนไปบวกเองในหัว */
@@ -9104,6 +9224,11 @@ function flRenderDR(){
             const fl=(FL_DAILY[ds]||{})[b.id]?.fuel; if(fl) tf+=fl;
             const u=flWaterUsed(ds,b.id); if(u!=null) tw.v=(tw.v||0)+u;
             ISS.forEach(it=>{ const v=flIssueGet(ds,b.id,it.id); if(v!=null) ti[it.id]=(ti[it.id]||0)+v; });
+          });
+          flReqGet(ds,pierKey).forEach(r=>{
+            tp+=r.pax||0; if(r.fuel) tf+=r.fuel;
+            if(r.wo!=null&&r.wc!=null){ tw.v=(tw.v||0)+(r.wc-r.wo); }
+            Object.keys(r.iss||{}).forEach(iid=>{ const v=r.iss[iid]; if(v!=null) ti[iid]=(ti[iid]||0)+v; });
           });
           const nOut=boats.filter(b=>(boatPax[b.id]||{eff:0}).eff>0).length;
           return `<tr>
