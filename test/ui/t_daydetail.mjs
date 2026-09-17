@@ -193,6 +193,36 @@ try {
     else ok('ช่วง 7 วัน · กด ‹ ถอยทั้งช่วง ' + a.f + '→' + b.f + ' · หน้าหลังอยู่ที่เดิม');
   }
 
+  // ช่องทางของใบ B2C (§b2cChan) · ต้องไม่มีช่องทางไหนเป็น "เลขที่ใบ"
+  // note ของเว็บมีสองแบบ ต่างกันแค่มีช่องทางหรือไม่มี · อ่านช่องที่สองมาดื้อ ๆ
+  // จะได้ช่องทางชื่อ LOV-xxxxxxx ใบละช่อง ไปกองในการ์ดเป็นร้อยแถว
+  // จับด้วยกฎเดียว: ช่องทางของใบไหนต้องไม่ใช่ voucherRef หรือ id ของใบนั้นเอง
+  {
+    const bad = await page.evaluate(() => {
+      const out = [];
+      SB_BOOKINGS.forEach(b => {
+        if (b.schemaVer !== 2 || !laIsB2C(b)) return;
+        const c = String(laB2CChannel(b) || '');
+        if (!c) return;
+        if (c === String(b.voucherRef || '') || c === String(b.id || '')
+            || /^[A-Za-z]{0,5}-?\d{4,}$/.test(c))
+          out.push(b.id + ' → ' + c);
+      });
+      return out;
+    });
+    if (bad.length) fail('ช่องทาง B2C เป็นเลขที่ใบ ' + bad.length + ' ใบ · เช่น ' + bad.slice(0, 3).join(', '));
+    else ok('ช่องทาง B2C ไม่มีใบไหนกลายเป็นเลขที่ใบ');
+
+    // และจำนวนช่องทางต้องเป็นจำนวนที่คนตั้งไว้ ไม่ใช่โตตามจำนวนใบ
+    const n = await page.evaluate(() => {
+      const s = new Set();
+      SB_BOOKINGS.forEach(b => { if (b.schemaVer === 2 && laIsB2C(b)) s.add(laB2CChannel(b)); });
+      return s.size;
+    });
+    if (n > 20) fail('ช่องทาง B2C มี ' + n + ' แบบ · มากเกินกว่าจะเป็นช่องทางจริง');
+    else ok('ช่องทาง B2C ทั้งหมด ' + n + ' แบบ');
+  }
+
   // กดแถวแล้วต้องปิดแผ่นก่อน ไม่งั้นแผ่นเต็มจอบังหน้า Booking ที่เพิ่งเปิด
   {
     await page.click('.dv-ddpv[onclick*="\'d1\'"]');

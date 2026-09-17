@@ -1121,10 +1121,24 @@ function _dashLiveFeedHtml(dx,F,side){
    รูปแบบ "B2C · Line OA · LOV-xxxxx · ..." · ใครจะอ่านช่องทางต้องเรียกตัวนี้ */
 function laB2CChannel(b){
   if(!b) return '';
-  if(b.b2cChannel) return String(b.b2cChannel);
-  var m=String(b.note||'').match(/^B2C\s*·\s*([^·]+)·/);
-  if(m && m[1].trim()) return m[1].trim();
-  if(/^b2c_/.test(String(b.id||''))) return 'Website';
+  if(b.b2cChannel) return String(b.b2cChannel).trim();
+  /* §b2cChan · บรรทัด note ที่เว็บเขียนมามีสองแบบ · ต่างกันแค่มีช่องทางหรือไม่มี
+       มีช่องทาง : "B2C · Line OA · LOV-2892592 · Day Trip - Phi Phi - Maiton"
+       ไม่มี     : "B2C · LOV-2766863 · Day Trip - Phi Phi Island"
+     ช่องที่สองจึงเป็นช่องทาง "เฉพาะตอนที่มันไม่ใช่เลขที่ใบ"
+     ของเดิมหยิบช่องที่สองมาดื้อ ๆ · ใบ 84 ใบที่ไม่ได้ติดช่องทางไว้เลยกลายเป็น
+     ช่องทางชื่อ LOV-xxxxxxx ใบละช่อง ไปกองอยู่ในการ์ด "ช่องทางที่ลูกค้าทักเข้ามา"
+     84 แถว ทั้งที่ช่องทางจริงมีแค่ 6 แบบ
+     ⚠ ใบพวกนี้มาจากทั้ง b2c_sync และคนคีย์เอง (BD 52 · Love* 9 · sync 23)
+       ไม่ได้มาจากทางเดียว จึงเดาแทนไม่ได้ว่าเป็น Website — ต้องขึ้นว่าไม่ได้ระบุ
+       ตัวเลขนี้เป็นของที่ต้องเห็น ไม่ใช่ของที่ต้องซ่อน */
+  var segs=String(b.note||'').split('·').map(function(x){ return x.trim(); });
+  if(segs[0]==='B2C' && segs[1]){
+    var s1=segs[1];
+    var isRef=(s1===String(b.voucherRef||'')) || /^[A-Za-z]{0,5}-?\d{4,}$/.test(s1);
+    return isRef ? 'ไม่ได้ระบุช่องทาง' : s1;
+  }
+  if(/^b2c_/.test(String(b.id||''))) return 'ไม่ได้ระบุช่องทาง';
   return 'คีย์เอง';
 }
 

@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-17 · branch `lk-inbox` @ `§ddRange` · **1 commit ahead of origin**
-(`§dayDetail` and `§dayDetail2` are pushed and live; `§ddRange` is the one waiting)
+**As of:** 2026-09-17 · branch `lk-inbox` @ `§b2cChan` · **2 commits ahead of origin**
+(`§dayDetail` and `§dayDetail2` are pushed and live; `§ddRange` and `§b2cChan` are waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -100,6 +100,31 @@ Two things the range forced:
 It also surfaced a bug from the first pass: clicking a row called `dashOpenBooking`, which navigates
 to Booking **behind** a full-screen overlay that never closed — the click looked like it did nothing.
 Rows now close the sheet first, and the test asserts it.
+
+### 2026-09-17 — `§b2cChan`, the channel card was reading voucher numbers as channels
+
+The owner spotted rows in "ช่องทางที่ลูกค้าทักเข้ามา" named `LOV-1601617`, `LOV-6882506`,
+`LOV-2168403` — one row each. `laB2CChannel`, written for `§dayDetail`, took the second segment of
+the website's `note` line as the channel. That line has **two shapes**, and only the first has one:
+
+```
+B2C · Line OA · LOV-2892592 · Day Trip - Phi Phi - Maiton     ← channel present
+B2C · LOV-2766863 · Day Trip - Phi Phi Island                 ← no channel; segment 2 is the voucher
+```
+
+**84 of 304** website bookings are the second shape, so the card grew **84 channels that are really
+one booking each** — the four real channels were buried under a wall of voucher numbers. Segment 2
+is now taken only when it is not that booking's own `voucherRef` (and does not look like a reference
+code). Measured on live data: **84 distinct "channels" → 7**, and the untagged 84 land in one row.
+
+They are labelled **ไม่ได้ระบุช่องทาง**, not "Website": they come from `b2c_sync` (23), `BD` (52)
+and four named staff (9), so there is no single origin to infer, and a guess here would quietly
+distort the number the owner reads to decide marketing spend. 84 of 367 B2C bookings with no channel
+recorded is itself the finding.
+
+`t_daydetail` now asserts the invariant that catches this whole class: **no booking's channel may
+equal its own `voucherRef` or `id`**, plus a bound on the channel count. Reverting to the old parser
+prints `พัง 2`.
 
 `test/ui/t_daydetail.mjs` (`npm run test:daydetail`) recomputes the expected numbers from
 `SB_BOOKINGS` inside the same page and compares them against what the popup renders. **Proven to
