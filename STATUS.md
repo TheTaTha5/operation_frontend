@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-17 · branch `lk-inbox` @ `§b2cChan` · **2 commits ahead of origin**
-(`§dayDetail` and `§dayDetail2` are pushed and live; `§ddRange` and `§b2cChan` are waiting)
+**As of:** 2026-09-17 · branch `lk-inbox` @ `§fcMatrix` · **1 commit ahead of origin**
+(everything up to `§b2cChan` is pushed and live; `§fcMatrix` is the one waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -132,6 +132,36 @@ fail**: swap the day rule to `bookingDate` and it reports `พัง 4` — B2B 
 of that day's bookings were keyed retroactively. Regression: `t_smoke` and `t_mobile` both print
 exactly what they printed on `HEAD` before the change (2 environment-only failures each:
 `contract-tmpl` 404, `pickupmap` needs network, `vancheckin` demo banner).
+
+### 2026-09-17 — Fleet Calendar rebuilt around the question it is asked
+
+| Tag | What was wrong | Measured result |
+|---|---|---|
+| `§fcMatrix` | The page laid a month out as *route → boats*, then appended a "Ready at pier" block per cell. It could not answer the question people actually bring to it — **"which boats are on this programme at this pier today, and what is still free there"** — without reading a whole cell. Worse, the 15 not-available boats were printed into **all 30 cells**, and their status does not change across the month; the only thing that varied was buried under a wall of repeated names. The four header counts didn't add up either: "TL 2 · VP 7 · RN 3" = 12 of 20 boats. | Rows are now **pier → programme**, columns are days, and a matrix view at **7 / 14 days** sits beside the month. Boats that are unavailable for the whole window collapse into one row per pier (14-day view: **1,136 px → 787 px**). Header counts reconcile: **TL 8 · VP 9 · RN 3 = 20**. |
+
+Two rules the rebuild had to settle, both written into the source:
+
+- **Which pier a boat is at** now comes from `getBoatCurrentPier` — the same reader the Boat Status
+  page groups by — not from the pier of whatever route it happens to run. That moved `Artemis`
+  (registered at Tub Lamu, actually at Panwa) into Visit Panwa, and gave the 8 shop boats a group of
+  their own instead of a footnote.
+- **`§fcPax`, the number in each cell.** "People on the boat" (`bkBoatPaxOnBoat`, what Boat Operation
+  uses) is **not** the same as "seats taken from the sellable pool" (`getAllotment`, what the
+  Dashboard shows): 17 Sep Artemis reads **49** one way and **47** the other, because the second is a
+  *route*-level figure that excludes charters. This page asks a *boat*-level question, so it uses the
+  first — and the on-screen label says **"คนบนลำ / ที่รับได้"** so the two can never be confused.
+
+`fcLoadMap` exists for speed: computing each cell with `bkBoatLoadOther` would be 14 days × 20 boats ×
+every booking ≈ a million iterations per paint. It sweeps bookings once and `t_fleetcal` asserts the
+result equals `bkBoatLoadOther` in **every** cell.
+
+`test/ui/t_fleetcal.mjs` (`npm run test:fleetcal`) checks all 280 cells of a 14-day window against
+their source readers, that no row header is a boat name (i.e. the table has not drifted back to
+per-boat rows), and that at 390 px the table **scrolls** rather than being squeezed — the phone bug
+this page shipped with in the mockup, where columns fell to 35 px and every label overlapped.
+**Proven to fail**: swap the pier reader for `b.pier` and make `fcLoadMap` overwrite instead of
+accumulate → `พัง 2` (140 wrong piers, 14 wrong loads). `t_smoke` and `t_mobile` print exactly what
+they printed before.
 
 ### 2026-09-17 — vans on the guide sheet, and stale derived tables
 

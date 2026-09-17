@@ -6344,21 +6344,234 @@ function bop2RouteDayPax(routeId, dateStr){
   return getSeatsConsumed(routeId, dateStr);
 }
 
+/* §fcSkin · โทนเดียวกับหน้า Boat Operation ทั้งชุด · พื้นกรมท่า #16265C
+   การ์ดขาวมุม 12 เงา 0 6px 22px · เขียวหลัก #0F6E56 · ตัวเลข Manrope
+   ขอบเขตอยู่ใน #view-fleetcal ทั้งหมด ไม่รั่วไปหน้าอื่น */
+const FC_CSS=`<style>
+  #view-fleetcal{padding:18px;background:#16265C;font-family:'DM Sans',Manrope,sans-serif;
+    color:#1A2A33;min-height:100%}
+  #view-fleetcal *{box-sizing:border-box}
+  .fc-top{display:flex;align-items:center;gap:9px;margin:-4px 0 12px;flex-wrap:wrap}
+  .fc-top .d{font-size:24px;font-weight:800;letter-spacing:-.02em;color:#fff;font-variant-numeric:tabular-nums}
+  .fc-top .w{font-size:9.5px;font-weight:800;color:#8E97C4;text-transform:uppercase;letter-spacing:.08em;display:block}
+  .fc-top .wk{font-size:13px;font-weight:800;color:#fff;display:block;line-height:1.05}
+  .fc-arw{width:28px;height:28px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);
+    border-radius:9px;color:#C9D6EC;font-size:14px;cursor:pointer;display:inline-flex;
+    align-items:center;justify-content:center;font-family:inherit}
+  .fc-arw:hover{background:rgba(255,255,255,.18)}
+  .fc-tb{background:#0F6E56;color:#fff;border:0;border-radius:999px;padding:6px 14px;font-size:11px;
+    font-weight:700;cursor:pointer;font-family:inherit}
+  .fc-brand{margin:0 auto;text-align:center;line-height:1.1}
+  .fc-brand i{font-style:normal;font-size:9.5px;letter-spacing:.24em;color:#8E97C4}
+  .fc-brand b{display:block;font-size:16px;font-weight:800;letter-spacing:.30em;color:#fff}
+  .fc-chip{height:26px;padding:0 12px;border-radius:13px;display:inline-flex;align-items:center;
+    font-size:11px;font-weight:700;background:rgba(255,255,255,.10);color:#E8EBF7;border:1px solid rgba(255,255,255,.10)}
+  .fc-chip b{font-weight:800;margin-left:5px}
+  .fc-chip.g{background:#D8F4E8;color:#0C6B47;border-color:transparent}
+  .fc-chip.r{background:#FBE0DD;color:#A8362B;border-color:transparent}
+  .fc-hd{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap}
+  .fc-hd h1{font-size:22px;font-weight:800;color:#fff;margin:0 0 2px;letter-spacing:-.015em}
+  .fc-hd p{font-size:11.5px;color:#9aa8cf;margin:0;font-weight:500}
+  .fc-seg{display:inline-flex;background:rgba(255,255,255,.10);border-radius:18px;padding:3px}
+  .fc-seg button{background:transparent;border:0;padding:6px 15px;border-radius:14px;font-size:11px;
+    font-weight:700;color:#C9D6EC;cursor:pointer;font-family:inherit}
+  .fc-seg button.on{background:#fff;color:#16265C}
+  .fc-card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:12px;
+    box-shadow:0 6px 22px rgba(2,10,30,.10);padding:13px 15px;min-width:0;overflow:hidden}
+  .fc-ch2{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#b0aaa0;
+    display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .fc-ch2 .pill{background:#F1EEE9;color:#403833;border-radius:999px;padding:2px 9px;font-size:10px;
+    letter-spacing:0;text-transform:none;font-weight:800;font-family:Manrope,monospace}
+  .fc-ch2 .lg{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;font-size:9.5px;font-weight:600;
+    color:#9b9088;letter-spacing:0;text-transform:none}
+  .fc-ch2 .lg span{display:inline-flex;align-items:center;gap:4px}
+  .fc-ch2 .lg i{width:10px;height:10px;border-radius:3px;display:inline-block}
+  .fc-ch2 .lg .ro b{color:#1A2A33}
+  .fc-pb{width:19px;height:16px;border-radius:5px;color:#fff;display:inline-flex;align-items:center;
+    justify-content:center;font-size:7.5px;font-weight:800;flex:none}
+  /* ══ MATRIX ══
+     §fcMob · ตารางกว้างคงที่เสมอ · จอแคบคือ "เลื่อนแนวนอน" ไม่ใช่ "บีบให้พอดี"
+     บีบแล้วช่องเหลือ 35px ชื่อเรือกับเลขทับกันจนอ่านไม่ออกสักช่อง
+     คอลัมน์ซ้ายตรึงไว้ ไม่งั้นเลื่อนไปสองวันก็ไม่รู้ว่าแถวนั้นของโปรแกรมไหน
+     (กฎเดียวกับ §bopMob ของหน้า Boat Operation) */
+  .fc-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -2px;
+    scrollbar-width:thin;scrollbar-color:#DAD5CC transparent}
+  .fc-wrap::-webkit-scrollbar{height:8px}
+  .fc-wrap::-webkit-scrollbar-thumb{background:#DAD5CC;border-radius:4px}
+  .fc-mt{border-collapse:separate;border-spacing:0;font-size:11px;table-layout:fixed;
+    width:100%;min-width:calc(var(--lcw) + var(--dayw) * var(--nd));--lcw:196px}
+  .fc-mt col.lc{width:var(--lcw)}
+  .fc-mt col.dc{width:var(--dayw)}
+  .fc-mt th,.fc-mt td{border-bottom:1px solid #EFECE6;padding:0}
+  .fc-mt .fc-mh{background:#fff;font-weight:700;color:#6B7785;font-size:10px;padding:4px 6px 7px;
+    text-align:center;border-bottom:2px solid #E5E1D9;position:sticky;top:0;z-index:3;cursor:pointer}
+  .fc-mt .fc-mh.sticky{text-align:left;left:0;z-index:4;cursor:default}
+  .fc-mt .fc-mh .wd{display:block;font-size:9px;color:#9b9088;font-weight:600}
+  .fc-mt .fc-mh .dn{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;
+    border-radius:50%;font-family:Manrope,monospace;font-size:11.5px;font-weight:800;color:#3a3a36;margin-top:2px}
+  .fc-mt .fc-mh.today .dn{background:#0F6E56;color:#fff}
+  .fc-mt .fc-mh.today .wd{color:#0F6E56;font-weight:800}
+  .fc-mt th.sticky{position:sticky;left:0;background:#fff;z-index:2}
+  .fc-mt th.sticky::after{content:'';position:absolute;top:0;right:0;bottom:-1px;width:6px;
+    background:linear-gradient(90deg,rgba(26,42,51,.07),transparent);pointer-events:none}
+  .fc-mt tr.fc-mg th{background:var(--pbg);color:var(--pc);font-size:10.5px;font-weight:800;padding:5px 8px;
+    display:flex;align-items:center;gap:7px;border-bottom:1px solid #E5E1D9}
+  .fc-mt tr.fc-mg td{background:#FBFAF7;text-align:center;font-family:Manrope,monospace;font-size:10px;
+    color:#9b9088;font-weight:700;border-bottom:1px solid #E5E1D9}
+  .fc-mt tr.fc-mg td b{color:#12518F;font-weight:800}
+  .fc-mt th.fc-rn{display:flex;align-items:center;gap:6px;padding:6px 8px 6px 18px;font-weight:700;
+    font-size:10.5px;color:#2c2c2a}
+  .fc-mt th.fc-rn i{width:7px;height:7px;border-radius:50%;flex:none}
+  .fc-mt th.fc-rn i.dot{background:transparent;box-shadow:inset 0 0 0 1px #C9D3CB}
+  .fc-mt th.fc-rn i.x{background:#DAD5CC}
+  .fc-mt th.fc-rn .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* สกินของแอปตั้ง text-transform บน th ไว้ · ชื่อโปรแกรมกับชื่อท่าเลยขึ้นตัวพิมพ์ใหญ่หมด
+     "PHI PHI BAMBOO BY SPEEDBOAT" อ่านยากกว่าและไม่ตรงกับชื่อจริงในทะเบียน */
+  .fc-mt th.fc-rn,.fc-mt tr.fc-mg th,.fc-mt .fc-mh{text-transform:none}
+  .fc-mt th.fc-rn em{font-style:normal;font-family:Manrope,monospace;font-size:9.5px;font-weight:800;color:#C4BEB4}
+  .fc-mt tr.fr th.fc-rn{color:#9AA39C;font-weight:600}
+  .fc-mt tr.fc-dorm th.fc-rn{color:#A9A399;font-weight:600}
+  .fc-mx{vertical-align:top;padding:4px;text-align:center}
+  .fc-mx.has,.fc-mx.hasf{background:#fff}
+  .fc-mx.no{background:#FCFCFA}
+  .fc-mx.nof{background:#FCFDFC}
+  .fc-mx .zero{font-size:9.5px;color:#D4CDC4;font-weight:600}
+  .fc-mt td.dormc{background:repeating-linear-gradient(135deg,#F7F5F1,#F7F5F1 4px,#F1EEE8 4px,#F1EEE8 8px);
+    padding:5px 8px;text-align:left}
+  .fc-mt td.dormc span{display:inline-block;background:#fff;border:1px solid #E5E1D9;border-radius:6px;
+    padding:1px 7px;margin:2px 3px 2px 0;font-size:9.5px;font-weight:600;color:#8A847B}
+  /* ชิปเรือ · ชื่อบรรทัดบน คนบนลำ/ที่รับได้ บรรทัดล่าง แถบ fill ใต้สุด
+     ⚠ line-height ต้องอยู่ที่ชิป · เคยตั้ง line-height:0 ที่ช่องเพื่อกันช่องว่าง inline
+       แล้วสองบรรทัดในชิปทับกันจนอ่านไม่ออกสักลำ */
+  .fc-bc{display:inline-flex;flex-direction:column;align-items:center;border-radius:7px;padding:3px 6px 4px;
+    font-size:9.5px;font-weight:800;line-height:1.25;border:1px solid transparent;max-width:100%;
+    overflow:hidden;width:auto;margin:1px;vertical-align:top}
+  .fc-bc b{font-family:Manrope,monospace;font-size:10.5px;font-weight:800;opacity:.85;line-height:1.15}
+  .fc-bc u{display:block;text-decoration:none;width:100%;height:2px;border-radius:1px;
+    background:rgba(0,0,0,.09);margin-top:2px;overflow:hidden}
+  .fc-bc u s{display:block;height:100%;text-decoration:none}
+  .fc-bc.out{background:#fff;border-color:currentColor;font-weight:700;flex-direction:row;gap:5px;
+    align-items:baseline;padding:3px 7px}
+  .fc-bc.out b{opacity:.5;font-size:9px}
+  /* ══ ปฏิทินเดือน ══ */
+  .fc-calw{min-width:0}
+  .fc-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid #E9E5DE;
+    border-radius:10px;overflow:hidden}
+  .fc-wh{background:#FBFAF7;font-weight:700;font-size:10px;color:#6B7785;text-align:center;padding:6px 0;
+    border-bottom:1px solid #E9E5DE;border-right:1px solid #F2EFE9}
+  .fc-c{min-height:132px;min-width:0;overflow:hidden;padding:6px 7px 7px;border-right:1px solid #F2EFE9;
+    border-bottom:1px solid #F2EFE9;background:#fff;cursor:pointer}
+  .fc-c:hover{background:#FCFDFC}
+  .fc-c.out{background:#FBFAF7;cursor:default}
+  .fc-c.past{background:#FCFCFA}
+  .fc-c.past .fc-bc{opacity:.62}
+  .fc-c.today{background:#F4FBF7;box-shadow:inset 0 0 0 2px #0F6E56}
+  .fc-ch{display:flex;align-items:center;gap:5px;margin-bottom:4px}
+  .fc-ch .dn{font-family:Manrope,monospace;font-size:12.5px;font-weight:800;width:23px;height:23px;
+    display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#1A2A33}
+  .fc-c.today .fc-ch .dn{background:#0F6E56;color:#fff}
+  .fc-c.past .fc-ch .dn{color:#AEB6B0}
+  .fc-ch .k{font-family:Manrope,monospace;font-size:9.5px;font-weight:800;border-radius:999px;padding:2px 7px}
+  .fc-ch .k.run{background:#E7EEF7;color:#12518F;margin-left:auto}
+  .fc-ch .k.free{background:#DDF0E5;color:#0F6E56}
+  .fc-ch .k.free.z{background:#FFE2DC;color:#C44A36}
+  .fc-pg{margin-top:4px}
+  .fc-pg+.fc-pg{padding-top:4px;border-top:1px dashed #EDEAE4}
+  .fc-pgh{display:flex;align-items:center;gap:5px;margin-bottom:1px}
+  .fc-pgn{font-size:8.5px;font-weight:700;color:#A9B2AB;font-family:Manrope,monospace}
+  .fc-rl{margin-top:2px;font-size:10px;line-height:1.3;min-width:0}
+  .fc-rl .rn{display:flex;align-items:center;gap:5px;color:#5A6670;font-weight:700;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .fc-rl .rn i{width:6px;height:6px;border-radius:50%;flex:none}
+  .fc-rl .rn i.dot{background:transparent;box-shadow:inset 0 0 0 1px #C9D3CB}
+  .fc-rl .rn em{font-style:normal;color:#6B289A;font-weight:800}
+  .fc-rl.fr{margin-top:4px}
+  .fc-rl.fr .rn{color:#9AA39C;font-weight:600}
+  .fc-rl .bs{display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;padding-left:11px;min-width:0}
+  .fc-rl .none{font-size:9.5px;color:#C6CFC8;font-weight:600}
+  .fc-wx{margin:2px 0 3px;font-size:9.5px;font-weight:700;color:#C44A36;background:#FFE2DC;
+    border-radius:8px;padding:2px 8px;display:inline-block}
+  .fc-quiet{margin-top:5px;font-size:9px;color:#BFC7C0;font-weight:600}
+  /* ── จอแคบ ── */
+  @media (max-width:820px){
+    #view-fleetcal{padding:10px}
+    .fc-brand{display:none}
+    .fc-top{gap:7px}
+    .fc-top .d{font-size:20px}
+    .fc-hd{align-items:flex-start;gap:9px}
+    .fc-hd h1{font-size:18px}
+    .fc-card{padding:10px 8px 11px}
+    .fc-ch2 .lg{margin-left:0;flex-basis:100%;gap:8px}
+    .fc-mt{--lcw:126px}
+    .fc-mt.w{--dayw:104px !important}
+    .fc-mt th.fc-rn{padding:6px 6px 6px 8px;font-size:10px}
+    .fc-mt tr.fc-mg th{padding:5px 6px;font-size:10px}
+    .fc-mt .fc-mh.sticky{font-size:9.5px}
+    .fc-c{min-height:104px;padding:4px 4px 5px}
+    .fc-wh{font-size:9px;padding:4px 0}
+    .fc-ch .dn{width:20px;height:20px;font-size:11px}
+    .fc-ch .k{font-size:8.5px;padding:1px 5px}
+    .fc-rl .rn{font-size:9px}
+    .fc-rl .bs{padding-left:8px}
+  }
+  /* 7 คอลัมน์ในจอ 390 ไม่เหลือที่ให้ชื่อเรือเลย · เลื่อนแนวนอนเหมือน matrix */
+  @media (max-width:560px){
+    .fc-calw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .fc-cal{min-width:720px}
+  }
+</style>`;
 // ═══════════════════════════════════════════════════════════════════════
 // §fleetCal · ปฏิทินกองเรือ · อ่านอย่างเดียว · แก้เรือยังทำที่ Boat Operation
+//
+// §fcMatrix · หน้านี้ตอบคำถามเดียว: "วันนั้น ท่านี้ โปรแกรมนี้ มีเรือลำไหนวิ่ง
+// และเหลือลำไหนว่าง" · แถวจึงเป็น ท่า → โปรแกรม ไม่ใช่รายลำ
+// (ตั้งแถวเป็นลำจะตอบไม่ได้ ต้องไล่อ่านทั้งคอลัมน์เองว่าใครอยู่โปรแกรมเดียวกัน)
+//
+// ที่มาของข้อมูล — ไม่มีกฎใหม่สักข้อ ทุกตัวยืมของเดิม:
+//   · ลำอยู่ท่าไหน   → getBoatCurrentPier(b, ds) ตัวเดียวกับหน้า Boat Status
+//   · ลำพร้อมไหม     → getCurStatus(b, ds)
+//   · วันนั้นวิ่งอะไร → TRIPS[ds][boatId] ตัวเดียวกับ Boat Operation
+//   · โปรแกรมอยู่ท่าไหน → route.pier
+//   · คนบนลำ         → bkBoatPaxOnBoat / bkBoatIdsOn (ตัวที่ Boat Operation ใช้)
+//
+// ⚠ §fcPax · "คนบนลำ" ไม่เท่ากับ "ที่นั่งที่ถูกใช้จากพูลขาย" ที่ Dashboard โชว์
+//   17 ก.ย. Artemis = คนบนลำ 49 · getAllotment('r10') = ที่นั่งถูกใช้ 47
+//   ต่างกันเพราะคนละคำถามคนละชั้น — ตัวหลังเป็นระดับ "เส้นทาง" ไม่ใช่ระดับ "ลำ"
+//   และไม่นับใบเหมาลำเข้าพูล · หน้านี้ถามระดับลำ จึงต้องใช้คนบนลำ
+//   ป้ายบนหน้าจอเลยเขียนว่า "คนบนลำ / ที่รับได้" ให้ชัด ไม่ใช่ "ที่นั่งที่ขายได้"
 // ═══════════════════════════════════════════════════════════════════════
-var _fc = { ym:null, pier:'all' };
+var _fc = { mode:'m14', from:null, ym:null };
+var FC_PIER=[['tublamu','TL','Tub Lamu','#0F6E56','#E1F5EE'],
+             ['panwa','VP','Visit Panwa','#185FA5','#E6F1FB'],
+             ['ranong','RN','Ranong','#BA7517','#FAEEDA'],
+             ['shop','SHOP','In Shop','#854F0B','#F6EFE3'],
+             ['other','—','Other','#5F5E5A','#F1EFE8']];
+function fcToday_(){ return (typeof TODAY_STR!=='undefined')?TODAY_STR:fcYMD(new Date()); }
+/* ห้ามใช้ toISOString().slice(0,10) — UTC ถอยกลับไปวันก่อนหน้าที่ +07:00 */
+function fcYMD(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function fcAddDays(ymd,n){ var d=new Date(ymd+'T00:00:00'); d.setDate(d.getDate()+(+n||0)); return fcYMD(d); }
 function fcInit(){
-  if(!_fc.ym) _fc.ym = (typeof TODAY_STR!=='undefined'?TODAY_STR:new Date().toISOString().slice(0,10)).slice(0,7);
+  var t=fcToday_();
+  if(!_fc.ym) _fc.ym=t.slice(0,7);
+  if(!_fc.from) _fc.from=fcAddDays(t, _fc.mode==='m7'?-3:-6);
 }
-function fcShiftMonth(delta){
-  var y=+_fc.ym.slice(0,4), m=+_fc.ym.slice(5,7)-1;
-  var d=new Date(y, m+delta, 1);
-  _fc.ym=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+function fcNDays(){ return _fc.mode==='m7'?7:14; }
+window.fcSetMode=function(m){
+  var t=fcToday_();
+  _fc.mode=m;
+  if(m!=='mo') _fc.from=fcAddDays(t, m==='m7'?-3:-6);
+  else _fc.ym=t.slice(0,7);
   renderFleetCal();
-}
-function fcToday(){ _fc.ym=(typeof TODAY_STR!=='undefined'?TODAY_STR:new Date().toISOString().slice(0,10)).slice(0,7); renderFleetCal(); }
-function fcSetPier(p){ _fc.pier=p; renderFleetCal(); }
+};
+/* ‹ › เลื่อนทีละ "ช่วงที่กำลังดู" · โหมดเดือนเลื่อนทีละเดือน */
+window.fcShift=function(delta){
+  if(_fc.mode==='mo'){
+    var y=+_fc.ym.slice(0,4), m=+_fc.ym.slice(5,7)-1, d=new Date(y,m+(+delta||0),1);
+    _fc.ym=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
+  } else _fc.from=fcAddDays(_fc.from, (+delta||0)*fcNDays());
+  renderFleetCal();
+};
+window.fcToday=function(){ fcSetMode(_fc.mode); };
 /* คลิกวัน → ไปจัดเรือที่ Boat Operation ของวันนั้น · หน้านี้ไม่แก้อะไรเอง */
 function fcOpenDay(ds){
   if(typeof _bop2!=='undefined'){
@@ -6370,217 +6583,235 @@ function fcOpenDay(ds){
   var el=document.querySelector('[data-view="operation"]');
   if(el && typeof nav==='function') nav(el);
 }
-/* ท่าของลำนี้ ณ วันที่ ds · ลำที่เข้าอู่ (pier='shop') นับเป็นไม่พร้อม ไม่ผูกกับท่าไหน
-   §boatPierDate · ต้องส่ง ds เข้าไป ไม่งั้นเรือที่กลับมาพร้อมใช้เดือนหน้าจะตกลงถัง 'shop'
-   ซึ่ง FC_PIER ไม่มีช่องให้แสดง → นับใน nReady แต่ไม่โผล่ใต้ท่าไหนเลย */
-function fcPierOf(b, ds){ return (typeof getBoatCurrentPier==='function') ? getBoatCurrentPier(b, ds) : (b.pier||''); }
-var FC_PIER=[['tublamu','TL','Tub Lamu'],['panwa','VP','Visit Panwa'],['ranong','RN','Ranong']];
-/* รวมทุกอย่างของหนึ่งวัน · ไม่คิดเลขซ้ำกับที่อื่น อ่านจาก TRIPS ตัวเดียวกับ Boat Operation */
-function fcDay(ds){
-  var out={ routes:[], charters:[], ready:{}, fixing:[], nReady:0, nOut:0, wx:[] };
-  FC_PIER.forEach(function(p){ out.ready[p[0]]=[]; });
-  var boats=(typeof BOATS!=='undefined'?BOATS:[]).filter(function(b){ return b && !b.retired; });
-  if(_fc.pier!=='all') boats=boats.filter(function(b){ return fcPierOf(b, ds)===_fc.pier; });
-  var byRoute={};
-  boats.forEach(function(b){
-    var st=(typeof getCurStatus==='function') ? getCurStatus(b, ds).s : 'available';
-    var op=(typeof TRIPS!=='undefined' && TRIPS[ds]) ? TRIPS[ds][b.id] : null;
-    if(st!=='available'){ out.fixing.push(b); return; }
-    if(op && op.route){
-      out.nOut++;
-      if(op.charterBookingId || op.type==='charter'){ out.charters.push({b:b, op:op}); return; }
-      (byRoute[op.route]=byRoute[op.route]||[]).push(b);
-      return;
-    }
-    var pk=fcPierOf(b, ds);
-    if(!out.ready[pk]) out.ready[pk]=[];
-    out.ready[pk].push(b); out.nReady++;
-  });
-  var RTS=(typeof ROUTES!=='undefined'?ROUTES:[]);
-  Object.keys(byRoute).forEach(function(rid){
-    var r=RTS.find(function(x){ return x.id===rid; })||{id:rid,name:rid};
-    out.routes.push({ r:r, boats:byRoute[rid], t:((r.times&&r.times[0])||'99:99') });
-  });
-  out.routes.sort(function(a,b){ return String(a.t).localeCompare(String(b.t)); });   // เรียงตามเวลาออกเรือ
-  // เส้นทางที่ยกเลิกเพราะอากาศ · เรือของเส้นทางนั้นเด้งกลับเป็นลำพร้อมเอง (ไม่มีใน TRIPS แล้ว)
-  if(typeof bkV2IsWeatherClosed==='function'){
-    RTS.forEach(function(r){
-      if(r.active===false) return;
-      if(_fc.pier!=='all' && r.pier!==_fc.pier) return;
-      try{ if(bkV2IsWeatherClosed(r.id, ds)) out.wx.push(r); }catch(_){}
+/* §fcPax · คนบนลำ ต่อวัน ต่อลำ · กวาดใบจองรอบเดียวแล้วเก็บเป็นตาราง
+   ถ้าเรียก bkBoatLoadOther ทีละช่อง = 14 วัน × 20 ลำ × ใบจองทั้งระบบ
+   ราวล้านรอบต่อการวาดหนึ่งครั้ง · ตัวนี้กวาดใบจองรอบเดียว ได้ผลชุดเดียวกัน */
+function fcLoadMap(dates){
+  var want={}, out={};
+  dates.forEach(function(d){ want[d]=1; out[d]={}; });
+  var BK=(typeof SB_BOOKINGS!=='undefined'?SB_BOOKINGS:[]);
+  var CXL=['cancelled','rejected','cancelled_weather'];
+  if(typeof bkBoatIdsOn!=='function' || typeof bkBoatPaxOnBoat!=='function') return out;
+  BK.forEach(function(b){
+    if(!b || CXL.indexOf(b.status)>=0) return;
+    var seen={};
+    (b.trips||[]).forEach(function(t){
+      var d=t&&t.date;
+      /* ใบเดียวมีได้หลายทริปในวันเดียว · bkBoatPaxOnBoat รวมทุกทริปของวันนั้นให้แล้ว
+         ถ้าวนซ้ำจะนับซ้ำ */
+      if(!d||!want[d]||seen[d]) return; seen[d]=1;
+      bkBoatIdsOn(b,d).forEach(function(id){
+        var n=bkBoatPaxOnBoat(b,d,id)||0;
+        if(n) out[d][id]=(out[d][id]||0)+n;
+      });
     });
-  }
+  });
   return out;
 }
-function fcBoatChip(b, mode){
-  var c=(typeof getBoatColor==='function')?getBoatColor(b.id):{bg:'#F1F5F1',text:'#6B7785'};
-  var e=(typeof escapeHTML==='function')?escapeHTML:function(x){return x;};
-  return (mode==='out')
-    ? '<span class="fc-b out" style="border-color:'+c.text+';color:'+c.text+'">'+e(b.name||b.id)+'</span>'
-    : '<span class="fc-b'+(mode==='chr'?' chr':'')+'" style="background:'+c.bg+';color:'+c.text+'">'+e(b.name||b.id)+'</span>';
+/* สภาพของลำหนึ่งในวันหนึ่ง · จำผลไว้ต่อการวาดหนึ่งครั้ง */
+function fcCell(b, ds, load, memo){
+  var key=b.id+'|'+ds;
+  if(memo[key]) return memo[key];
+  var pier=(typeof getBoatCurrentPier==='function')?getBoatCurrentPier(b, ds):(b.pier||'other');
+  var st=(typeof getCurStatus==='function')?getCurStatus(b, ds):{s:'available'};
+  var c={pier:pier, s:st.s};
+  if(st.s!=='available'){ c.k='off'; return memo[key]=c; }
+  var op=(typeof TRIPS!=='undefined' && TRIPS[ds]) ? TRIPS[ds][b.id] : null;
+  if(op && op.route){
+    var r=(typeof ROUTES!=='undefined'?ROUTES:[]).find(function(x){return x.id===op.route;})||{id:op.route,name:op.route};
+    c.k='run'; c.rid=r.id; c.rpier=r.pier||pier; c.color=r.color||'#94a3b8';
+    c.routeFull=r.name||r.id;
+    c.route=(typeof _calName==='function')?_calName(r):c.routeFull;
+    c.chr=!!(op.charterBookingId || op.type==='charter');
+    c.pax=(load[ds]&&load[ds][b.id])||0;
+    if(c.chr){
+      try{ var bk=(SB_BOOKINGS||[]).find(function(z){ return z.id===op.charterBookingId; });
+           var a=bk&&bk.agentId&&typeof sbGetAgent==='function'?sbGetAgent(bk.agentId):null;
+           c.ag=a?(a.code||a.name||''):((bk&&(bk.voucherRef||bk.code))||''); }catch(_){ c.ag=''; }
+    }
+    return memo[key]=c;
+  }
+  c.k='free'; return memo[key]=c;
+}
+function fcBoats(){ return (typeof BOATS!=='undefined'?BOATS:[]).filter(function(b){ return b && !b.retired; }); }
+/* ตัวย่อโปรแกรมสำหรับช่องแคบ · อักษรแรกของคำที่มีความหมาย สูงสุด 3 ตัว */
+var FC_SKIP={by:1,the:1,and:1,island:1,islands:1,speedboat:1,catamaran:1,trip:1,day:1};
+var _fcAb={};
+function fcAbbr(name){
+  if(_fcAb[name]) return _fcAb[name];
+  var w=String(name||'').replace(/[+\-·]/g,' ').split(/\s+/).filter(function(x){ return x && !FC_SKIP[x.toLowerCase()]; });
+  var a=w.map(function(x){ return x[0]; }).join('').toUpperCase().slice(0,3);
+  if(!a) a=String(name||'?').slice(0,3).toUpperCase();
+  return _fcAb[name]=a;
+}
+function fcFill(p){ return p>=95?'#C44A36':p>=80?'#B4690E':p>=50?'#0F6E56':'#6FAE92'; }
+function fcChip(b,c,mode){
+  var e=(typeof escapeHTML==='function')?escapeHTML:function(x){return String(x||'');};
+  var col=(typeof getBoatColor==='function')?getBoatColor(b.id):{bg:'#F1F5F1',text:'#6B7785'};
+  var cap=b.cap||0;
+  if(mode==='free') return '<span class="fc-bc out" style="border-color:'+col.text+';color:'+col.text
+    +'" title="'+e(b.name)+' · ว่างที่ท่า · รับได้ '+cap+'">'+e(b.name)+'<b>'+cap+'</b></span>';
+  var pax=c.pax||0, pct=cap?Math.min(100,Math.round(pax/cap*100)):0, held=c.chr&&!pax;
+  return '<span class="fc-bc" style="background:'+col.bg+';color:'+col.text+'" title="'+e(b.name)+' · '
+    +(c.chr?('เหมาลำ'+(c.ag?(' · '+e(c.ag)):'')):e(c.routeFull))
+    +(held?' · ถือลำไว้ (ขาไป/กลับคนละวัน)':(' · คนบนลำ '+pax+' จากที่รับได้ '+cap))+'">'
+    +e(b.name)+'<b>'+(held?'ถือลำ':(pax+'/'+cap))+'</b>'
+    +'<u><s style="width:'+pct+'%;background:'+fcFill(pct)+'"></s></u></span>';
+}
+/* ── MATRIX · ท่า → โปรแกรม × วัน ─────────────────────────────────────── */
+function fcMatrixHtml(){
+  var e=(typeof escapeHTML==='function')?escapeHTML:function(x){return String(x||'');};
+  var WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var n=fcNDays(), wide=(n<=7), TODAY=fcToday_();
+  var days=[], i; for(i=0;i<n;i++) days.push(fcAddDays(_fc.from,i));
+  var boats=fcBoats(), load=fcLoadMap(days), memo={};
+  var C={}; days.forEach(function(ds){ C[ds]={}; boats.forEach(function(b){ C[ds][b.id]=fcCell(b,ds,load,memo); }); });
+  /* โปรแกรมที่ "วิ่งจริงในช่วงนี้" เท่านั้น · ทะเบียนมี 57 เส้นทาง ขึ้นหมดคือ 57 แถวเปล่า */
+  var prog={}, liveBy={}, dormBy={};
+  days.forEach(function(ds){ boats.forEach(function(b){ var c=C[ds][b.id];
+    if(c.k==='run'){ var pk=c.rpier||c.pier; prog[pk]=prog[pk]||{};
+      prog[pk][c.chr?'__chr':c.rid]=c.chr?{name:'เหมาลำ',color:'#6B289A',chr:true}
+                                         :{name:c.routeFull,short:c.route,color:c.color}; }
+    else if(c.k==='free') liveBy[c.pier]=1; }); });
+  boats.forEach(function(b){
+    var off=days.every(function(ds){ return C[ds][b.id].k==='off'; });
+    if(off){ var pk=C[days[0]][b.id].pier||b.pier||'other'; (dormBy[pk]=dormBy[pk]||[]).push(b); }
+  });
+  var cols='<colgroup><col class="lc">'+days.map(function(){return '<col class="dc">';}).join('')+'</colgroup>';
+  var head='<tr><th class="fc-mh sticky">ท่า · โปรแกรม</th>'
+    +days.map(function(ds){ var dt=new Date(ds+'T00:00:00'), t=(ds===TODAY);
+      return '<th class="fc-mh'+(t?' today':'')+'" onclick="fcOpenDay(\''+ds+'\')" title="'+ds+' · ไปจัดเรือที่ Boat Operation">'
+        +'<span class="wd">'+WD[dt.getDay()]+'</span><span class="dn">'+dt.getDate()+'</span></th>'; }).join('')+'</tr>';
+  var body='';
+  FC_PIER.forEach(function(p){
+    var pk=p[0], progs=prog[pk]||{}, dorm=dormBy[pk]||[];
+    var keys=Object.keys(progs).sort(function(a,b){ return a==='__chr'?1:(b==='__chr'?-1:0); });
+    if(!keys.length && !liveBy[pk] && !dorm.length) return;
+    body+='<tr class="fc-mg"><th class="sticky" style="--pc:'+p[3]+';--pbg:'+p[4]+'">'
+      +'<span class="fc-pb" style="background:'+p[3]+'">'+p[1]+'</span>'+p[2]+'</th>'
+      +days.map(function(ds){ var run=0,free=0;
+        boats.forEach(function(b){ var c=C[ds][b.id];
+          if(c.k==='run' && (c.rpier||c.pier)===pk) run++;
+          else if(c.k==='free' && c.pier===pk) free++; });
+        return '<td class="fc-mgc">'+((run||free)?('<b>'+run+'</b><span>/'+free+'</span>'):'')+'</td>'; }).join('')+'</tr>';
+    keys.forEach(function(rid){ var pr=progs[rid];
+      body+='<tr class="fc-pr"><th class="sticky fc-rn"><i style="background:'+pr.color+'"></i>'
+        +'<span class="nm">'+(pr.chr?'&#9875; เหมาลำ':e(wide?pr.name:fcAbbr(pr.name)))+'</span></th>'
+        +days.map(function(ds){ var out=[];
+          boats.forEach(function(b){ var c=C[ds][b.id];
+            if(c.k!=='run' || (c.rpier||c.pier)!==pk) return;
+            if(rid==='__chr' ? !c.chr : (c.chr||c.rid!==rid)) return;
+            out.push(fcChip(b,c)); });
+          return '<td class="fc-mx '+(out.length?'has':'no')+'">'+out.join('')+'</td>'; }).join('')+'</tr>';
+    });
+    if(liveBy[pk]) body+='<tr class="fc-pr fr"><th class="sticky fc-rn"><i class="dot"></i>'
+      +'<span class="nm">ว่างที่ท่า</span></th>'
+      +days.map(function(ds){ var out=[];
+        boats.forEach(function(b){ var c=C[ds][b.id]; if(c.k==='free'&&c.pier===pk) out.push(fcChip(b,c,'free')); });
+        return '<td class="fc-mx '+(out.length?'hasf':'nof')+'">'
+          +(out.length?out.join(''):'<span class="zero">ไม่เหลือ</span>')+'</td>'; }).join('')+'</tr>';
+    /* ลำที่ไม่พร้อมทั้งช่วง ยุบเป็นแถวเดียว · แยกแถวละลำได้ลายทางเปล่า 13 แถวกินครึ่งจอ */
+    if(dorm.length) body+='<tr class="fc-dorm"><th class="sticky fc-rn"><i class="x"></i>'
+      +'<span class="nm">ไม่พร้อมทั้งช่วง</span><em>'+dorm.length+'</em></th>'
+      +'<td class="fc-mx dormc" colspan="'+days.length+'">'
+      +dorm.map(function(b){ return '<span title="รับได้ '+(b.cap||0)+'">'+e(b.name)+'</span>'; }).join('')+'</td></tr>';
+  });
+  return '<div class="fc-wrap"><table class="fc-mt'+(wide?' w':'')+'" style="--dayw:'+(wide?132:92)+'px;--nd:'+n+'">'
+    +cols+'<thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+}
+/* ── ปฏิทินเดือน · ในช่องเรียง ท่า → โปรแกรม → ลำ ───────────────────── */
+function fcMonthHtml(){
+  var e=(typeof escapeHTML==='function')?escapeHTML:function(x){return String(x||'');};
+  var TODAY=fcToday_();
+  var y=+_fc.ym.slice(0,4), m=+_fc.ym.slice(5,7)-1;
+  var last=new Date(y,m+1,0).getDate(), lead=(new Date(y,m,1).getDay()+6)%7;
+  var days=[], i; for(i=1;i<=last;i++) days.push(_fc.ym+'-'+('0'+i).slice(-2));
+  var boats=fcBoats(), load=fcLoadMap(days), memo={};
+  var cells=''; for(i=0;i<lead;i++) cells+='<div class="fc-c out"></div>';
+  days.forEach(function(ds){
+    var dn=+ds.slice(8), isT=(ds===TODAY), isP=(ds<TODAY);
+    var g={}; FC_PIER.forEach(function(p){ g[p[0]]={run:[],free:[],off:[]}; });
+    var nRun=0,nFree=0;
+    boats.forEach(function(b){ var c=fcCell(b,ds,load,memo);
+      (g[c.pier]||g.other)[c.k].push({b:b,c:c});
+      if(c.k==='run')nRun++; else if(c.k==='free')nFree++; });
+    var h='<div class="fc-c'+(isT?' today':'')+(isP?' past':'')+'" onclick="fcOpenDay(\''+ds+'\')" '
+      +'title="'+ds+' · ไปจัดเรือที่ Boat Operation">'
+      +'<div class="fc-ch"><span class="dn">'+dn+'</span>'
+      +'<span class="k run">'+nRun+'</span><span class="k free'+(nFree?'':' z')+'">'+nFree+'</span></div>';
+    if(typeof bkV2IsWeatherClosed==='function'){
+      (typeof ROUTES!=='undefined'?ROUTES:[]).forEach(function(r){ if(r.active===false) return;
+        try{ if(bkV2IsWeatherClosed(r.id, ds))
+          h+='<div class="fc-wx">&#9928; ปิด · '+e((typeof _calName==='function')?_calName(r):(r.name||r.id))+'</div>'; }catch(_){} });
+    }
+    var quiet=[];
+    FC_PIER.forEach(function(p){
+      if(p[0]==='shop'||p[0]==='other') return;
+      var x=g[p[0]];
+      if(!x.run.length && !x.free.length){ if(x.off.length) quiet.push(p[1]); return; }
+      h+='<div class="fc-pg"><div class="fc-pgh"><span class="fc-pb" style="background:'+p[3]+'">'+p[1]+'</span>'
+        +'<span class="fc-pgn">ออก '+x.run.length+' · ว่าง '+x.free.length+'</span></div>';
+      var byR={}; x.run.forEach(function(o){ var k=o.c.chr?'__chr':o.c.rid; (byR[k]=byR[k]||[]).push(o); });
+      Object.keys(byR).forEach(function(k){ var arr=byR[k], c0=arr[0].c;
+        h+='<div class="fc-rl"><span class="rn"><i style="background:'+(k==='__chr'?'#6B289A':c0.color)+'"></i>'
+          +(k==='__chr'?('&#9875; เหมาลำ'+(c0.ag?(' · <em>'+e(c0.ag)+'</em>'):'')):e(c0.routeFull))+'</span>'
+          +'<span class="bs">'+arr.map(function(o){ return fcChip(o.b,o.c); }).join('')+'</span></div>'; });
+      h+='<div class="fc-rl fr"><span class="rn"><i class="dot"></i>ว่าง</span><span class="bs">'
+        +(x.free.length?x.free.map(function(o){ return fcChip(o.b,o.c,'free'); }).join('')
+                       :'<span class="none">&mdash; ไม่เหลือ</span>')+'</span></div></div>';
+    });
+    if(quiet.length) h+='<div class="fc-quiet">'+quiet.join(' · ')+' &mdash; ไม่มีเรือพร้อม</div>';
+    cells+=h+'</div>';
+  });
+  return '<div class="fc-calw"><div class="fc-cal">'
+    +['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(function(w){ return '<div class="fc-wh">'+w+'</div>'; }).join('')
+    +cells+'</div></div>';
 }
 function renderFleetCal(){
   fcInit();
   var host=document.getElementById('fc-host'); if(!host) return;
-  var e=(typeof escapeHTML==='function')?escapeHTML:function(x){return String(x||'');};
-  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var y=+_fc.ym.slice(0,4), m=+_fc.ym.slice(5,7)-1;
-  var first=new Date(y,m,1), last=new Date(y,m+1,0).getDate();
-  var lead=(first.getDay()+6)%7;   // ปฏิทินเริ่มวันจันทร์
-  var TODAY=(typeof TODAY_STR!=='undefined')?TODAY_STR:new Date().toISOString().slice(0,10);
-  var days=[]; for(var d=1;d<=last;d++) days.push(_fc.ym+'-'+String(d).padStart(2,'0'));
-
-  var allBoats=(typeof BOATS!=='undefined'?BOATS:[]).filter(function(b){ return b && !b.retired; });
-  var perPier=FC_PIER.map(function(p){ return p[1]+' '+allBoats.filter(function(b){ return fcPierOf(b)===p[0]; }).length; }).join(' · ');
-  var tDay=fcDay(TODAY);
-  var tRdy=FC_PIER.map(function(p){ return p[1]+' '+((tDay.ready[p[0]]||[]).length); }).join(' · ');
-  var fullDays=days.filter(function(ds){ return ds>=TODAY && fcDay(ds).nReady===0; });
-  var fixNow=tDay.fixing;
-
-  var cells='';
-  for(var i=0;i<lead;i++) cells+='<div class="fc-day out"></div>';
-  days.forEach(function(ds){
-    var D=fcDay(ds), dn=+ds.slice(8,10);
-    var isToday=(ds===TODAY), isPast=(ds<TODAY);
-    var cls='fc-day'+(isToday?' today':'')+(isPast?' past':'')+(D.wx.length?' closed':'');
-    var rdyCls=isPast?'dim':(D.nReady===0?'zero':'');
-    var h='<div class="'+cls+'" onclick="fcOpenDay(\''+ds+'\')" title="'+ds+' · ไปจัดเรือที่ Boat Operation">'
-      +'<div class="fc-hd"><span class="fc-dn">'+dn+'</span><span class="fc-rdy '+rdyCls+'">พร้อม '+D.nReady+'</span></div>';
-    D.wx.forEach(function(r){ h+='<div class="fc-wx">&#9928; ยกเลิก · '+e((typeof _calName==='function')?_calName(r):(r.name||r.id))+'</div>'; });
-    D.routes.forEach(function(x){
-      var _rn=(typeof _calName==='function')?_calName(x.r):((x.r.name)||x.r.id);   // §fcName · ชื่อย่อชุดเดียวกับหน้า Calendar
-      h+='<div class="fc-rl"><i style="background:'+(x.r.color||'#94a3b8')+'"></i>'
-        +'<span class="rn" title="'+e(x.r.name||x.r.id)+'">'+e(_rn)+'</span>'
-        +'<span class="fc-bs">'+x.boats.map(function(b){ return fcBoatChip(b,'fill'); }).join('')+'</span></div>';
-    });
-    D.charters.forEach(function(x){
-      var ag='';
-      try{ var bk=(SB_BOOKINGS||[]).find(function(z){ return z.id===x.op.charterBookingId; });
-           var a=bk&&bk.agentId&&typeof sbGetAgent==='function'?sbGetAgent(bk.agentId):null;
-           ag=a?(a.code||a.name||''):((bk&&(bk.voucherRef||bk.code))||''); }catch(_){}
-      h+='<div class="fc-rl chr"><i style="background:#6B289A"></i><span class="rn">&#9875; Charter</span>'
-        +'<span class="fc-bs">'+fcBoatChip(x.b,'chr')+(ag?('<span class="fc-ag">'+e(ag)+'</span>'):'')+'</span></div>';
-    });
-    h+='<div class="fc-pier"><div class="fc-pt">Ready at pier</div>';
-    FC_PIER.forEach(function(p){
-      if(_fc.pier!=='all' && _fc.pier!==p[0]) return;
-      var arr=D.ready[p[0]]||[];
-      if(!arr.length && _fc.pier==='all' && !allBoats.some(function(b){ return fcPierOf(b)===p[0]; })) return;   // ท่าที่ไม่มีเรือเลย ไม่ต้องขึ้นบรรทัด
-      h+='<div class="fc-fl'+(arr.length?'':' none')+'"><span class="pn">'+p[1]+'</span>'
-        +(arr.length?('<span class="fc-bs">'+arr.map(function(b){ return fcBoatChip(b,'out'); }).join('')+'</span>')
-                    :'<b>&mdash; ไม่เหลือ</b>')+'</div>';
-    });
-    if(D.fixing.length) h+='<div class="fc-fix"><span class="pn">&#128295;</span><span>'+D.fixing.map(function(b){ return e(b.name||b.id); }).join(' · ')+'</span></div>';
-    h+='</div></div>';
-    cells+=h;
-  });
-
-  host.innerHTML=''
-  +'<style>'
-  +'#view-fleetcal{padding:20px;background:#fff;font-family:\'DM Sans\',sans-serif;color:#1A2A33;min-height:100%}'
-  +'#view-fleetcal .fc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;grid-auto-rows:auto}'
-  +'#view-fleetcal .fc-wh{font-weight:600;font-size:10px;color:#6B7785;letter-spacing:.04em;text-align:center;padding:0 0 2px}'
-  +'#view-fleetcal .fc-day{background:#FAFCFA;border:1px solid rgba(0,0,0,.055);border-radius:12px;padding:8px 9px 9px;display:flex;flex-direction:column;min-height:132px;cursor:pointer;transition:transform .12s,box-shadow .12s}'
-  +'#view-fleetcal .fc-day:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(26,42,51,.08);z-index:1}'
-  +'#view-fleetcal .fc-day.out{background:transparent;border-color:transparent;cursor:default;min-height:0}'
-  +'#view-fleetcal .fc-day.out:hover{transform:none;box-shadow:none}'
-  +'#view-fleetcal .fc-day.past{background:#FBFBF9;border-color:rgba(0,0,0,.04)}'
-  +'#view-fleetcal .fc-day.past .fc-b{opacity:.55}'
-  +'#view-fleetcal .fc-day.today{border-color:#0F6E56;box-shadow:0 0 0 1px #0F6E56}'
-  +'#view-fleetcal .fc-day.closed{background:#FFF6F4;border-color:rgba(196,74,54,.25)}'
-  +'#view-fleetcal .fc-hd{display:flex;align-items:center;gap:6px;margin-bottom:6px}'
-  +'#view-fleetcal .fc-dn{font-family:\'Manrope\',\'DM Mono\',monospace;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em;color:#1A2A33;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%}'
-  +'#view-fleetcal .fc-day.today .fc-dn{background:#0F6E56;color:#fff}'
-  +'#view-fleetcal .fc-day.past .fc-dn{color:#AEB6B0}'
-  +'#view-fleetcal .fc-rdy{margin-left:auto;display:inline-flex;align-items:center;gap:4px;background:#DDF0E5;color:#0F6E56;border-radius:11px;padding:2px 9px;font-size:10px;font-weight:700;white-space:nowrap;font-family:\'Manrope\',sans-serif}'
-  +'#view-fleetcal .fc-rdy.zero{background:#FFE2DC;color:#C44A36}'
-  +'#view-fleetcal .fc-rdy.dim{background:#F1F5F1;color:#9AA39C}'
-  +'#view-fleetcal .fc-rl{display:flex;gap:6px;align-items:flex-start;margin-top:3px;font-size:10px;line-height:1.4}'
-  +'#view-fleetcal .fc-rl i{width:6px;height:6px;border-radius:50%;flex:none;margin-top:4px;font-style:normal}'
-  +'#view-fleetcal .fc-rl .rn{flex:none;width:78px;color:#6B7785;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
-  +'#view-fleetcal .fc-rl.chr .rn{color:#6B289A}'
-  +'#view-fleetcal .fc-bs{display:flex;flex-wrap:wrap;gap:3px;min-width:0}'
-  +'#view-fleetcal .fc-b{display:inline-flex;align-items:center;border-radius:7px;padding:1px 6px;font-size:9.5px;font-weight:700;white-space:nowrap;border:1px solid transparent}'
-  +'#view-fleetcal .fc-b.out{background:#fff;font-weight:600;border-color:currentColor;opacity:.9}'
-  +'#view-fleetcal .fc-b.chr{box-shadow:inset 0 0 0 1.5px #6B289A}'
-  +'#view-fleetcal .fc-ag{font-size:9px;color:#6B289A;font-weight:600;align-self:center}'
-  +'#view-fleetcal .fc-wx{margin:2px 0 3px;font-size:9.5px;font-weight:600;color:#C44A36;background:#FFE2DC;border-radius:8px;padding:2px 8px;display:inline-block}'
-  +'#view-fleetcal .fc-pier{margin-top:auto;padding-top:7px;border-top:1px solid #E5EDE7}'
-  +'#view-fleetcal .fc-pt{font-size:9px;color:#6B7785;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}'
-  +'#view-fleetcal .fc-fl{display:flex;gap:6px;align-items:flex-start;font-size:9.5px;line-height:1.45;margin-top:2px}'
-  +'#view-fleetcal .fc-fl .pn{flex:none;width:20px;font-family:\'Manrope\',sans-serif;font-weight:700;color:#6B7785;letter-spacing:.04em;font-size:9px;padding-top:2px}'
-  +'#view-fleetcal .fc-fl.none b{color:#BFC7C0;font-weight:500}'
-  +'#view-fleetcal .fc-fix{display:flex;gap:6px;font-size:9.5px;margin-top:4px;color:#C44A36;line-height:1.45}'
-  +'#view-fleetcal .fc-fix .pn{flex:none;width:20px;font-size:9px}'
-  /* token ชุดเดียวกับ Boat Operation · คัดลอกมาให้ scope นี้ใช้ได้ตรง ๆ */
-  +'#view-fleetcal .bop2-hd{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap}'
-  +'#view-fleetcal .bop2-hd h1{font-size:24px;font-weight:700;color:#1A2A33;margin:0 0 2px;letter-spacing:-.01em}'
-  +'#view-fleetcal .bop2-hd p{font-size:12px;color:#6B7785;margin:0}'
-  +'#view-fleetcal .bo-tile{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:14px 16px;min-height:88px;display:flex;flex-direction:column;justify-content:space-between}'
-  +'#view-fleetcal .bo-tile-lbl{font-size:10px;color:#6B7785;font-weight:600;letter-spacing:.02em}'
-  +'#view-fleetcal .bo-tile-num{font-family:\'Manrope\',\'DM Mono\',monospace;font-size:28px;font-weight:700;line-height:1;color:#1A2A33;letter-spacing:-.01em}'
-  +'#view-fleetcal .bo-btn{padding:7px 14px;font-size:11px;font-weight:600;background:#fff;border:1px solid rgba(15,110,86,.18);border-radius:22px;cursor:pointer;font-family:inherit;color:#0F6E56;transition:all .15s}'
-  +'#view-fleetcal .bo-btn:hover{background:#DDF0E5;border-color:#0F6E56}'
-  +'#view-fleetcal .bo-btn.primary{background:#0F6E56;color:#fff;border-color:#0F6E56}'
-  +'#view-fleetcal .bo-btn.icon{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px}'
-  +'#view-fleetcal .bo-pier-pill{padding:6px 14px;font-size:11px;font-weight:600;background:#fff;border:1px solid rgba(0,0,0,.07);border-radius:16px;cursor:pointer;color:#6B7785;font-family:inherit;transition:all .12s}'
-  +'#view-fleetcal .bo-pier-pill:hover{border-color:#0F6E56;color:#0F6E56}'
-  +'#view-fleetcal .bo-pier-pill.on{background:#0F6E56;color:#fff;border-color:#0F6E56}'
-  +'#view-fleetcal .bo-card{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:14px 16px}'
-  +'#view-fleetcal .bo-legend{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:10px;color:#6B7785}'
-  +'#view-fleetcal .bo-legend-chip{display:inline-flex;align-items:center;gap:5px;color:#1A2A33;font-weight:500}'
-  +'#view-fleetcal .bo-legend-chip span.box{width:11px;height:11px;border-radius:3px}'
-  +'</style>'
-  +'<div class="bop2-hd"><div><h1>Fleet Calendar</h1>'
-    +'<p>เรือลำไหนไปเส้นทางไหน · ท่าไหนยังเหลือลำพร้อม · คลิกวันเพื่อไปจัดเรือที่ Boat Operation</p></div>'
-    +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
-      +'<button class="bo-btn icon" onclick="fcShiftMonth(-1)" title="เดือนก่อน">&lsaquo;</button>'
-      +'<button class="bo-btn primary" onclick="fcToday()">Today</button>'
-      +'<button class="bo-btn icon" onclick="fcShiftMonth(1)" title="เดือนถัดไป">&rsaquo;</button>'
-      +'<span style="font-size:13px;font-weight:700;color:#1A2A33;margin:0 4px;min-width:130px;text-align:center;font-family:Manrope,sans-serif">'+MON[m]+' '+y+'</span>'
+  var TODAY=fcToday_(), boats=fcBoats();
+  var load=fcLoadMap([TODAY]), memo={};
+  var nRun=0,nFree=0,nOff=0;
+  boats.forEach(function(b){ var c=fcCell(b,TODAY,load,memo);
+    if(c.k==='run')nRun++; else if(c.k==='free')nFree++; else nOff++; });
+  var MO=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+  var WDL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var isMo=(_fc.mode==='mo');
+  var adt=new Date((isMo?(_fc.ym+'-01'):_fc.from)+'T00:00:00');
+  var rangeLbl=isMo?(MO[adt.getMonth()]+' '+adt.getFullYear()):(_fc.from+' → +'+(fcNDays()-1));
+  var tdt=new Date(TODAY+'T00:00:00');
+  host.innerHTML=''+FC_CSS
+  +'<div class="fc-top">'
+    +'<button class="fc-arw" onclick="fcShift(-1)" title="ช่วงก่อนหน้า">&lsaquo;</button>'
+    +'<span class="d">'+tdt.getDate()+'</span>'
+    +'<span><b class="wk">'+WDL[tdt.getDay()]+'</b><span class="w">'+MO[tdt.getMonth()].slice(0,3)+' '+tdt.getFullYear()+'</span></span>'
+    +'<button class="fc-arw" onclick="fcShift(1)" title="ช่วงถัดไป">&rsaquo;</button>'
+    +'<button class="fc-tb" onclick="fcToday()">Today</button>'
+    +'<span class="fc-brand"><i>LOVE ANDAMAN</i><b>FLEET CALENDAR</b></span>'
+    +'<span class="fc-chip">ออกงาน <b>'+nRun+'</b></span>'
+    +'<span class="fc-chip g">ว่างที่ท่า <b>'+nFree+'</b></span>'
+    +'<span class="fc-chip r">ไม่พร้อม <b>'+nOff+'</b></span>'
+  +'</div>'
+  +'<div class="fc-hd"><div><h1>Fleet Calendar</h1>'
+    +'<p>ลำไหนอยู่ท่าไหน (ตาม Boat Status) · วันนั้นวิ่งโปรแกรมอะไร · จองไปแล้วกี่คนจากที่รับได้</p></div>'
+    +'<div class="fc-seg">'
+      +'<button class="'+(_fc.mode==='m7'?'on':'')+'" onclick="fcSetMode(\'m7\')">7 วัน</button>'
+      +'<button class="'+(_fc.mode==='m14'?'on':'')+'" onclick="fcSetMode(\'m14\')">14 วัน</button>'
+      +'<button class="'+(isMo?'on':'')+'" onclick="fcSetMode(\'mo\')">เดือน</button>'
     +'</div></div>'
-  +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1.4fr;gap:10px;margin-bottom:14px">'
-    +'<div class="bo-tile"><div><div class="bo-tile-lbl">Fleet</div><div class="bo-tile-num" style="margin-top:6px">'+allBoats.length+'</div></div>'
-      +'<div style="font-size:9px;color:#6B7785;font-weight:500">'+e(perPier)+' · ยังไม่ปลดระวาง</div></div>'
-    +'<div class="bo-tile" style="background:#FFD93D"><div><div class="bo-tile-lbl" style="color:#6B5414">Boats Deployed</div>'
-      +'<div class="bo-tile-num" style="color:#2F2410;margin-top:6px">'+tDay.nOut+'</div></div>'
-      +'<div style="font-size:9px;color:#6B5414;font-weight:500">วันนี้ · '+(tDay.routes.length+tDay.charters.length)+' เส้นทาง</div></div>'
-    +'<div class="bo-tile" style="background:#0F6E56;color:#fff"><div><div class="bo-tile-lbl" style="color:#B5DDCB">Ready at Pier</div>'
-      +'<div class="bo-tile-num" style="color:#fff;margin-top:6px">'+tDay.nReady+'</div></div>'
-      +'<div style="font-size:9px;color:#B5DDCB;font-weight:500">'+e(tRdy)+' — ขายเหมาได้</div></div>'
-    +((fullDays.length||fixNow.length)
-      ? ('<div class="bo-tile" style="background:linear-gradient(115deg,#FF7560 0%,#FF9276 100%);color:#fff;position:relative;overflow:hidden">'
-        +'<div><div style="font-size:10px;color:rgba(255,255,255,.92);font-weight:700;letter-spacing:.02em">&#9888; NEEDS ATTENTION</div>'
-        +'<div style="font-size:15px;font-weight:700;margin-top:5px;line-height:1.25;position:relative;z-index:1">'
-        +(fullDays.length?(fullDays.length+' วันที่กองเรือเต็ม'):'')+(fullDays.length&&fixNow.length?' · ':'')
-        +(fixNow.length?(fixNow.length+' ลำติดซ่อม'):'')+'</div></div>'
-        +'<div style="font-size:10px;opacity:.95;position:relative;z-index:1">'
-        +(fullDays.length?(e(fullDays.slice(0,3).map(function(x){return x.slice(8)+' '+MON[m];}).join(' · '))+' ไม่เหลือลำ'):'')
-        +(fullDays.length&&fixNow.length?' · ':'')+(fixNow.length?e(fixNow.map(function(b){return b.name;}).join(' · ')):'')+'</div>'
-        +'<div style="position:absolute;bottom:-14px;right:-14px;width:60px;height:60px;background:rgba(255,255,255,.16);border-radius:50%"></div></div>')
-      : ('<div class="bo-tile" style="background:#DDF0E5"><div><div class="bo-tile-lbl" style="color:#0F6E56">&#10003; ALL CLEAR</div>'
-        +'<div style="font-size:14px;font-weight:700;margin-top:5px;line-height:1.3;color:#0F6E56">มีลำว่างทุกวัน</div></div>'
-        +'<div style="font-size:9px;color:#0F6E56;opacity:.75;font-weight:500">ทั้งเดือนนี้ยังรับเหมาเพิ่มได้</div></div>'))
-  +'</div>'
-  +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:12px">'
-    +'<span class="bo-pier-pill '+(_fc.pier==='all'?'on':'')+'" onclick="fcSetPier(\'all\')">All piers</span>'
-    +FC_PIER.map(function(p){ return '<span class="bo-pier-pill '+(_fc.pier===p[0]?'on':'')+'" onclick="fcSetPier(\''+p[0]+'\')">'+p[2]+'</span>'; }).join('')
-    +'<span style="margin-left:auto;font-size:10px;color:#6B7785">อ่านอย่างเดียว · แก้เรือที่ <b style="color:#1A2A33">Boat Operation</b></span>'
-  +'</div>'
-  +'<div class="bo-card" style="padding:14px 14px 10px">'
-    +'<div class="fc-grid" style="margin-bottom:10px">'
-    +['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(function(w){ return '<div class="fc-wh">'+w+'</div>'; }).join('')
-    +cells
-    +'</div>'
-    +'<div class="bo-legend" style="margin-top:12px;padding-top:10px;border-top:1px solid #E5EDE7">'
-      +'<span class="bo-legend-chip"><span class="box" style="background:#185FA5;border-radius:50%;width:9px;height:9px"></span>จุดสี = เส้นทาง</span>'
-      +'<span class="bo-legend-chip"><span class="fc-b" style="background:#E6F4ED;color:#0F6E56;font-size:9px">ชิปทึบ</span>เรือที่ออกงาน · สีประจำลำ</span>'
-      +'<span class="bo-legend-chip"><span class="fc-b out" style="border-color:#0F6E56;color:#0F6E56;font-size:9px">ชิปโปร่ง</span>เรือที่พร้อมที่ท่า</span>'
-      +'<span class="bo-legend-chip"><span class="box" style="background:#FFE2DC"></span>พร้อม 0 · กองเรือเต็ม</span>'
-      +'<span class="bo-legend-chip"><span class="box" style="background:#F0E8FB"></span>&#9875; Charter</span>'
-      +'<span class="bo-legend-chip">&#128295; ซ่อม · ไม่นับเป็นลำพร้อม</span>'
-      +'<span style="margin-left:auto;font-size:10px;color:#6B7785;font-weight:600">'+allBoats.length+' boats in fleet</span>'
-    +'</div>'
+  +'<div class="fc-card">'
+    +'<div class="fc-ch2">'+(isMo?'ปฏิทินเดือน':('Matrix · '+fcNDays()+' วัน'))
+      +'<span class="pill">'+rangeLbl+'</span>'
+      +'<span class="lg">'
+        +(isMo?'<span>ในช่องเรียง ท่า → โปรแกรม → ลำ</span>'
+              :'<span><i style="background:#fff;box-shadow:inset 0 0 0 1px #E0DDD6"></i>ว่างที่ท่า</span>'
+               +'<span><i style="background:repeating-linear-gradient(135deg,#F4F2EE,#F4F2EE 3px,#EDEAE4 3px,#EDEAE4 6px)"></i>ไม่พร้อม</span>'
+               +'<span><i style="background:#6B289A"></i>เหมาลำ</span>')
+        +'<span>ตัวเลข = คนบนลำ / ที่รับได้</span>'
+        +'<span class="ro">อ่านอย่างเดียว · แก้เรือที่ <b>Boat Operation</b></span>'
+      +'</span></div>'
+    +(isMo?fcMonthHtml():fcMatrixHtml())
   +'</div>';
 }
 
