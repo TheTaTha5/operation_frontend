@@ -9211,9 +9211,7 @@ function flRenderDR(){
             });
           });
           if(!locked) h+=`<tr class="fs-xa"><td colspan="${NCOL}">`
-            + `<button class="fs-xab" onclick="flExtraOpen('${ds}','${pierKey}','','')"><span>+</span> เพิ่มรายการอื่นๆ</button>`
-            + `<span class="fs-xah">ของที่ไม่ได้เบิกทุกวัน · เลือกเรือแล้วพิมพ์เอง เช่น ดิงกี้ · น้ำมัน 20 ลิตร</span>`
-            + `<button class="fs-xab" style="margin-left:8px" onclick="flReqOpen('${ds}','${pierKey}','')"><span>+</span> เพิ่มผู้เบิกใหม่</button>`
+            + `<button class="fs-xab" onclick="flReqOpen('${ds}','${pierKey}','')"><span>+</span> เพิ่มผู้เบิกใหม่</button>`
             + `<span class="fs-xah">ผู้เบิกที่ไม่ใช่เรือในฝูง · เช่น ออฟฟิศ หรือเรือภายนอก</span></td></tr>`;
           return h; })()}</tbody>
         <tfoot>${(function(){
