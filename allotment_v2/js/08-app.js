@@ -2444,6 +2444,15 @@ window._laReloadData=function(){
     if(typeof TRIP_ACT!=='undefined' && d.trip_actuals) TRIP_ACT=d.trip_actuals;                       // §mealTrip
     if(typeof PIER_KINDS!=='undefined' && Array.isArray(d.pier_kinds)) PIER_KINDS=d.pier_kinds;     // §poKinds
     if(typeof PIER_ITEMS!=='undefined' && Array.isArray(d.pier_items)) PIER_ITEMS=d.pier_items;   // §pierOffice
+    /* §poKindStale (2026-09-17) · "หัวข้อเป็นบั๊คหรือไม่" · ใช่ · หัวการ์ดขึ้นเป็น pk_bo15o
+       PIER_KINDS คือข้อมูลดิบ · PO_KIND คือตารางแปลง id เป็นชื่อ/หน่วย/สี ที่ประกอบไว้ล่วงหน้า
+       poKindSync() ถูกเรียกตอนโหลดสคริปต์ครั้งเดียว และตอนแก้ทะเบียนของเอง
+       แต่ตรงนี้คือทางที่ข้อมูลไหลเข้ามาจากเครื่องอื่น · เขียน PIER_KINDS ทับแล้วจบ
+       PO_KIND จึงค้างชุดเก่า · ประเภทที่คนอื่นเพิ่มจะไม่มีในตารางแปลง
+       แท็บด้านบนอ่าน poKinds() สด ๆ เลยขึ้นชื่อถูก · หัวการ์ดอ่าน PO_KIND เลยขึ้น id ดิบ
+       (และที่อื่นอีกหลายจุดอ่าน PO_KIND[k].t ตรง ๆ ไม่มีกันพลาด · ถ้าไม่มีคีย์คือพัง ไม่ใช่แค่ขึ้นชื่อผิด)
+       ต้องเรียกหลัง PIER_ITEMS ด้วย เพราะ poKindSync สแกนของในทะเบียนหาประเภทที่ถูกลบ */
+    if(typeof poKindSync==='function'){ try{ poKindSync(); }catch(_){} }
     if(typeof PIER_MOVES!=='undefined' && Array.isArray(d.pier_moves)) PIER_MOVES=d.pier_moves;
     if(typeof PIER_STAFF!=='undefined' && Array.isArray(d.pier_staff)) PIER_STAFF=d.pier_staff;
     if(typeof PIER_DUTY!=='undefined' && d.pier_duty) PIER_DUTY=d.pier_duty;
