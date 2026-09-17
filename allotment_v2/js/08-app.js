@@ -15192,6 +15192,20 @@ function ckVanGroupSplit(rows, vanId){
   }catch(_){}
   return out;
 }
+/* §gvanHead3 (2026-09-17) · "อยากให้ขึ้น Love6 ทะเบียน ... / Love9 ทะเบียน 36-0024 · ต่อ · 098-448-4983"
+   ของเดิมบอกแค่ชื่อคันที่สอง · ไกด์ที่ถือกระดาษอยู่ที่ท่า ถ้าคนอีกครึ่งยังไม่มา
+   สิ่งที่ต้องใช้คือ "เบอร์คนขับคันนั้น" ไม่ใช่ชื่อรถ · พิมพ์ให้ครบชุดเดียวกับคันหลัก
+   หนึ่งฟังก์ชันสำหรับทุกคัน คันหลักกับคันร่วมจะได้หน้าตาเหมือนกันเป๊ะ ไม่หลุดกันทีหลัง */
+function pckVanHeadHtml(vid, date){
+  var e=ckEsc;
+  var veh=(typeof vehGet==='function'?vehGet(vid):null)||{};
+  var rd=(typeof vanJobsDriverInfo==='function')?vanJobsDriverInfo(vid,date)
+        :{driver:'',phone:'',plate:veh.plate||''};
+  return '<span class="gvan">'+e(veh.name||pckVanName(vid)||vid)+'</span> <span class="gmeta">'
+    +(rd.plate?('ทะเบียน <b>'+e(rd.plate)+'</b>'):'')
+    +(rd.driver?(' &middot; '+e(rd.driver)):'')
+    +(rd.phone?(' &middot; <b>'+e(rd.phone)+'</b>'):'')+'</span>';
+}
 // ลูกค้ามาถึงท่าได้ยังไง · PK/KL = รถเรารับ · OWN = มาเอง/รถเอเย่นต์ · NOVAN = อยู่ในโซนรับแต่ยังไม่จัดรถ
 function pckArrivalOf(r){
   var b=r.b, t=r.t;
@@ -17612,6 +17626,8 @@ function pckGuideJobCss(){ return '<style>'
   /* §gvanHead · ป้ายบอกว่ากลุ่มรถนี้มีใบที่แยกขึ้นหลายคัน */
   +'.gsplit{display:inline-block;border:1.5px solid #6B289A;background:#F4E8FB;color:#4A2E86;'
   +'border-radius:4px;padding:0 8px;font-size:10.5px;font-weight:700;margin-left:7px;white-space:nowrap}'
+  /* §gvanHead3 · ขีดคั่นระหว่างคันหลักกับคันร่วม */
+  +'.gvsep{color:#9CA3AF;font-weight:700;margin:0 7px}'
   +'.ck{width:14px;height:14px;border:1.5px solid #111827;border-radius:2px;display:block;margin:1px auto 0}'
   +'.vc{font-family:"DM Mono",monospace;font-weight:700;font-size:11.5px;word-break:break-all;line-height:1.15;display:inline-block}'
   +'.nmc{line-height:1.35}.nmc b{font-weight:700;font-size:12.2px}'
@@ -17810,18 +17826,17 @@ function pckGuideJobSheet(bid, date, rows, vd){
     vord.forEach(function(vk){
       var vg=vgs[vk], st=pckTripStats(vg.rows, date), head;
       if(vg.vid){
-        var veh=(typeof vehGet==='function'?vehGet(vg.vid):null)||{};
-        var rd=(typeof vanJobsDriverInfo==='function')?vanJobsDriverInfo(vg.vid,date):{driver:'',phone:'',plate:veh.plate||''};
-        head='<span class="gvan">'+e(veh.name||vg.vid)+'</span> <span class="gmeta">'
-          +(rd.plate?('ทะเบียน <b>'+e(rd.plate)+'</b>'):'')
-          +(rd.driver?(' &middot; '+e(rd.driver)):'')+(rd.phone?(' &middot; <b>'+e(rd.phone)+'</b>'):'')+'</span>';
+        head=pckVanHeadHtml(vg.vid, date);   /* §gvanHead3 */
         // §vanJoin · ไกด์ที่ถือใบนี้จะได้ไม่ยืนรอคนที่รถคันเดียวกันพาไปลงอีกลำ
         head+=pckVanJoinHtml(vg.vid, date, bid, 'gjoin');
-        /* §gvanHead · กลุ่มนี้มีใบที่แยกขึ้นหลายคัน */
+        /* §gvanHead3 · กลุ่มนี้มีใบที่แยกขึ้นหลายคัน · พิมพ์คันร่วมให้ครบชุด
+           คั่นด้วย / ตามที่ขอ · ป้ายนับใบอยู่ข้างหน้า บอกว่ามีกี่ใบที่แยก */
         var _gs=ckVanGroupSplit(vg.rows, vg.vid);
-        if(_gs.n) head+='<span class="gsplit">&#8646; แยกขึ้นหลายคัน '+_gs.n+' ใบ'
-          +(_gs.others.length?(' &middot; ร่วมกับ '+_gs.others.map(function(v){ return e(pckVanName(v)); }).join(' &middot; ')):'')
-          +'</span>';
+        if(_gs.n){
+          head+='<span class="gsplit">&#8646; แยกขึ้นหลายคัน '+_gs.n+' ใบ</span>';
+          _gs.others.forEach(function(v){
+            head+='<span class="gvsep">/</span>'+pckVanHeadHtml(v, date); });
+        }
       } else {
         head='<span class="gvan">'+(zk==='NOVAN'?'ยังไม่จัดรถ':'มาเอง / เอเย่นต์ส่งเอง')+'</span>'
           +' <span class="gmeta">ไม่มีรถของเรา — เช็คว่ามาถึงท่าหรือยัง</span>';
