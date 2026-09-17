@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Engineering Handoff
 
 **For:** whoever (person or AI session) picks up this codebase next.
-**Written:** 2026-09-14 · branch `lk-inbox` @ `898a866`
+**Written:** 2026-09-14 · last revised 2026-09-17 · branch `lk-inbox` @ `579768d`
 **Scope:** *how to work on this safely*. For what the system **is**, read `README.md` →
 `ARCHITECTURE.md` → `allotment_v2/docs/workflows/README.md`. This file does not repeat them.
 
@@ -152,7 +152,34 @@ Lives in `/tmp/w` (scratch; rebuild it if the container is new).
   fresh export when the booking you need is newer than the last backup.
 
 **The stub server dies between runs (exit 144). Always start on a fresh port.** Ports through
-10228 are used. Symptom of forgetting: `ERR_CONNECTION_REFUSED` on the first `page.goto`.
+**10360** are used. Symptom of forgetting: `ERR_CONNECTION_REFUSED` on the first `page.goto`.
+Start servers detached (`( … nohup node stub.js & )`) — a plain `&` in the same command also
+returns 144.
+
+### Testing the real boot path (not just `_boot.js`)
+
+`stub.js` returns `/api/load`'s `data` as an **object**, but `01-auth-sync.js` requires a **string**
+and silently keeps the seed data when it isn't one. That is the whole reason `_boot.js` exists. When
+you need a genuine cold boot — the path a user's F5 takes, where each module's own top-level loader
+reads `localStorage` — use a copy of the stub that does `data: JSON.stringify(d)`. Seeding
+`localStorage` before navigating does **not** work: the sync XHR at the top of `01-auth-sync.js`
+overwrites it with the server blob. localStorage also caps out around 5 MB, so shrink the dataset
+rather than fighting the quota.
+
+### The stale-derived-table detector (`§laDerived`)
+
+Worth rebuilding whenever you touch a load path. Two datasets, D2 = D1 with one extra item carrying
+a unique marker appended to every registry array. Boot one page against D2 (cold boot = the correct
+answer); boot another against D1, then swap `localStorage.getItem` to return D2 for one call and run
+`window._laReloadData()`. Snapshot every global that JSON-stringifies to something containing the
+marker, on both pages. **Fresh minus reloaded = the tables the reload path forgot to rebuild.** It
+found `RT_ADDON_DEFS` with no code reading at all, and the same run proved the cold boot was
+*also* wrong.
+
+⚠ When you enumerate globals, `Object.getOwnPropertyNames(window)` is **not enough**: in a classic
+script `let` and `const` at top level do not land on `window` (that hides `RT_ADDON_DEFS`,
+`SB_ADDON_TYPES`, `ROUTES` …). Grep the sources for top-level declarations and probe each name with
+`(0,eval)(name)` inside a try.
 
 Other harness facts worth knowing:
 - Google Fonts and cdnjs are **blocked** from the container. Never add a CDN dependency.
@@ -199,6 +226,9 @@ When you add a behaviour, add a tag and write the *why*, not the *what*. The wha
 | 19 MB blob in the stub | Blocks `DOMContentLoaded`. Use a subset (`blob_small.json`, 2.5 MB) for sync tests. |
 | `/api/load` | Must return `data` as a **JSON string**, not an object. |
 | Editing a booking | `bkV2CommitBooking` rebuilds the record from the form. **Any field the form does not render is at risk.** This single pattern caused `ops.boatId`, `pierAt/pierBy`, and the food note to be lost. When you add a field, check the save path. |
+| Adding a pre-built lookup | A table assembled once from a raw array (`PO_KIND` ← `PIER_KINDS`, `RT_ADDON_DEFS` ← `SB_ADDON_TYPES`) goes stale on **both** load paths. Register the rebuild in `laRebuildDerived()` (`§laDerived`) — nowhere else. |
+| Which van a booking is on | It is in `ops.vanId` **or** inside `ops.vanSplits`, never both. Read it with `ckGroupVanId(r)`; grouping on `r.vanId` alone silently files the booking under "มาเอง / เอเย่นต์ส่งเอง". |
+| A fix that "only" affects the sync path | Check the cold-boot path too. `§poKindStale` looked like a sync bug; the same fault was firing on every page load and crashing 7 of 21 stock-item buttons. Ask "what does F5 do?" before calling it done. |
 | `scrollbar-width` in CSS | Its presence makes Chrome/Safari discard the whole `::-webkit-scrollbar` block. Firefox-only, inside `@supports (-moz-appearance:none)`. |
 
 ---
