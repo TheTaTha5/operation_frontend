@@ -2385,6 +2385,31 @@ function psuPrintExport(){
 let SB_BOOKINGS = [];   // demo/dummy seed removed 2026-06-03 (real bookings live in localStorage sb_bookings)
 // Load persisted bookings (overrides seed once any booking is saved/edited) · read-modify-write key
 (function(){ try{ const d=JSON.parse(localStorage.getItem(LS_KEY)||'{}'); if(Array.isArray(d.sb_bookings)) SB_BOOKINGS = d.sb_bookings; }catch(e){ console.warn('load sb_bookings failed', e); } })();
+/* §laDerived (2026-09-17) · "ช่วยตรวจสอบ และป้องกันอย่าให้เกิดอีก"
+
+   บางตารางไม่ใช่ข้อมูลดิบ แต่ "ประกอบไว้ล่วงหน้า" จากข้อมูลดิบอีกที
+     PO_KIND / PO_KORDER  ← PIER_KINDS + PIER_ITEMS   (ชื่อ · หน่วย · สี ของประเภทของท่าเรือ)
+     RT_ADDON_DEFS        ← SB_ADDON_TYPES            (ชนิด add-on ที่ผู้ใช้สร้างเอง)
+
+   ข้อมูลดิบถูกเขียนทับสองทาง · ทางเปิดหน้าใหม่ (ตัวโหลดของแต่ละส่วนอ่าน localStorage เอง)
+   และทาง _laReloadData (ข้อมูลไหลเข้ามาจากเครื่องอื่น) · ทั้งสองทางเคย "ลืมประกอบใหม่"
+     · เปิดหน้าใหม่  · ตัวโหลด PIER_KINDS อยู่ท้ายไฟล์ แต่ poKindSync() ถูกเรียกไปก่อนหน้านั้นแล้ว
+                       → PO_KIND มีแค่สามตัวตั้งต้น · ประเภทที่ผู้ใช้สร้างเองไม่มีในตาราง
+                       วัดจริง 17 ก.ย. · ประเภท 6 ตัว ขาดไป 3 · หัวการ์ดขึ้นเป็น pk_bo15o / pk_73f85 / pk_0z9bq
+                       และปุ่มปรับยอด/ซ่อมเสร็จ พัง 7 จาก 21 ชิ้น (อ่าน PO_KIND[kind].u จาก undefined)
+     · ทางซิงก์      · RT_ADDON_DEFS ไม่ถูกประกอบใหม่ → ชนิด add-on ที่เครื่องอื่นสร้าง ไม่โผล่ใน Rate Type
+                       และไม่ติดไปในข้อความสัญญา ทั้งที่ข้อมูลดิบมาถึงแล้ว
+
+   จึงรวมไว้ที่เดียว · เพิ่มตารางที่ประกอบไว้ล่วงหน้าเมื่อไหร่ ให้เติมบรรทัดลงในนี้
+   ห้ามเรียกจากตอนกำลังวาดหน้า · ตัวนี้ประกอบใหม่ทั้งตาราง ไม่ใช่ของถูกที่จะทำทุกเฟรม */
+window.laRebuildDerived=function(why){
+  var bad=[];
+  /* ลำดับสำคัญ · poKindSync สแกน PIER_ITEMS หาประเภทที่ถูกลบไปแล้ว ต้องเรียกหลังของทั้งสองก้อนมาถึง */
+  try{ if(typeof poKindSync==='function') poKindSync(); }catch(e){ bad.push('poKindSync'); }
+  try{ if(typeof rtRebuildAddonDefs==='function') rtRebuildAddonDefs(); }catch(e){ bad.push('rtRebuildAddonDefs'); }
+  if(bad.length){ try{ console.warn('[laRebuildDerived] '+(why||'')+' · ประกอบไม่สำเร็จ:', bad.join(', ')); }catch(_){} }
+  return !bad.length;
+};
 // ── Seamless refresh: reload all in-memory data from localStorage (NO page reload · NO side-effect loaders) ──
 window._laReloadData=function(){
   var d; try{ d=JSON.parse(localStorage.getItem(LS_KEY)||'{}'); }catch(e){ return false; }
@@ -2444,15 +2469,10 @@ window._laReloadData=function(){
     if(typeof TRIP_ACT!=='undefined' && d.trip_actuals) TRIP_ACT=d.trip_actuals;                       // §mealTrip
     if(typeof PIER_KINDS!=='undefined' && Array.isArray(d.pier_kinds)) PIER_KINDS=d.pier_kinds;     // §poKinds
     if(typeof PIER_ITEMS!=='undefined' && Array.isArray(d.pier_items)) PIER_ITEMS=d.pier_items;   // §pierOffice
-    /* §poKindStale (2026-09-17) · "หัวข้อเป็นบั๊คหรือไม่" · ใช่ · หัวการ์ดขึ้นเป็น pk_bo15o
+    /* §poKindStale (2026-09-17) · หัวการ์ดขึ้นเป็น pk_bo15o แทนชื่อประเภท
        PIER_KINDS คือข้อมูลดิบ · PO_KIND คือตารางแปลง id เป็นชื่อ/หน่วย/สี ที่ประกอบไว้ล่วงหน้า
-       poKindSync() ถูกเรียกตอนโหลดสคริปต์ครั้งเดียว และตอนแก้ทะเบียนของเอง
-       แต่ตรงนี้คือทางที่ข้อมูลไหลเข้ามาจากเครื่องอื่น · เขียน PIER_KINDS ทับแล้วจบ
-       PO_KIND จึงค้างชุดเก่า · ประเภทที่คนอื่นเพิ่มจะไม่มีในตารางแปลง
-       แท็บด้านบนอ่าน poKinds() สด ๆ เลยขึ้นชื่อถูก · หัวการ์ดอ่าน PO_KIND เลยขึ้น id ดิบ
-       (และที่อื่นอีกหลายจุดอ่าน PO_KIND[k].t ตรง ๆ ไม่มีกันพลาด · ถ้าไม่มีคีย์คือพัง ไม่ใช่แค่ขึ้นชื่อผิด)
-       ต้องเรียกหลัง PIER_ITEMS ด้วย เพราะ poKindSync สแกนของในทะเบียนหาประเภทที่ถูกลบ */
-    if(typeof poKindSync==='function'){ try{ poKindSync(); }catch(_){} }
+       เขียนข้อมูลดิบทับตรงนี้แล้วต้องประกอบตารางใหม่ด้วย ไม่งั้นตารางค้างชุดเก่า
+       การประกอบย้ายไปอยู่ท้ายฟังก์ชันนี้แล้ว · ดู §laDerived ข้างบน */
     if(typeof PIER_MOVES!=='undefined' && Array.isArray(d.pier_moves)) PIER_MOVES=d.pier_moves;
     if(typeof PIER_STAFF!=='undefined' && Array.isArray(d.pier_staff)) PIER_STAFF=d.pier_staff;
     if(typeof PIER_DUTY!=='undefined' && d.pier_duty) PIER_DUTY=d.pier_duty;
@@ -2472,6 +2492,8 @@ window._laReloadData=function(){
     if(typeof CAL_ROUTE_NAMES!=='undefined' && d.cal_route_names){                  // §cal2b · ชื่อโปรแกรมในปฏิทิน
       try{ CAL_ROUTE_NAMES=(typeof d.cal_route_names==='string')?(JSON.parse(d.cal_route_names)||{}):d.cal_route_names; }catch(_){}
     }
+    /* §laDerived · ข้อมูลดิบเข้าครบแล้ว ค่อยประกอบตารางที่ derive มาจากมันใหม่ทั้งชุด */
+    try{ window.laRebuildDerived('sync'); }catch(_){}
     return true;
   }catch(e){ console.warn('_laReloadData', e); return false; }
 };
@@ -59737,7 +59759,9 @@ function poCloseCalc(itemId, out){
   var ret=poNum(poV('poret_'+itemId));
   var miss=out-ret;
   if(miss<=0){ box.innerHTML=(miss<0?'<div style="font-size:11.5px;color:#C0271C;font-weight:700">คืนมากกว่าที่เบิก · ตรวจตัวเลขอีกครั้ง</div>':''); return; }
-  var it=poItem(itemId), u=it?PO_KIND[it.kind].u:'ชิ้น';
+  /* §laDerived · เคยพัง 7 จาก 21 ชิ้น ตอน PO_KIND ยังไม่มีประเภทที่ผู้ใช้สร้างเอง
+     ตอนนี้ประกอบตารางครบทุกทางแล้ว · ค่าสำรองไว้กันเหนียว ปุ่มต้องกดได้เสมอ */
+  var it=poItem(itemId), u=(it&&PO_KIND[it.kind]||{u:'ชิ้น'}).u;
   box.innerHTML='<div style="background:#FFF6E8;border:1px solid #F0D8A8;border-radius:9px;padding:10px 11px">'
     +'<div style="font-size:11.5px;font-weight:800;color:#7A4A00;margin-bottom:7px">ขาด '+miss+' '+u+' — ระบุให้ครบก่อนปิดยอด</div>'
     +PO_MISS.map(function(m){
@@ -59979,7 +60003,7 @@ function poItemOff(id){
 
 function poAdjOpen(itemId){
   if(!poCanEdit()) return;
-  var it=poItem(itemId); if(!it) return; var b=poBal(itemId), u=PO_KIND[it.kind].u;
+  var it=poItem(itemId); if(!it) return; var b=poBal(itemId), u=(PO_KIND[it.kind]||{u:'ชิ้น'}).u;   // §laDerived · ค่าสำรอง · ปุ่มต้องกดได้เสมอ
   var body='<div style="font-size:12px;color:#7C8091;margin-bottom:11px">ใช้ตอนซื้อของเข้าใหม่ หรือนับสต็อกแล้วไม่ตรง · ใส่ตัวเลขติดลบเพื่อหักออก</div>'
     +'<div style="font-weight:700;font-size:13px;margin-bottom:8px">'+poE(it.label)+' · พร้อมใช้ตอนนี้ '+b.ready+' '+u+'</div>'
     +'<div style="display:flex;gap:9px;align-items:center">'+poIn('poadj','','+/- จำนวน',110)
@@ -59994,7 +60018,7 @@ function poAdjSave(itemId){
 
 function poFixOpen(itemId){
   if(!poCanEdit()) return;
-  var it=poItem(itemId); if(!it) return; var b=poBal(itemId), u=PO_KIND[it.kind].u;
+  var it=poItem(itemId); if(!it) return; var b=poBal(itemId), u=(PO_KIND[it.kind]||{u:'ชิ้น'}).u;   // §laDerived · ค่าสำรอง · ปุ่มต้องกดได้เสมอ
   var body='<div style="font-size:12px;color:#7C8091;margin-bottom:11px">ของที่ซ่อมเสร็จแล้วกลับเข้าคลังพร้อมใช้ · ถ้าซ่อมไม่ไหวให้ตัดทิ้งแทน</div>'
     +'<div style="font-weight:700;font-size:13px;margin-bottom:8px">'+poE(it.label)+' · รอซ่อม '+b.repair+' '+u+'</div>'
     +'<div style="display:flex;gap:9px;align-items:center">'
@@ -65782,6 +65806,13 @@ function ppCSSBoard(){ var S='#prpo-host'; return ''
  +'@media print{'+S+' .bd-g{grid-template-columns:repeat(4,1fr);background:#fff;padding:0;gap:6px}'
    +S+' .bd-p>header{break-after:avoid}}';
 }
+
+/* §laDerived · ทางเปิดหน้าใหม่ · ตัวโหลดข้อมูลดิบของแต่ละส่วนกระจายอยู่ทั่วไฟล์
+   บางตัวอยู่หลังจุดที่ประกอบตารางไปแล้ว (PIER_KINDS โหลดที่บรรทัด ~55000 แต่ poKindSync()
+   ถูกเรียกไปตั้งแต่ ~54970) · ประกอบอีกครั้งตรงนี้ ท้ายไฟล์ หลังทุกตัวโหลดทำงานจบ
+   ทำงานทันทีไม่รอ DOMContentLoaded · หน้าจอเริ่มวาดหลังสคริปต์จบอยู่แล้ว
+   ประกอบซ้ำไม่มีผลข้างเคียง · ทั้งสองตัวสร้างตารางใหม่จากศูนย์ */
+try{ window.laRebuildDerived('boot'); }catch(_){}
 
 // §famField · boot backfill · runs once for the localStorage-seeded ROUTES (the cloud path calls
 //   this again after /api/load overwrites them). In-memory only — no write here; the value reaches
