@@ -111,6 +111,101 @@ try {
   await page.waitForTimeout(250);
   if (await page.$('#dv-ddov')) fail('Esc แล้วไม่ปิด'); else ok('Esc ปิดได้');
 
+  // ── ช่วงวัน (§ddRange) ────────────────────────────────────────────────
+  // กฎที่ต้องไม่หลุด: ตัวเลขทุกตัวในป๊อปอัปต้องมาจาก "ช่วงที่เลือกอยู่" ชุดเดียวกัน
+  // ถ้าที่ไหนสักที่ยังอ่าน _dashDate อยู่ มันจะขึ้นเลขของวันเดียวปนกับเลขของทั้งช่วง
+  // โดยไม่มี error ให้จับ — เป็นบั๊กที่อ่านหน้าจอแล้วไม่รู้เลยว่าผิด
+  const sumOver = (from, to) => page.evaluate(([f, t]) => {
+    const CXL = ['cancelled', 'rejected', 'cancelled_weather'];
+    const o = { n: 0, pax: 0, val: 0, cxl: 0 };
+    SB_BOOKINGS.forEach(b => {
+      if (b.schemaVer !== 2) return;
+      const d = _dashBkDay(b); if (d < f || d > t) return;
+      if (CXL.indexOf(b.status) >= 0) { o.cxl++; return; }
+      o.n++; (b.trips || []).forEach(x => { o.pax += bkV2PaxAllTot(x.pax || {}); });
+      o.val += (+acctBookingTotal(b) || 0);
+    });
+    return o;
+  }, [from, to]);
+
+  await page.evaluate(() => dashOpenDayDetail('b2b'));
+  await page.waitForTimeout(400);
+
+  let capChecked = false;
+  for (const [k, want] of [['d7', 7], ['d30', 30], ['mtd', 0], ['d1', 1]]) {
+    await page.click(`.dv-ddpv[onclick*="'${k}'"]`);
+    await page.waitForTimeout(350);
+    const g = await page.evaluate(() => ({
+      from: window._ddFrom, to: window._ddTo,
+      chips: [...document.querySelectorAll('.dv-ddkpi .dv-chip')].map(x => x.textContent.trim()),
+      rows: document.querySelectorAll('.dv-ddrow').length,
+      more: (document.querySelector('.dv-ddlist .dv-more') || {}).textContent || '',
+      on: (document.querySelector('.dv-ddpv.on') || {}).textContent || '',
+      dash: window._dashDate,
+    }));
+    const days = Math.round((Date.parse(g.to + 'T00:00:00') - Date.parse(g.from + 'T00:00:00')) / 864e5) + 1;
+    if (want && days !== want) { fail(k + ' · ได้ ' + days + ' วัน ควรเป็น ' + want); continue; }
+    const w = await sumOver(g.from, g.to);
+    const n = +(g.chips[0] || '').replace(/\D/g, ''), pax = +(g.chips[1] || '').replace(/\D/g, '');
+    if (n !== w.n || pax !== w.pax)
+      fail(k + ' · ชิปบนหัวได้ ' + n + ' ใบ/' + pax + ' pax ควรเป็น ' + w.n + '/' + w.pax);
+    else ok(k + ' · ' + g.from + '→' + g.to + ' (' + days + ' วัน) · ' + w.n + ' ใบ · ' + w.pax + ' pax ตรงกับ SB_BOOKINGS');
+    if (!g.on) fail(k + ' · ปุ่มลัดที่กดไม่ติดสถานะ on');
+    // ช่วงวันเดียวยังลากหน้า Dashboard ตามไปด้วย · เป็นช่วงแล้วต้องไม่ไปแตะ
+    if (days === 1 && g.dash !== g.from) fail(k + ' · ช่วงวันเดียวแต่หน้าหลังไม่ตามไปวัน ' + g.from);
+    // ฝาครอบจำนวนแถว · วาดพันกว่าแถวทำให้กดสลับฝั่งหน่วง
+    const total = +((g.more.match(/จาก\s*(\d+)/) || [])[1] || g.rows);
+    if (total > 300) { capChecked = true;
+      if (g.rows > 300) fail(k + ' · ' + total + ' ใบ แต่วาด ' + g.rows + ' แถว · ฝาครอบไม่ทำงาน');
+      else if (!g.more) fail(k + ' · ตัดแถวแล้วแต่ไม่บอกว่าตัด');
+      else ok(k + ' · ตัดที่ ' + g.rows + ' จาก ' + total + ' ใบ และบอกไว้บนการ์ด');
+    }
+  }
+  if (!capChecked) console.log('  ! ไม่มีช่วงไหนเกิน 300 ใบ · ยังไม่ได้พิสูจน์ฝาครอบจำนวนแถว');
+
+  // กดดูทั้งหมด
+  {
+    await page.click('.dv-ddpv[onclick*="\'d30\'"]');
+    await page.waitForTimeout(350);
+    const before = await page.evaluate(() => ({ rows: document.querySelectorAll('.dv-ddrow').length,
+      more: !!document.querySelector('.dv-ddlist .dv-more') }));
+    if (before.more) {
+      await page.click('.dv-ddlist .dv-more');
+      await page.waitForTimeout(500);
+      const after = await page.evaluate(() => ({ rows: document.querySelectorAll('.dv-ddrow').length,
+        more: !!document.querySelector('.dv-ddlist .dv-more') }));
+      if (after.rows <= before.rows || after.more) fail('กดดูทั้งหมดแล้วแถวไม่เพิ่ม · ' + before.rows + ' → ' + after.rows);
+      else ok('กดดูทั้งหมด · ' + before.rows + ' → ' + after.rows + ' แถว');
+    }
+  }
+
+  // ‹ › เลื่อนทีละช่วง ไม่ใช่ทีละวัน
+  {
+    await page.click('.dv-ddpv[onclick*="\'d7\'"]');
+    await page.waitForTimeout(300);
+    const a = await page.evaluate(() => ({ f: window._ddFrom, t: window._ddTo, d: window._dashDate }));
+    await page.click('#dv-ddhd .dv-arw');
+    await page.waitForTimeout(400);
+    const b = await page.evaluate(() => ({ f: window._ddFrom, t: window._ddTo, d: window._dashDate }));
+    const step = Math.round((Date.parse(a.f + 'T00:00:00') - Date.parse(b.f + 'T00:00:00')) / 864e5);
+    if (step !== 7) fail('ช่วง 7 วัน · กด ‹ แล้วถอยไป ' + step + ' วัน ควรเป็น 7');
+    else if (b.d !== a.d) fail('ช่วงหลายวันไม่ควรไปขยับวันของหน้า Dashboard · ' + a.d + ' → ' + b.d);
+    else ok('ช่วง 7 วัน · กด ‹ ถอยทั้งช่วง ' + a.f + '→' + b.f + ' · หน้าหลังอยู่ที่เดิม');
+  }
+
+  // กดแถวแล้วต้องปิดแผ่นก่อน ไม่งั้นแผ่นเต็มจอบังหน้า Booking ที่เพิ่งเปิด
+  {
+    await page.click('.dv-ddpv[onclick*="\'d1\'"]');
+    await page.waitForTimeout(350);
+    const has = await page.evaluate(() => !!document.querySelector('.dv-ddrow'));
+    if (has) {
+      await page.click('.dv-ddrow');
+      await page.waitForTimeout(600);
+      if (await page.$('#dv-ddov')) fail('กดแถวแล้วแผ่นยังค้างอยู่ · บังหน้า Booking ที่เพิ่งเปิด');
+      else ok('กดแถวแล้วแผ่นปิดให้เอง');
+    }
+  }
+
   if (errors.length) { errors.forEach(e => fail('error: ' + e)); }
   else ok('ไม่มี console error');
 } finally { await close(); }

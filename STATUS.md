@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-17 · branch `lk-inbox` @ `§dayDetail2` · **1 commit ahead of origin**
-(`fe5f669` was pushed by the owner and is live; `§dayDetail2` is the one waiting)
+**As of:** 2026-09-17 · branch `lk-inbox` @ `§ddRange` · **1 commit ahead of origin**
+(`§dayDetail` and `§dayDetail2` are pushed and live; `§ddRange` is the one waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -78,6 +78,28 @@ for a bar that has a floating button in its right corner. The popup has no such 
 no way out of the popup on a phone**. It threw no error, so `t_smoke` could not see it. Own class
 (`.dv-ddkpi`), and `t_daydetail` now opens the popup at 390×812 and asserts 0px overflow with the
 close button on screen.
+
+A third pass added a **date range** (`§ddRange`): four presets (วันนี้ / 7 วัน / 30 วัน / เดือนนี้,
+all anchored to the real today) plus two date inputs for anything they don't cover, and `‹ ›` now
+steps by the whole window instead of by one day. The range lives in `_ddFrom`/`_ddTo`, deliberately
+**not** in `_dashDate`: every card on the Dashboard behind it (seat calendar, Boat Operating,
+Bookings/day) is a single-day view and could not render a range. A one-day range still drives
+`_dashDate`, so the old behaviour — close the popup and the page is on the day you were looking at —
+is unchanged; a real range leaves the page alone.
+
+Two things the range forced:
+
+- **A row cap.** 30 days of real intake is **1,194 bookings** (`2026-08-19 → 09-17`), and the B2B
+  list alone is 1,085 rows. Measured: 300 rows repaint in **32–42 ms**, all 1,085 in **101 ms** — so
+  the cap is for scroll weight, not for a stall. The list draws 300 and says so on the card, with a
+  click to draw the rest; the summary numbers always count every booking in the range, never just
+  the drawn rows.
+- **The hour strip becomes a day strip** when the range is longer than a day. Hour-of-day summed
+  over 30 days answers nothing; which days were heavy does.
+
+It also surfaced a bug from the first pass: clicking a row called `dashOpenBooking`, which navigates
+to Booking **behind** a full-screen overlay that never closed — the click looked like it did nothing.
+Rows now close the sheet first, and the test asserts it.
 
 `test/ui/t_daydetail.mjs` (`npm run test:daydetail`) recomputes the expected numbers from
 `SB_BOOKINGS` inside the same page and compares them against what the popup renders. **Proven to
