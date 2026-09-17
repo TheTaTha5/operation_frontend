@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-17 · branch `lk-inbox` @ `§fcMatrix` · **1 commit ahead of origin**
-(everything up to `§b2cChan` is pushed and live; `§fcMatrix` is the one waiting)
+**As of:** 2026-09-17 · branch `lk-inbox` @ `§fcEn` · **2 commits ahead of origin**
+(everything up to `§b2cChan` is pushed and live; `§fcMatrix` and `§fcEn` are waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -138,6 +138,14 @@ exactly what they printed on `HEAD` before the change (2 environment-only failur
 | Tag | What was wrong | Measured result |
 |---|---|---|
 | `§fcMatrix` | The page laid a month out as *route → boats*, then appended a "Ready at pier" block per cell. It could not answer the question people actually bring to it — **"which boats are on this programme at this pier today, and what is still free there"** — without reading a whole cell. Worse, the 15 not-available boats were printed into **all 30 cells**, and their status does not change across the month; the only thing that varied was buried under a wall of repeated names. The four header counts didn't add up either: "TL 2 · VP 7 · RN 3" = 12 of 20 boats. | Rows are now **pier → programme**, columns are days, and a matrix view at **7 / 14 days** sits beside the month. Boats that are unavailable for the whole window collapse into one row per pier (14-day view: **1,136 px → 787 px**). Header counts reconcile: **TL 8 · VP 9 · RN 3 = 20**. |
+
+A follow-up pass (`§fcEn`) dropped the page's own title block — the top bar already reads
+**FLEET CALENDAR**, so the `<h1>` and its one-line description were a duplicate costing two full
+rows; the view switcher moved into the top bar in their place. The same pass put **every string on
+this page into English**: the owner's guests and partners read this screen, and it was the only
+operations view mixing Thai labels into a table that foreign readers use. Code comments stay Thai —
+their audience is whoever maintains the file, not whoever reads the screen. The two Thai strings
+left on screen are boat names (`สบายดีทัวร์`, `เรือปลอม`), which are data, not labels.
 
 Two rules the rebuild had to settle, both written into the source:
 

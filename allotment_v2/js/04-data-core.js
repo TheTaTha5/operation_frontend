@@ -6369,10 +6369,11 @@ const FC_CSS=`<style>
   .fc-chip b{font-weight:800;margin-left:5px}
   .fc-chip.g{background:#D8F4E8;color:#0C6B47;border-color:transparent}
   .fc-chip.r{background:#FBE0DD;color:#A8362B;border-color:transparent}
-  .fc-hd{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap}
-  .fc-hd h1{font-size:22px;font-weight:800;color:#fff;margin:0 0 2px;letter-spacing:-.015em}
-  .fc-hd p{font-size:11.5px;color:#9aa8cf;margin:0;font-weight:500}
-  .fc-seg{display:inline-flex;background:rgba(255,255,255,.10);border-radius:18px;padding:3px}
+  /* §fcHdr · ตัดบล็อกหัวเรื่องออก · แถบบนเขียน FLEET CALENDAR อยู่แล้ว
+     ชื่อหน้าเดิมกับคำอธิบายใต้ชื่อเป็นของซ้ำที่กินสองบรรทัดเต็ม
+     ปุ่มเลือกโหมดย้ายมาอยู่ท้ายแถบบนแทน */
+  .fc-seg{display:inline-flex;background:rgba(255,255,255,.10);border-radius:18px;padding:3px;
+    border:1px solid rgba(255,255,255,.10);margin-left:4px}
   .fc-seg button{background:transparent;border:0;padding:6px 15px;border-radius:14px;font-size:11px;
     font-weight:700;color:#C9D6EC;cursor:pointer;font-family:inherit}
   .fc-seg button.on{background:#fff;color:#16265C}
@@ -6498,8 +6499,6 @@ const FC_CSS=`<style>
     .fc-brand{display:none}
     .fc-top{gap:7px}
     .fc-top .d{font-size:20px}
-    .fc-hd{align-items:flex-start;gap:9px}
-    .fc-hd h1{font-size:18px}
     .fc-card{padding:10px 8px 11px}
     .fc-ch2 .lg{margin-left:0;flex-basis:100%;gap:8px}
     .fc-mt{--lcw:126px}
@@ -6572,7 +6571,7 @@ window.fcShift=function(delta){
   renderFleetCal();
 };
 window.fcToday=function(){ fcSetMode(_fc.mode); };
-/* คลิกวัน → ไปจัดเรือที่ Boat Operation ของวันนั้น · หน้านี้ไม่แก้อะไรเอง */
+/* คลิกวัน → open in Boat Operation ของวันนั้น · หน้านี้ไม่แก้อะไรเอง */
 function fcOpenDay(ds){
   if(typeof _bop2!=='undefined'){
     _bop2.selDate=ds;
@@ -6650,12 +6649,12 @@ function fcChip(b,c,mode){
   var col=(typeof getBoatColor==='function')?getBoatColor(b.id):{bg:'#F1F5F1',text:'#6B7785'};
   var cap=b.cap||0;
   if(mode==='free') return '<span class="fc-bc out" style="border-color:'+col.text+';color:'+col.text
-    +'" title="'+e(b.name)+' · ว่างที่ท่า · รับได้ '+cap+'">'+e(b.name)+'<b>'+cap+'</b></span>';
+    +'" title="'+e(b.name)+' · available at pier · capacity '+cap+'">'+e(b.name)+'<b>'+cap+'</b></span>';
   var pax=c.pax||0, pct=cap?Math.min(100,Math.round(pax/cap*100)):0, held=c.chr&&!pax;
   return '<span class="fc-bc" style="background:'+col.bg+';color:'+col.text+'" title="'+e(b.name)+' · '
-    +(c.chr?('เหมาลำ'+(c.ag?(' · '+e(c.ag)):'')):e(c.routeFull))
-    +(held?' · ถือลำไว้ (ขาไป/กลับคนละวัน)':(' · คนบนลำ '+pax+' จากที่รับได้ '+cap))+'">'
-    +e(b.name)+'<b>'+(held?'ถือลำ':(pax+'/'+cap))+'</b>'
+    +(c.chr?('Charter'+(c.ag?(' · '+e(c.ag)):'')):e(c.routeFull))
+    +(held?' · boat held (outbound / return on different days)':(' · '+pax+' pax on board of '+cap))+'">'
+    +e(b.name)+'<b>'+(held?'Held':(pax+'/'+cap))+'</b>'
     +'<u><s style="width:'+pct+'%;background:'+fcFill(pct)+'"></s></u></span>';
 }
 /* ── MATRIX · ท่า → โปรแกรม × วัน ─────────────────────────────────────── */
@@ -6670,7 +6669,7 @@ function fcMatrixHtml(){
   var prog={}, liveBy={}, dormBy={};
   days.forEach(function(ds){ boats.forEach(function(b){ var c=C[ds][b.id];
     if(c.k==='run'){ var pk=c.rpier||c.pier; prog[pk]=prog[pk]||{};
-      prog[pk][c.chr?'__chr':c.rid]=c.chr?{name:'เหมาลำ',color:'#6B289A',chr:true}
+      prog[pk][c.chr?'__chr':c.rid]=c.chr?{name:'Charter',color:'#6B289A',chr:true}
                                          :{name:c.routeFull,short:c.route,color:c.color}; }
     else if(c.k==='free') liveBy[c.pier]=1; }); });
   boats.forEach(function(b){
@@ -6678,9 +6677,9 @@ function fcMatrixHtml(){
     if(off){ var pk=C[days[0]][b.id].pier||b.pier||'other'; (dormBy[pk]=dormBy[pk]||[]).push(b); }
   });
   var cols='<colgroup><col class="lc">'+days.map(function(){return '<col class="dc">';}).join('')+'</colgroup>';
-  var head='<tr><th class="fc-mh sticky">ท่า · โปรแกรม</th>'
+  var head='<tr><th class="fc-mh sticky">Pier · Program</th>'
     +days.map(function(ds){ var dt=new Date(ds+'T00:00:00'), t=(ds===TODAY);
-      return '<th class="fc-mh'+(t?' today':'')+'" onclick="fcOpenDay(\''+ds+'\')" title="'+ds+' · ไปจัดเรือที่ Boat Operation">'
+      return '<th class="fc-mh'+(t?' today':'')+'" onclick="fcOpenDay(\''+ds+'\')" title="'+ds+' · open in Boat Operation">'
         +'<span class="wd">'+WD[dt.getDay()]+'</span><span class="dn">'+dt.getDate()+'</span></th>'; }).join('')+'</tr>';
   var body='';
   FC_PIER.forEach(function(p){
@@ -6696,7 +6695,7 @@ function fcMatrixHtml(){
         return '<td class="fc-mgc">'+((run||free)?('<b>'+run+'</b><span>/'+free+'</span>'):'')+'</td>'; }).join('')+'</tr>';
     keys.forEach(function(rid){ var pr=progs[rid];
       body+='<tr class="fc-pr"><th class="sticky fc-rn"><i style="background:'+pr.color+'"></i>'
-        +'<span class="nm">'+(pr.chr?'&#9875; เหมาลำ':e(wide?pr.name:fcAbbr(pr.name)))+'</span></th>'
+        +'<span class="nm">'+(pr.chr?'&#9875; Charter':e(wide?pr.name:fcAbbr(pr.name)))+'</span></th>'
         +days.map(function(ds){ var out=[];
           boats.forEach(function(b){ var c=C[ds][b.id];
             if(c.k!=='run' || (c.rpier||c.pier)!==pk) return;
@@ -6705,16 +6704,16 @@ function fcMatrixHtml(){
           return '<td class="fc-mx '+(out.length?'has':'no')+'">'+out.join('')+'</td>'; }).join('')+'</tr>';
     });
     if(liveBy[pk]) body+='<tr class="fc-pr fr"><th class="sticky fc-rn"><i class="dot"></i>'
-      +'<span class="nm">ว่างที่ท่า</span></th>'
+      +'<span class="nm">Available at pier</span></th>'
       +days.map(function(ds){ var out=[];
         boats.forEach(function(b){ var c=C[ds][b.id]; if(c.k==='free'&&c.pier===pk) out.push(fcChip(b,c,'free')); });
         return '<td class="fc-mx '+(out.length?'hasf':'nof')+'">'
-          +(out.length?out.join(''):'<span class="zero">ไม่เหลือ</span>')+'</td>'; }).join('')+'</tr>';
+          +(out.length?out.join(''):'<span class="zero">none</span>')+'</td>'; }).join('')+'</tr>';
     /* ลำที่ไม่พร้อมทั้งช่วง ยุบเป็นแถวเดียว · แยกแถวละลำได้ลายทางเปล่า 13 แถวกินครึ่งจอ */
     if(dorm.length) body+='<tr class="fc-dorm"><th class="sticky fc-rn"><i class="x"></i>'
-      +'<span class="nm">ไม่พร้อมทั้งช่วง</span><em>'+dorm.length+'</em></th>'
+      +'<span class="nm">Out of service</span><em>'+dorm.length+'</em></th>'
       +'<td class="fc-mx dormc" colspan="'+days.length+'">'
-      +dorm.map(function(b){ return '<span title="รับได้ '+(b.cap||0)+'">'+e(b.name)+'</span>'; }).join('')+'</td></tr>';
+      +dorm.map(function(b){ return '<span title="capacity '+(b.cap||0)+'">'+e(b.name)+'</span>'; }).join('')+'</td></tr>';
   });
   return '<div class="fc-wrap"><table class="fc-mt'+(wide?' w':'')+'" style="--dayw:'+(wide?132:92)+'px;--nd:'+n+'">'
     +cols+'<thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
@@ -6736,13 +6735,13 @@ function fcMonthHtml(){
       (g[c.pier]||g.other)[c.k].push({b:b,c:c});
       if(c.k==='run')nRun++; else if(c.k==='free')nFree++; });
     var h='<div class="fc-c'+(isT?' today':'')+(isP?' past':'')+'" onclick="fcOpenDay(\''+ds+'\')" '
-      +'title="'+ds+' · ไปจัดเรือที่ Boat Operation">'
+      +'title="'+ds+' · open in Boat Operation">'
       +'<div class="fc-ch"><span class="dn">'+dn+'</span>'
       +'<span class="k run">'+nRun+'</span><span class="k free'+(nFree?'':' z')+'">'+nFree+'</span></div>';
     if(typeof bkV2IsWeatherClosed==='function'){
       (typeof ROUTES!=='undefined'?ROUTES:[]).forEach(function(r){ if(r.active===false) return;
         try{ if(bkV2IsWeatherClosed(r.id, ds))
-          h+='<div class="fc-wx">&#9928; ปิด · '+e((typeof _calName==='function')?_calName(r):(r.name||r.id))+'</div>'; }catch(_){} });
+          h+='<div class="fc-wx">&#9928; Closed · '+e((typeof _calName==='function')?_calName(r):(r.name||r.id))+'</div>'; }catch(_){} });
     }
     var quiet=[];
     FC_PIER.forEach(function(p){
@@ -6750,17 +6749,17 @@ function fcMonthHtml(){
       var x=g[p[0]];
       if(!x.run.length && !x.free.length){ if(x.off.length) quiet.push(p[1]); return; }
       h+='<div class="fc-pg"><div class="fc-pgh"><span class="fc-pb" style="background:'+p[3]+'">'+p[1]+'</span>'
-        +'<span class="fc-pgn">ออก '+x.run.length+' · ว่าง '+x.free.length+'</span></div>';
+        +'<span class="fc-pgn">out '+x.run.length+' · free '+x.free.length+'</span></div>';
       var byR={}; x.run.forEach(function(o){ var k=o.c.chr?'__chr':o.c.rid; (byR[k]=byR[k]||[]).push(o); });
       Object.keys(byR).forEach(function(k){ var arr=byR[k], c0=arr[0].c;
         h+='<div class="fc-rl"><span class="rn"><i style="background:'+(k==='__chr'?'#6B289A':c0.color)+'"></i>'
-          +(k==='__chr'?('&#9875; เหมาลำ'+(c0.ag?(' · <em>'+e(c0.ag)+'</em>'):'')):e(c0.routeFull))+'</span>'
+          +(k==='__chr'?('&#9875; Charter'+(c0.ag?(' · <em>'+e(c0.ag)+'</em>'):'')):e(c0.routeFull))+'</span>'
           +'<span class="bs">'+arr.map(function(o){ return fcChip(o.b,o.c); }).join('')+'</span></div>'; });
-      h+='<div class="fc-rl fr"><span class="rn"><i class="dot"></i>ว่าง</span><span class="bs">'
+      h+='<div class="fc-rl fr"><span class="rn"><i class="dot"></i>Available</span><span class="bs">'
         +(x.free.length?x.free.map(function(o){ return fcChip(o.b,o.c,'free'); }).join('')
-                       :'<span class="none">&mdash; ไม่เหลือ</span>')+'</span></div></div>';
+                       :'<span class="none">&mdash; none</span>')+'</span></div></div>';
     });
-    if(quiet.length) h+='<div class="fc-quiet">'+quiet.join(' · ')+' &mdash; ไม่มีเรือพร้อม</div>';
+    if(quiet.length) h+='<div class="fc-quiet">'+quiet.join(' · ')+' &mdash; no boats ready</div>';
     cells+=h+'</div>';
   });
   return '<div class="fc-calw"><div class="fc-cal">'
@@ -6783,33 +6782,31 @@ function renderFleetCal(){
   var tdt=new Date(TODAY+'T00:00:00');
   host.innerHTML=''+FC_CSS
   +'<div class="fc-top">'
-    +'<button class="fc-arw" onclick="fcShift(-1)" title="ช่วงก่อนหน้า">&lsaquo;</button>'
+    +'<button class="fc-arw" onclick="fcShift(-1)" title="Previous period">&lsaquo;</button>'
     +'<span class="d">'+tdt.getDate()+'</span>'
     +'<span><b class="wk">'+WDL[tdt.getDay()]+'</b><span class="w">'+MO[tdt.getMonth()].slice(0,3)+' '+tdt.getFullYear()+'</span></span>'
-    +'<button class="fc-arw" onclick="fcShift(1)" title="ช่วงถัดไป">&rsaquo;</button>'
+    +'<button class="fc-arw" onclick="fcShift(1)" title="Next period">&rsaquo;</button>'
     +'<button class="fc-tb" onclick="fcToday()">Today</button>'
     +'<span class="fc-brand"><i>LOVE ANDAMAN</i><b>FLEET CALENDAR</b></span>'
-    +'<span class="fc-chip">ออกงาน <b>'+nRun+'</b></span>'
-    +'<span class="fc-chip g">ว่างที่ท่า <b>'+nFree+'</b></span>'
-    +'<span class="fc-chip r">ไม่พร้อม <b>'+nOff+'</b></span>'
+    +'<span class="fc-chip">Deployed <b>'+nRun+'</b></span>'
+    +'<span class="fc-chip g">Available <b>'+nFree+'</b></span>'
+    +'<span class="fc-chip r">Unavailable <b>'+nOff+'</b></span>'
+    +'<span class="fc-seg">'
+      +'<button class="'+(_fc.mode==='m7'?'on':'')+'" onclick="fcSetMode(\'m7\')">7 days</button>'
+      +'<button class="'+(_fc.mode==='m14'?'on':'')+'" onclick="fcSetMode(\'m14\')">14 days</button>'
+      +'<button class="'+(isMo?'on':'')+'" onclick="fcSetMode(\'mo\')">Month</button>'
+    +'</span>'
   +'</div>'
-  +'<div class="fc-hd"><div><h1>Fleet Calendar</h1>'
-    +'<p>ลำไหนอยู่ท่าไหน (ตาม Boat Status) · วันนั้นวิ่งโปรแกรมอะไร · จองไปแล้วกี่คนจากที่รับได้</p></div>'
-    +'<div class="fc-seg">'
-      +'<button class="'+(_fc.mode==='m7'?'on':'')+'" onclick="fcSetMode(\'m7\')">7 วัน</button>'
-      +'<button class="'+(_fc.mode==='m14'?'on':'')+'" onclick="fcSetMode(\'m14\')">14 วัน</button>'
-      +'<button class="'+(isMo?'on':'')+'" onclick="fcSetMode(\'mo\')">เดือน</button>'
-    +'</div></div>'
   +'<div class="fc-card">'
-    +'<div class="fc-ch2">'+(isMo?'ปฏิทินเดือน':('Matrix · '+fcNDays()+' วัน'))
+    +'<div class="fc-ch2">'+(isMo?'Month view':('Matrix · '+fcNDays()+' days'))
       +'<span class="pill">'+rangeLbl+'</span>'
       +'<span class="lg">'
-        +(isMo?'<span>ในช่องเรียง ท่า → โปรแกรม → ลำ</span>'
-              :'<span><i style="background:#fff;box-shadow:inset 0 0 0 1px #E0DDD6"></i>ว่างที่ท่า</span>'
-               +'<span><i style="background:repeating-linear-gradient(135deg,#F4F2EE,#F4F2EE 3px,#EDEAE4 3px,#EDEAE4 6px)"></i>ไม่พร้อม</span>'
-               +'<span><i style="background:#6B289A"></i>เหมาลำ</span>')
-        +'<span>ตัวเลข = คนบนลำ / ที่รับได้</span>'
-        +'<span class="ro">อ่านอย่างเดียว · แก้เรือที่ <b>Boat Operation</b></span>'
+        +(isMo?'<span>each cell: pier → program → boat</span>'
+              :'<span><i style="background:#fff;box-shadow:inset 0 0 0 1px #E0DDD6"></i>available</span>'
+               +'<span><i style="background:repeating-linear-gradient(135deg,#F4F2EE,#F4F2EE 3px,#EDEAE4 3px,#EDEAE4 6px)"></i>unavailable</span>'
+               +'<span><i style="background:#6B289A"></i>charter</span>')
+        +'<span>numbers = pax on board / capacity</span>'
+        +'<span class="ro">read-only · assign boats in <b>Boat Operation</b></span>'
       +'</span></div>'
     +(isMo?fcMonthHtml():fcMatrixHtml())
   +'</div>';
