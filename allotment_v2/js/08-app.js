@@ -15175,6 +15175,23 @@ function ckVanSplitNote(O){
       return (typeof pckVanName==='function')?pckVanName(v):v; }).join(' · ');
   }catch(_){ return ''; }
 }
+/* §gvanHead (2026-09-17) · "ที่ว่ารถสองคัน เพิ่มในหัวด้วยเลยได้ไหม"
+   ป้ายในช่อง Note บอกเป็นรายใบ · แต่คนอ่านหัวกลุ่มรถก่อนเสมอ
+   ยืนอยู่ที่ Love6 สิ่งที่อยากรู้คือ "กลุ่มนี้มีใครไปคันอื่นด้วยไหม · คันไหน"
+   จึงสรุปที่หัวกลุ่ม · นับใบ แล้วบอกชื่อ "คันอื่น" ไม่ต้องพูดชื่อคันที่ยืนอยู่ซ้ำ */
+function ckVanGroupSplit(rows, vanId){
+  var out={n:0, others:[]};
+  try{
+    var seen={};
+    (rows||[]).forEach(function(r){
+      var ids=(typeof ckVanIds==='function')?ckVanIds(r&&r.O):[];
+      if(ids.length<2) return;
+      out.n++;
+      ids.forEach(function(v){ if(v && v!==vanId && !seen[v]){ seen[v]=1; out.others.push(v); } });
+    });
+  }catch(_){}
+  return out;
+}
 // ลูกค้ามาถึงท่าได้ยังไง · PK/KL = รถเรารับ · OWN = มาเอง/รถเอเย่นต์ · NOVAN = อยู่ในโซนรับแต่ยังไม่จัดรถ
 function pckArrivalOf(r){
   var b=r.b, t=r.t;
@@ -17592,6 +17609,9 @@ function pckGuideJobCss(){ return '<style>'
   +'.gtot{float:right;font-size:12px;font-weight:700}'
   +'.gjoin{display:inline-block;border:1.5px solid;border-radius:4px;padding:0 8px;font-size:10.5px;font-weight:700;margin-left:7px;white-space:nowrap}'
   +'.gjoin.alt{border-style:dashed}'
+  /* §gvanHead · ป้ายบอกว่ากลุ่มรถนี้มีใบที่แยกขึ้นหลายคัน */
+  +'.gsplit{display:inline-block;border:1.5px solid #6B289A;background:#F4E8FB;color:#4A2E86;'
+  +'border-radius:4px;padding:0 8px;font-size:10.5px;font-weight:700;margin-left:7px;white-space:nowrap}'
   +'.ck{width:14px;height:14px;border:1.5px solid #111827;border-radius:2px;display:block;margin:1px auto 0}'
   +'.vc{font-family:"DM Mono",monospace;font-weight:700;font-size:11.5px;word-break:break-all;line-height:1.15;display:inline-block}'
   +'.nmc{line-height:1.35}.nmc b{font-weight:700;font-size:12.2px}'
@@ -17797,6 +17817,11 @@ function pckGuideJobSheet(bid, date, rows, vd){
           +(rd.driver?(' &middot; '+e(rd.driver)):'')+(rd.phone?(' &middot; <b>'+e(rd.phone)+'</b>'):'')+'</span>';
         // §vanJoin · ไกด์ที่ถือใบนี้จะได้ไม่ยืนรอคนที่รถคันเดียวกันพาไปลงอีกลำ
         head+=pckVanJoinHtml(vg.vid, date, bid, 'gjoin');
+        /* §gvanHead · กลุ่มนี้มีใบที่แยกขึ้นหลายคัน */
+        var _gs=ckVanGroupSplit(vg.rows, vg.vid);
+        if(_gs.n) head+='<span class="gsplit">&#8646; แยกขึ้นหลายคัน '+_gs.n+' ใบ'
+          +(_gs.others.length?(' &middot; ร่วมกับ '+_gs.others.map(function(v){ return e(pckVanName(v)); }).join(' &middot; ')):'')
+          +'</span>';
       } else {
         head='<span class="gvan">'+(zk==='NOVAN'?'ยังไม่จัดรถ':'มาเอง / เอเย่นต์ส่งเอง')+'</span>'
           +' <span class="gmeta">ไม่มีรถของเรา — เช็คว่ามาถึงท่าหรือยัง</span>';
@@ -19780,6 +19805,14 @@ function pckSheetBand(kind, key, rows, date, lvl){
       if(bits.length) extra='<span class="pcs-inf">'+bits.join('<s></s>')+'</span>';
     }
     extra+='<span class="pcs-ckv'+((a.ckv===a.n&&a.n)?' full':'')+'">เช็คอินรถ '+a.ckv+'/'+a.n+'</span>';
+    /* §gvanHead · กลุ่มนี้มีใบที่แยกขึ้นหลายคัน · กติกาเดียวกับใบที่พิมพ์ */
+    if(key!=='__own'){
+      var _gs=ckVanGroupSplit(rows, key);
+      if(_gs.n) extra+='<span class="pcs-vsp" title="ใบที่แยกคนขึ้นรถหลายคัน · แถวพิมพ์รวมอยู่ใต้คันแรก">'
+        +'&#8646; แยกขึ้นหลายคัน '+_gs.n+' ใบ'
+        +(_gs.others.length?(' &middot; '+_gs.others.map(function(v){ return e(pckVanName(v)); }).join(' &middot; ')):'')
+        +'</span>';
+    }
   }
   var cold=(a.arr===0);
   var bg=cold?'#F7F8FA':pckTint(col,0.90);
@@ -19798,6 +19831,11 @@ function pckSheetBand(kind, key, rows, date, lvl){
     +(a.on===a.n&&a.n?'<span class="pcs-ok">&#10003; ขึ้นเรือครบ</span>':'')
     /* §strandPck · จัดไว้แล้วแต่ถูกยกเลิก · ยังไม่มีใครล้างการจัดการออก */
     +(a.sx?('<span class="ck-scount" title="จัดเรือ/จัดรถไว้แล้วแต่ใบจองถูกยกเลิก · ยังไม่มีใครล้างการจัดการออก · ไม่นับเข้ายอด pax และเงิน">ค้าง '+a.sx+'</span>'):'')
+    /* §gvanJob (2026-09-17) · "เพิ่มปุ่มกดใบงานไกด์ไว้ตรงกรอบสีแดง"
+       มุมมองการ์ดมีปุ่มนี้อยู่แล้ว · มุมมองตารางไม่มี ต้องเลื่อนไปกดที่แถบบนซึ่งพิมพ์ทุกลำ
+       วางชิดขวาสุดของแถบหัวลำ ตรงคอลัมน์ "การจัดการ" ซึ่งเป็นเลนของปุ่มสั่งการอยู่แล้ว */
+    +(isBoat?('<button class="pcs-job" onclick="event.stopPropagation();pckGuideJobOrder(\''+e(key)+'\')"'
+        +' title="พิมพ์ใบงานไกด์ของลำนี้ · A4 แนวนอน">&#128196; ใบงานไกด์</button>'):'')
     +'</div></td></tr>';
 }
 
@@ -20442,7 +20480,16 @@ function pckSheetCSS(){
     +'text-decoration:none}'
   +'.pck-host .pcs-ckv{font-size:9.5px;font-weight:700;color:#a5a49d;background:#F1EFE8;'
     +'border-radius:6px;padding:1px 7px;white-space:nowrap}'
-  +'.pck-host .pcs-ckv.full{color:#0F6E56;background:#E1F5EE}';
+  +'.pck-host .pcs-ckv.full{color:#0F6E56;background:#E1F5EE}'
+  /* §gvanHead · ป้ายบอกว่ากลุ่มรถนี้มีใบที่แยกขึ้นหลายคัน */
+  +'.pck-host .pcs-vsp{font-size:9.5px;font-weight:700;color:#4A2E86;background:#F4E8FB;'
+    +'border:1px solid #D9CFF2;border-radius:6px;padding:1px 7px;white-space:nowrap}'
+  /* §gvanJob · ปุ่มใบงานไกด์ท้ายแถบหัวลำ · ชิดขวาสุดตรงเลนคอลัมน์ "การจัดการ" */
+  +'.pck-host .pcs-job{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;'
+    +'border:1.5px solid #C9C6BE;background:#fff;color:#4a4a44;border-radius:8px;'
+    +'padding:3px 10px;font:700 10.5px inherit;font-family:inherit;cursor:pointer;white-space:nowrap}'
+  +'.pck-host .pcs-job:hover{border-color:#1A1A1A;background:#1A1A1A;color:#fff}'
+  +'@media print{.pck-host .pcs-job{display:none}}';
 }
 /* ══ §pckNoStage · บั๊ก "กดแล้วเด้ง" ═════════════════════════════════════════
    ทุกการกดในหน้านี้ (กางชื่อ · ปลดล็อก · เช็คอิน) เรียก renderPierCheckin ใหม่ทั้งหน้า
