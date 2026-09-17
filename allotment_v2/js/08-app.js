@@ -19799,10 +19799,13 @@ function pckSheetBand(kind, key, rows, date, lvl){
       col=cp[1]||'#6B289A';
       var rd=(typeof vanJobsDriverInfo==='function')?vanJobsDriverInfo(key,date):null;
       var bits=[];
-      if(rd&&rd.plate) bits.push('<b>ทะเบียน</b> '+e(rd.plate));
-      if(rd&&rd.driver) bits.push('<b>คนขับ</b> '+e(rd.driver));
-      if(rd&&rd.phone) bits.push('<b>เบอร์</b> '+e(rd.phone));
-      if(bits.length) extra='<span class="pcs-inf">'+bits.join('<s></s>')+'</span>';
+      /* §gvanHead2 · "ควรเป็น Love6 ทะเบียน 31-6678 · พี่คิง · 095-061-0687 ประมาณนี้"
+         ใช้รูปแบบเดียวกับหัวกลุ่มรถบนใบงานไกด์ · ตัดคำว่า "คนขับ"/"เบอร์" ออก
+         คั่นด้วยจุด · คนอ่านสองใบสลับไปมาทั้งวัน อ่านแบบเดียวกันย่อมเร็วกว่า */
+      if(rd&&rd.plate) bits.push('ทะเบียน <b>'+e(rd.plate)+'</b>');
+      if(rd&&rd.driver) bits.push(e(rd.driver));
+      if(rd&&rd.phone) bits.push('<b>'+e(rd.phone)+'</b>');
+      if(bits.length) extra='<span class="pcs-inf">'+bits.join(' &middot; ')+'</span>';
     }
     extra+='<span class="pcs-ckv'+((a.ckv===a.n&&a.n)?' full':'')+'">เช็คอินรถ '+a.ckv+'/'+a.n+'</span>';
     /* §gvanHead · กลุ่มนี้มีใบที่แยกขึ้นหลายคัน · กติกาเดียวกับใบที่พิมพ์ */
@@ -19821,7 +19824,11 @@ function pckSheetBand(kind, key, rows, date, lvl){
   ink=cold?'#98A0AC':col;
   var edge=cold?'#DFE3E9':col;
   return '<tr class="pcs-g'+lvl+(cold?' cold':'')+'" style="--c:'+e(col)+';--bg:'+e(bg)+';--ink:'+e(ink)+';--edge:'+e(edge)+'">'
-    +'<td colspan="16"><div class="pcs-w">'
+    /* §gvanJob2 · กล่องเดิมเป็น width:fit-content เพราะต้องเกาะซ้ายตอนเลื่อนตารางแนวนอน
+       margin-left:auto จึงดันปุ่มไม่ได้ · ครอบกล่องนอกที่กว้างเต็มแถวไว้อีกชั้น
+       ของเดิมยังเกาะซ้ายเหมือนเดิม · ปุ่มเกาะขวาของ "ช่วงที่มองเห็น" ไม่ใช่ขวาสุดของตาราง
+       (ตารางกว้างกว่าจอ ถ้าอิงขวาสุดของตาราง ปุ่มจะหลุดออกนอกจอจนต้องเลื่อนไปกด) */
+    +'<td colspan="16"><div class="pcs-row"><div class="pcs-w">'
     +'<span class="pcs-kind">'+(isBoat?'เรือ':'รถ')+'</span>'
     +'<span class="pcs-pill" style="background:'+e(col)+';color:'
       +((typeof bkV2ContrastInk==='function')?bkV2ContrastInk(col):'#fff')+'">'+e(nm)+'</span>'
@@ -19834,6 +19841,7 @@ function pckSheetBand(kind, key, rows, date, lvl){
     /* §gvanJob (2026-09-17) · "เพิ่มปุ่มกดใบงานไกด์ไว้ตรงกรอบสีแดง"
        มุมมองการ์ดมีปุ่มนี้อยู่แล้ว · มุมมองตารางไม่มี ต้องเลื่อนไปกดที่แถบบนซึ่งพิมพ์ทุกลำ
        วางชิดขวาสุดของแถบหัวลำ ตรงคอลัมน์ "การจัดการ" ซึ่งเป็นเลนของปุ่มสั่งการอยู่แล้ว */
+    +'</div>'
     +(isBoat?('<button class="pcs-job" onclick="event.stopPropagation();pckGuideJobOrder(\''+e(key)+'\')"'
         +' title="พิมพ์ใบงานไกด์ของลำนี้ · A4 แนวนอน">&#128196; ใบงานไกด์</button>'):'')
     +'</div></td></tr>';
@@ -20455,8 +20463,10 @@ function pckSheetCSS(){
   +S+' tr.pcs-g1.cold>td>div,'+S+' tr.pcs-g2.cold>td>div{filter:grayscale(1);opacity:.7}'
   +S+' tr.pcs-g1:hover>td>div,'+S+' tr.pcs-g2:hover>td>div{filter:none;opacity:1}'
   /* ช่องหัวกลุ่มกว้างเท่าตารางทั้งใบ ตรึงตัว td เองไม่ได้ ต้องตรึงกล่องข้างใน */
-  +S+' tr.pcs-g1>td>div,'+S+' tr.pcs-g2>td>div{display:flex;align-items:center;gap:10px;'
+  +S+' tr.pcs-g1>td .pcs-w,'+S+' tr.pcs-g2>td .pcs-w{display:flex;align-items:center;gap:10px;'
     +'position:sticky;left:0;width:-moz-fit-content;width:fit-content;max-width:100%}'
+  /* §gvanJob2 · กล่องนอกเต็มแถว · มีไว้ให้ปุ่มขวามีที่ยืน */
+  +S+' tr.pcs-g1>td>.pcs-row{display:flex;align-items:center;width:100%;gap:10px}'
   +'.pck-host .pcs-kind{font-size:9px;font-weight:800;letter-spacing:.06em;'
     +'text-transform:uppercase;opacity:.6}'
   +'.pck-host .pcs-pill{border-radius:99px;padding:3px 14px;font-size:12.5px;font-weight:800;white-space:nowrap}'
@@ -20485,7 +20495,8 @@ function pckSheetCSS(){
   +'.pck-host .pcs-vsp{font-size:9.5px;font-weight:700;color:#4A2E86;background:#F4E8FB;'
     +'border:1px solid #D9CFF2;border-radius:6px;padding:1px 7px;white-space:nowrap}'
   /* §gvanJob · ปุ่มใบงานไกด์ท้ายแถบหัวลำ · ชิดขวาสุดตรงเลนคอลัมน์ "การจัดการ" */
-  +'.pck-host .pcs-job{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;'
+  +'.pck-host .pcs-job{margin-left:auto;flex:none;position:sticky;right:6px;'
+    +'display:inline-flex;align-items:center;gap:5px;'
     +'border:1.5px solid #C9C6BE;background:#fff;color:#4a4a44;border-radius:8px;'
     +'padding:3px 10px;font:700 10.5px inherit;font-family:inherit;cursor:pointer;white-space:nowrap}'
   +'.pck-host .pcs-job:hover{border-color:#1A1A1A;background:#1A1A1A;color:#fff}'
