@@ -83,6 +83,42 @@ const ok   = (m) => console.log('  ✓ ' + m);
       else ok(m + ' · ' + (want ? (g.cols + ' คอลัมน์') : (g.cells + ' ช่องวัน')));
     }
 
+    // ── ชิปเลือกท่า ──────────────────────────────────────────────────
+    await page.evaluate(() => fcSetMode('m14'));
+    await page.waitForTimeout(400);
+    const pills = await page.$$eval('.fc-pp', ns => ns.map(n => n.textContent.trim()));
+    if (pills.length < 4) fail('ชิปเลือกท่ามี ' + pills.length + ' ตัว · ควรมี All piers + ท่าทั้งหมด');
+    else ok('ชิปเลือกท่า ' + pills.length + ' ตัว · ' + pills.join(' / '));
+    for (const pk of ['panwa', 'tublamu', 'ranong']) {
+      await page.evaluate(x => fcSetPier(x), pk);
+      await page.waitForTimeout(350);
+      const g = await page.evaluate(() => ({
+        groups: document.querySelectorAll('.fc-mt tr.fc-mg').length,
+        // ตัวเลขบนแถบหัวต้องเดินตามท่าที่กรองด้วย ไม่งั้นหัวบอกเลขทั้งฝูงแต่ตารางโชว์ท่าเดียว
+        off: +(document.querySelectorAll('.fc-top .fc-chip')[2].textContent.match(/\d+/) || [0])[0],
+      }));
+      const want = await page.evaluate(x => {
+        const load = fcLoadMap([TODAY_STR]), memo = {};
+        return fcBoats().filter(b => { const c = fcCell(b, TODAY_STR, load, memo);
+          return c.pier === x && c.k !== 'run' && c.k !== 'free'; }).length;
+      }, pk);
+      if (g.groups !== 1) fail(pk + ' · กรองแล้วเหลือ ' + g.groups + ' กลุ่มท่า ควรเหลือ 1');
+      else if (g.off !== want) fail(pk + ' · ชิป Unavailable บนหัวได้ ' + g.off + ' ควรเป็น ' + want + ' (ไม่ได้เดินตามท่าที่กรอง)');
+      else ok(pk + ' · กรองเหลือท่าเดียว · ชิปหัวตามด้วย (Unavailable ' + g.off + ')');
+    }
+    await page.evaluate(() => fcSetPier('all'));
+    await page.waitForTimeout(300);
+
+    // ── §fcSafari · กันคอลัมน์ตรึงพังบน iOS ─────────────────────────────
+    // display:flex บน <th> ถอดเซลล์ออกจาก table layout · Safari เลยไม่ยอม sticky
+    // Chrome ยอมทั้งคู่ ของเลยดูปกติบนเครื่องพัฒนาแต่พังบนมือถือจริง
+    // เทสนี้รันบน Chrome จับอาการตรง ๆ ไม่ได้ · จับที่ "เงื่อนไขที่ทำให้พัง" แทน
+    const flexTh = await page.evaluate(() => [...document.querySelectorAll('.fc-mt th')]
+      .filter(t => getComputedStyle(t).position === 'sticky' && getComputedStyle(t).display === 'flex')
+      .map(t => (t.textContent || '').trim().slice(0, 24)));
+    if (flexTh.length) fail('th ที่ตรึงไว้ตั้ง display:flex ' + flexTh.length + ' ตัว · Safari จะไม่ตรึงให้ · ' + flexTh.slice(0, 2).join(' | '));
+    else ok('th ที่ตรึงไว้ยังเป็น table-cell · sticky ใช้ได้บน Safari');
+
     if (errors.length) errors.forEach(e => fail('error: ' + e));
     else ok('ไม่มี console error');
   } finally { await close(); }

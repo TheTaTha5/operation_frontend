@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-17 · branch `lk-inbox` @ `§fcEn` · **2 commits ahead of origin**
-(everything up to `§b2cChan` is pushed and live; `§fcMatrix` and `§fcEn` are waiting)
+**As of:** 2026-09-17 · branch `lk-inbox` @ `§fcPier` · **1 commit ahead of origin**
+(everything up to `§fcEn` is pushed and live; `§fcPier` is the one waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -146,6 +146,18 @@ this page into English**: the owner's guests and partners read this screen, and 
 operations view mixing Thai labels into a table that foreign readers use. Code comments stay Thai —
 their audience is whoever maintains the file, not whoever reads the screen. The two Thai strings
 left on screen are boat names (`สบายดีทัวร์`, `เรือปลอม`), which are data, not labels.
+
+`§fcPier` added the **pier filter chips** back (All piers / Tub Lamu / Visit Panwa / Ranong /
+In Shop) — the rebuild had dropped them. Selecting one narrows the table *and* the three counters in
+the top bar, so the header can never claim fleet-wide numbers over a single-pier table.
+
+That same pass fixed a bug the owner caught **on a real iPhone, which no test here could have
+seen**: the pinned first column did not stick, so scrolling sideways left rows of boat chips with no
+label saying which programme they belonged to. Cause: `display:flex` on the sticky `<th>`. That takes
+the cell out of table layout, and Safari then refuses to apply `position:sticky` — Chrome applies
+both, so the dev machine looked perfect. The flex moved to an inner `<span>`. WebKit cannot be
+downloaded in this sandbox, so `t_fleetcal` asserts the **condition** rather than the symptom: no
+sticky `<th>` may compute to `display:flex`. Reintroducing the flex makes it report 9 offenders.
 
 Two rules the rebuild had to settle, both written into the source:
 

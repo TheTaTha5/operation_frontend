@@ -6377,6 +6377,15 @@ const FC_CSS=`<style>
   .fc-seg button{background:transparent;border:0;padding:6px 15px;border-radius:14px;font-size:11px;
     font-weight:700;color:#C9D6EC;cursor:pointer;font-family:inherit}
   .fc-seg button.on{background:#fff;color:#16265C}
+  /* §fcPier · ชิปเลือกท่า · ทรงเดียวกับ .bo-pier-pill ของหน้า Boat Operation
+     ต่างกันแค่ตัวนี้ลอยบนพื้นกรมท่า ตัวที่ไม่ได้เลือกจึงเป็นแก้วโปร่งแทนสีขาวทึบ */
+  .fc-piers{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 11px}
+  .fc-pp{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;font-size:11px;font-weight:700;
+    color:#C9D6EC;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);
+    border-radius:16px;cursor:pointer;white-space:nowrap;line-height:1.25}
+  .fc-pp:hover{background:rgba(255,255,255,.20);color:#fff}
+  .fc-pp.on{background:#fff;color:#16265C;border-color:#fff}
+  .fc-pp i{width:8px;height:8px;border-radius:50%;display:inline-block}
   .fc-card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:12px;
     box-shadow:0 6px 22px rgba(2,10,30,.10);padding:13px 15px;min-width:0;overflow:hidden}
   .fc-ch2{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#b0aaa0;
@@ -6415,21 +6424,25 @@ const FC_CSS=`<style>
   .fc-mt th.sticky{position:sticky;left:0;background:#fff;z-index:2}
   .fc-mt th.sticky::after{content:'';position:absolute;top:0;right:0;bottom:-1px;width:6px;
     background:linear-gradient(90deg,rgba(26,42,51,.07),transparent);pointer-events:none}
-  .fc-mt tr.fc-mg th{background:var(--pbg);color:var(--pc);font-size:10.5px;font-weight:800;padding:5px 8px;
-    display:flex;align-items:center;gap:7px;border-bottom:1px solid #E5E1D9}
+  /* §fcSafari · ห้ามใส่ display:flex บน th ที่ตรึงไว้ · Safari จะถอดเซลล์ออกจาก
+     table layout แล้ว position:sticky ใช้ไม่ได้ · ใส่ที่ span ข้างในแทน */
+  .fc-mt tr.fc-mg th{background:var(--pbg);color:var(--pc);font-size:10.5px;font-weight:800;
+    padding:5px 8px;border-bottom:1px solid #E5E1D9;vertical-align:middle}
+  .fc-mt tr.fc-mg th .in{display:flex;align-items:center;gap:7px}
   .fc-mt tr.fc-mg td{background:#FBFAF7;text-align:center;font-family:Manrope,monospace;font-size:10px;
     color:#9b9088;font-weight:700;border-bottom:1px solid #E5E1D9}
   .fc-mt tr.fc-mg td b{color:#12518F;font-weight:800}
-  .fc-mt th.fc-rn{display:flex;align-items:center;gap:6px;padding:6px 8px 6px 18px;font-weight:700;
-    font-size:10.5px;color:#2c2c2a}
-  .fc-mt th.fc-rn i{width:7px;height:7px;border-radius:50%;flex:none}
-  .fc-mt th.fc-rn i.dot{background:transparent;box-shadow:inset 0 0 0 1px #C9D3CB}
-  .fc-mt th.fc-rn i.x{background:#DAD5CC}
-  .fc-mt th.fc-rn .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fc-mt th.fc-rn{padding:6px 8px 6px 18px;font-weight:700;font-size:10.5px;color:#2c2c2a;
+    vertical-align:middle}
+  .fc-mt th.fc-rn .in{display:flex;align-items:center;gap:6px}
+  .fc-mt th.fc-rn .in i{width:7px;height:7px;border-radius:50%;flex:none}
+  .fc-mt th.fc-rn .in i.dot{background:transparent;box-shadow:inset 0 0 0 1px #C9D3CB}
+  .fc-mt th.fc-rn .in i.x{background:#DAD5CC}
+  .fc-mt th.fc-rn .in .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* สกินของแอปตั้ง text-transform บน th ไว้ · ชื่อโปรแกรมกับชื่อท่าเลยขึ้นตัวพิมพ์ใหญ่หมด
      "PHI PHI BAMBOO BY SPEEDBOAT" อ่านยากกว่าและไม่ตรงกับชื่อจริงในทะเบียน */
   .fc-mt th.fc-rn,.fc-mt tr.fc-mg th,.fc-mt .fc-mh{text-transform:none}
-  .fc-mt th.fc-rn em{font-style:normal;font-family:Manrope,monospace;font-size:9.5px;font-weight:800;color:#C4BEB4}
+  .fc-mt th.fc-rn .in em{font-style:normal;font-family:Manrope,monospace;font-size:9.5px;font-weight:800;color:#C4BEB4}
   .fc-mt tr.fr th.fc-rn{color:#9AA39C;font-weight:600}
   .fc-mt tr.fc-dorm th.fc-rn{color:#A9A399;font-weight:600}
   .fc-mx{vertical-align:top;padding:4px;text-align:center}
@@ -6539,7 +6552,7 @@ const FC_CSS=`<style>
 //   และไม่นับใบเหมาลำเข้าพูล · หน้านี้ถามระดับลำ จึงต้องใช้คนบนลำ
 //   ป้ายบนหน้าจอเลยเขียนว่า "คนบนลำ / ที่รับได้" ให้ชัด ไม่ใช่ "ที่นั่งที่ขายได้"
 // ═══════════════════════════════════════════════════════════════════════
-var _fc = { mode:'m14', from:null, ym:null };
+var _fc = { mode:'m14', from:null, ym:null, pier:'all' };
 var FC_PIER=[['tublamu','TL','Tub Lamu','#0F6E56','#E1F5EE'],
              ['panwa','VP','Visit Panwa','#185FA5','#E6F1FB'],
              ['ranong','RN','Ranong','#BA7517','#FAEEDA'],
@@ -6571,6 +6584,11 @@ window.fcShift=function(delta){
   renderFleetCal();
 };
 window.fcToday=function(){ fcSetMode(_fc.mode); };
+/* §fcPier · กรองท่า · 'all' = ทุกท่า · เลือกท่าไหนก็เหลือเฉพาะกลุ่มนั้น
+   รวมถึงตัวเลขบนแถบหัวด้วย ไม่งั้นหัวบอกเลขทั้งฝูงแต่ตารางโชว์ท่าเดียว อ่านขัดกัน
+   In Shop ไม่ผูกกับท่าไหน จึงโผล่เฉพาะตอนดู 'All piers' */
+window.fcSetPier=function(p){ _fc.pier=p||'all'; renderFleetCal(); };
+function fcPierOn(pk){ return _fc.pier==='all' || _fc.pier===pk; }
 /* คลิกวัน → open in Boat Operation ของวันนั้น · หน้านี้ไม่แก้อะไรเอง */
 function fcOpenDay(ds){
   if(typeof _bop2!=='undefined'){
@@ -6685,17 +6703,19 @@ function fcMatrixHtml(){
   FC_PIER.forEach(function(p){
     var pk=p[0], progs=prog[pk]||{}, dorm=dormBy[pk]||[];
     var keys=Object.keys(progs).sort(function(a,b){ return a==='__chr'?1:(b==='__chr'?-1:0); });
+    if(!fcPierOn(pk)) return;
     if(!keys.length && !liveBy[pk] && !dorm.length) return;
     body+='<tr class="fc-mg"><th class="sticky" style="--pc:'+p[3]+';--pbg:'+p[4]+'">'
-      +'<span class="fc-pb" style="background:'+p[3]+'">'+p[1]+'</span>'+p[2]+'</th>'
+      +'<span class="in"><span class="fc-pb" style="background:'+p[3]+'">'+p[1]+'</span>'+p[2]+'</span></th>'
       +days.map(function(ds){ var run=0,free=0;
         boats.forEach(function(b){ var c=C[ds][b.id];
           if(c.k==='run' && (c.rpier||c.pier)===pk) run++;
           else if(c.k==='free' && c.pier===pk) free++; });
         return '<td class="fc-mgc">'+((run||free)?('<b>'+run+'</b><span>/'+free+'</span>'):'')+'</td>'; }).join('')+'</tr>';
     keys.forEach(function(rid){ var pr=progs[rid];
-      body+='<tr class="fc-pr"><th class="sticky fc-rn"><i style="background:'+pr.color+'"></i>'
-        +'<span class="nm">'+(pr.chr?'&#9875; Charter':e(wide?pr.name:fcAbbr(pr.name)))+'</span></th>'
+      body+='<tr class="fc-pr"><th class="sticky fc-rn"><span class="in">'
+        +'<i style="background:'+pr.color+'"></i>'
+        +'<span class="nm">'+(pr.chr?'&#9875; Charter':e(wide?pr.name:fcAbbr(pr.name)))+'</span></span></th>'
         +days.map(function(ds){ var out=[];
           boats.forEach(function(b){ var c=C[ds][b.id];
             if(c.k!=='run' || (c.rpier||c.pier)!==pk) return;
@@ -6703,15 +6723,15 @@ function fcMatrixHtml(){
             out.push(fcChip(b,c)); });
           return '<td class="fc-mx '+(out.length?'has':'no')+'">'+out.join('')+'</td>'; }).join('')+'</tr>';
     });
-    if(liveBy[pk]) body+='<tr class="fc-pr fr"><th class="sticky fc-rn"><i class="dot"></i>'
-      +'<span class="nm">Available at pier</span></th>'
+    if(liveBy[pk]) body+='<tr class="fc-pr fr"><th class="sticky fc-rn"><span class="in">'
+      +'<i class="dot"></i><span class="nm">Available at pier</span></span></th>'
       +days.map(function(ds){ var out=[];
         boats.forEach(function(b){ var c=C[ds][b.id]; if(c.k==='free'&&c.pier===pk) out.push(fcChip(b,c,'free')); });
         return '<td class="fc-mx '+(out.length?'hasf':'nof')+'">'
           +(out.length?out.join(''):'<span class="zero">none</span>')+'</td>'; }).join('')+'</tr>';
     /* ลำที่ไม่พร้อมทั้งช่วง ยุบเป็นแถวเดียว · แยกแถวละลำได้ลายทางเปล่า 13 แถวกินครึ่งจอ */
-    if(dorm.length) body+='<tr class="fc-dorm"><th class="sticky fc-rn"><i class="x"></i>'
-      +'<span class="nm">Out of service</span><em>'+dorm.length+'</em></th>'
+    if(dorm.length) body+='<tr class="fc-dorm"><th class="sticky fc-rn"><span class="in">'
+      +'<i class="x"></i><span class="nm">Out of service</span><em>'+dorm.length+'</em></span></th>'
       +'<td class="fc-mx dormc" colspan="'+days.length+'">'
       +dorm.map(function(b){ return '<span title="capacity '+(b.cap||0)+'">'+e(b.name)+'</span>'; }).join('')+'</td></tr>';
   });
@@ -6733,6 +6753,7 @@ function fcMonthHtml(){
     var nRun=0,nFree=0;
     boats.forEach(function(b){ var c=fcCell(b,ds,load,memo);
       (g[c.pier]||g.other)[c.k].push({b:b,c:c});
+      if(!fcPierOn(c.pier)) return;
       if(c.k==='run')nRun++; else if(c.k==='free')nFree++; });
     var h='<div class="fc-c'+(isT?' today':'')+(isP?' past':'')+'" onclick="fcOpenDay(\''+ds+'\')" '
       +'title="'+ds+' · open in Boat Operation">'
@@ -6746,6 +6767,7 @@ function fcMonthHtml(){
     var quiet=[];
     FC_PIER.forEach(function(p){
       if(p[0]==='shop'||p[0]==='other') return;
+      if(!fcPierOn(p[0])) return;
       var x=g[p[0]];
       if(!x.run.length && !x.free.length){ if(x.off.length) quiet.push(p[1]); return; }
       h+='<div class="fc-pg"><div class="fc-pgh"><span class="fc-pb" style="background:'+p[3]+'">'+p[1]+'</span>'
@@ -6773,6 +6795,7 @@ function renderFleetCal(){
   var load=fcLoadMap([TODAY]), memo={};
   var nRun=0,nFree=0,nOff=0;
   boats.forEach(function(b){ var c=fcCell(b,TODAY,load,memo);
+    if(!fcPierOn(c.pier)) return;
     if(c.k==='run')nRun++; else if(c.k==='free')nFree++; else nOff++; });
   var MO=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
   var WDL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -6796,6 +6819,12 @@ function renderFleetCal(){
       +'<button class="'+(_fc.mode==='m14'?'on':'')+'" onclick="fcSetMode(\'m14\')">14 days</button>'
       +'<button class="'+(isMo?'on':'')+'" onclick="fcSetMode(\'mo\')">Month</button>'
     +'</span>'
+  +'</div>'
+  +'<div class="fc-piers">'
+    +'<span class="fc-pp'+(_fc.pier==='all'?' on':'')+'" onclick="fcSetPier(\'all\')">All piers</span>'
+    +FC_PIER.filter(function(p){ return p[0]!=='other'; }).map(function(p){
+        return '<span class="fc-pp'+(_fc.pier===p[0]?' on':'')+'" onclick="fcSetPier(\''+p[0]+'\')">'
+          +'<i style="background:'+p[3]+'"></i>'+p[2]+'</span>'; }).join('')
   +'</div>'
   +'<div class="fc-card">'
     +'<div class="fc-ch2">'+(isMo?'Month view':('Matrix · '+fcNDays()+' days'))
