@@ -15,7 +15,8 @@
     "db:psql": "node tools/dev-db.mjs psql",
     "test:smoke": "node test/ui/t_smoke.mjs",
     "test:mobile": "node test/ui/t_mobile.mjs",
-    "test:ui": "node test/ui/t_smoke.mjs && node test/ui/t_mobile.mjs"
+    "test:ui": "node test/ui/t_smoke.mjs && node test/ui/t_mobile.mjs",
+    "test:daydetail": "node test/ui/t_daydetail.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"

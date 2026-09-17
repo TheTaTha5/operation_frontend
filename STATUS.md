@@ -1,6 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-17 · branch `lk-inbox` @ `579768d` · **1 commit ahead of origin**
+**As of:** 2026-09-17 · branch `lk-inbox` @ `§dayDetail` · **1 commit ahead of origin**
+(the previous "1 commit ahead" note was stale — `87e5565` and everything before it is on origin)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -50,6 +51,25 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-17 — "what came in today", in one place
+
+| Tag | What was wrong | Measured result |
+|---|---|---|
+| `§dayDetail` | The two Live bookings cards answer *"what arrived just now"* and nothing else. The list is the **12 most recent**, unfiltered by day and including cancellations; the summary strip above it counts **only that day's non-cancelled** bookings (`§liveAudit` says the two deliberately don't add up). Nobody could ask the dashboard *"what came in today, all of it, B2C vs B2B"* — that meant opening Booking and filtering by hand. | A popup off both cards. Both summary cards stay on screen together (that is the whole point of "แยก B2C/B2B" — a toggle would make the split unreadable); clicking one switches the breakdown below. Breakdown by route, by agent (B2C: by the channel the guest messaged in on), by travel month, by hour of arrival, by nationality. The list is **every booking of the day** — 17 Sep: **23 B2B rows** where the feed can show 12. |
+
+Three reader rules, not four: `laIsB2C` (`§b2cOne`) splits the sides, `_dashBkDay`
+(`§liveDay`) decides which day a booking belongs to, `acctBookingTotal` is the money. The popup
+re-reads none of them raw — that is why its numbers cannot drift from the card's.
+`laB2CChannel` is new and joins them: the channel lived in `b2cChannel` **or** in the `note`
+line the website writes, and two readers of that would have been the next `§b2cOne`.
+
+`test/ui/t_daydetail.mjs` (`npm run test:daydetail`) recomputes the expected numbers from
+`SB_BOOKINGS` inside the same page and compares them against what the popup renders. **Proven to
+fail**: swap the day rule to `bookingDate` and it reports `พัง 4` — B2B drops 22 → 17 because five
+of that day's bookings were keyed retroactively. Regression: `t_smoke` and `t_mobile` both print
+exactly what they printed on `HEAD` before the change (2 environment-only failures each:
+`contract-tmpl` 404, `pickupmap` needs network, `vancheckin` demo banner).
 
 ### 2026-09-17 — vans on the guide sheet, and stale derived tables
 
@@ -184,6 +204,8 @@ Root cause is fixed as of `f0eba63`, so the list should stop growing.
 6. Two offers left unanswered on 17 Sep: whether the printed guide sheet should split a multi-van
    booking into **one row per van** (a larger change than the header fix), and whether the on-screen
    van header needs the second van's full details too.
+7. Offered with `§dayDetail`, not requested: split the day's intake by pier/boat, a search box in
+   the list, an Excel export of the day.
 
 ---
 

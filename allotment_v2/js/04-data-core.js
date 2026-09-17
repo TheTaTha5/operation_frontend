@@ -1077,7 +1077,7 @@ function _dashLiveFeedHtml(dx,F,side){
   });
   var _mShort=function(v){ v=+v||0; return v>=1000000?('฿'+(v/1000000).toFixed(1)+'M'):(v>=1000?('฿'+Math.round(v/1000)+'k'):('฿'+Math.round(v))); };
   var head=''
-    +'<div class="dv-lvhd">'
+    +'<div class="dv-lvhd" onclick="dashOpenDayDetail(\''+side+'\')">'
       +'<span class="s" title="'+('\u0e19\u0e31\u0e1a\u0e15\u0e32\u0e21\u0e40\u0e27\u0e25\u0e32\u0e17\u0e35\u0e48\u0e43\u0e1a\u0e40\u0e02\u0e49\u0e32\u0e23\u0e30\u0e1a\u0e1a \u00b7 '+(_sL.length
           ? (_sL.join(' \u00b7 ')+' \u0e1a\u0e32\u0e17')
           : '\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e43\u0e1a\u0e40\u0e02\u0e49\u0e32\u0e21\u0e32')).replace(/"/g,'&quot;')
@@ -1093,12 +1093,277 @@ function _dashLiveFeedHtml(dx,F,side){
       +(side==='b2b'?'<span class="dv-cnt" style="background:#E6F1FB;color:#12518F">B2B &middot; เอเย่นต์</span>':'')
       +(side==='b2c'?'<span class="dv-cnt" style="background:#FDE6EE;color:#8C2D52">B2C &middot; ขายเอง</span>':'')
       +'<span class="sp"></span>'
+      /* §dayDetail · ทางเข้าป๊อปอัป · เปิดฝั่งเดียวกับการ์ดที่กด */
+      +'<span class="dv-ddbt" onclick="event.stopPropagation();dashOpenDayDetail(\''+side+'\')" title="ดูใบจองทั้งหมดของวันนี้ แยก B2C / B2B">รายละเอียดทั้งวัน</span>'
       +'<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:#0F6E56;letter-spacing:0;text-transform:none"><span style="width:7px;height:7px;border-radius:50%;background:#2F9E5B;animation:dashlvpulse 1.4s infinite"></span>live</span>'
     +'</div>'
     +head
     +'<div class="dv-lvlist">'+rows+'</div>'
     +'<div class="dv-sync">'+DASH_ICO.sync+'อัปเดตเองไม่ต้องรีเฟรช</div></div>';
 }
+
+/* ══ §dayDetail · "รายละเอียดทั้งวัน" ที่ห้อยจากการ์ด Live bookings ═══════
+   การ์ดฟีดตอบได้แค่ "ล่าสุดมีอะไรเข้ามา" — โชว์ 12 ใบท้ายสุด ไม่กรองวัน และ
+   รวมใบที่ยกเลิกด้วย · ส่วนแถบสรุปหัวฟีดนับเฉพาะใบของวันที่เลือกและไม่เอาใบยกเลิก
+   (§liveAudit อธิบายไว้ว่าสองชุดนี้บวกไม่ตรงกันโดยตั้งใจ) · ผลคือไม่มีที่ไหน
+   ในระบบตอบได้เลยว่า "ทั้งวันนี้เข้ามาอะไรบ้าง" — ต้องไปเปิดหน้า Booking แล้วกรองเอง
+   ป๊อปอัปนี้คือที่นั้น · กฎที่ยึด:
+   · แยก B2C/B2B ด้วย laIsB2C ตัวเดียวกับที่ฟีดใช้ (§b2cOne) ป๊อปอัปกับการ์ด
+     จะได้ไม่มีวันขึ้นตัวเลขคนละชุด
+   · "วันไหน" ใช้ _dashBkDay = วันที่ใบเข้าระบบ ไม่ใช่ bookingDate (§liveDay)
+     ตัวเดียวกับแถบสรุปหัวฟีด · ใบที่คีย์ย้อนหลังจึงไม่โผล่มาปนในยอดวันนี้
+   · ยอดเงินใช้ acctBookingTotal (รวม feeItems) เหมือนทุกหน้าที่พูดเรื่องเงิน */
+
+/* §b2cOne · ช่องทางที่ลูกค้าทักเข้ามาของใบ B2C · ตัวอ่านตัวเดียวเหมือน laIsB2C
+   ของจริงเก็บไว้สองที่: b2cChannel (ใบใหม่) กับบรรทัด note ที่เว็บเขียนมาให้
+   รูปแบบ "B2C · Line OA · LOV-xxxxx · ..." · ใครจะอ่านช่องทางต้องเรียกตัวนี้ */
+function laB2CChannel(b){
+  if(!b) return '';
+  if(b.b2cChannel) return String(b.b2cChannel);
+  var m=String(b.note||'').match(/^B2C\s*·\s*([^·]+)·/);
+  if(m && m[1].trim()) return m[1].trim();
+  if(/^b2c_/.test(String(b.id||''))) return 'Website';
+  return 'คีย์เอง';
+}
+
+/* ใบทั้งหมดที่ "เข้าระบบ" ในวันที่เลือกอยู่ · ใหม่สุดอยู่บน · รวมใบที่ยกเลิก
+   (ทำเครื่องหมายไว้ ไม่ตัดทิ้ง — คนดูต้องรู้ว่าวันนี้มีใบหลุดไปกี่ใบด้วย) */
+function _ddRows(){
+  var BK=(typeof SB_BOOKINGS!=='undefined'?SB_BOOKINGS:[]);
+  var CXL=['cancelled','rejected','cancelled_weather'];
+  var ds=(window._dashDate||TODAY_STR);
+  var out=[];
+  BK.forEach(function(b){
+    if(b.schemaVer!==2) return;
+    if(_dashBkDay(b)!==ds) return;
+    var trs=(b.trips||[]).map(function(t){
+      var r=(typeof getRoute==='function'&&t.routeId)?getRoute(t.routeId):null;
+      return {route:(r&&r.name)||t.routeId||'—', color:(r&&r.color)||'#7d7a74',
+        date:t.date, mode:t.bookingMode||'seat',
+        pax:(typeof bkV2PaxAllTot==='function')?bkV2PaxAllTot(t.pax||{}):0};
+    });
+    var b2c=laIsB2C(b);
+    var a=(typeof sbGetAgent==='function')?sbGetAgent(b.agentId):null;
+    out.push({id:b.id, vc:String(b.voucherRef||b.code||b.id||''),
+      side:b2c?'b2c':'b2b', agentId:b.agentId||'',
+      agent:b2c?'Love Andaman':((a&&(a.name||a.code))||b.agentId||'—'),
+      agentColor:(a&&a.color)||'', channel:b2c?laB2CChannel(b):'',
+      lead:b.leadPax||'', nat:b.leadNationality||'',
+      hotel:b.hotelName||b.pickupArea||'',
+      cxl:CXL.indexOf(b.status)>=0, ts:_dashBkTs(b),
+      pax:trs.reduce(function(s,t){return s+t.pax;},0),
+      val:(typeof acctBookingTotal==='function')?(+acctBookingTotal(b)||0):(+b.total||0),
+      trips:trs});
+  });
+  out.sort(function(x,y){return y.ts-x.ts;});
+  return out;
+}
+function _ddAgg(rows,keyFn,colFn){
+  var m={};
+  rows.forEach(function(r){ var k=keyFn(r); if(k==null||k==='') return;
+    if(!m[k]) m[k]={k:k,n:0,pax:0,val:0,col:colFn?colFn(r):''};
+    m[k].n++; m[k].pax+=r.pax; m[k].val+=r.val; });
+  return Object.keys(m).map(function(k){return m[k];})
+    .sort(function(a,b){ return (b.val-a.val)||(b.n-a.n); });
+}
+/* แท่งเรียงอันดับ · ความยาว = ยอดขาย (วัดอย่างเดียว) · สีคือ "ตัวมันเอง"
+   เส้นทางใช้สีเส้นทางจริง เอเย่นต์ใช้สีที่ User ตั้งไว้ในหน้า By trip
+   ทั้งคู่ต้องผ่าน _dvInk ก่อน — สีชิปหลายสีจางเกินกว่าจะเป็นแท่งบนพื้นขาว */
+function _ddBars(list,opt){
+  opt=opt||{};
+  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+  if(!list.length) return '<div class="dv-ddnone">ไม่มีข้อมูล</div>';
+  var max=1; list.forEach(function(x){ if(x.val>max) max=x.val; });
+  return list.slice(0,opt.top||8).map(function(x){
+    var w=Math.max(2,Math.round(x.val/max*100));
+    var c=x.col||opt.color||'#2E9B72';
+    var lb=opt.label?opt.label(x.k):x.k;
+    return '<div class="dv-ddbr" title="'+esc(x.k)+' · '+x.n+' ใบ · '+x.pax+' pax · '
+        +'฿'+Math.round(x.val).toLocaleString()+'">'
+      +'<span class="l">'+esc(lb)+'</span>'
+      +'<span class="tr"><i style="width:'+w+'%;background:'+c+'"></i></span>'
+      +'<span class="v">'+_dashMoneyShort(x.val)+'<em>'+x.n+' ใบ · '+x.pax+' pax</em></span></div>';
+  }).join('');
+}
+/* เวลาที่ใบเข้ามา · 06:00–23:00 พอ · ก่อนหกโมงแทบไม่มีและกินที่ฟรี */
+function _ddHours(rows){
+  var h=[],i; for(i=0;i<24;i++) h.push(0);
+  rows.forEach(function(r){ if(r.ts) h[new Date(r.ts).getHours()]++; });
+  var mx=1; for(i=6;i<=23;i++) if(h[i]>mx) mx=h[i];
+  var out='';
+  for(i=6;i<=23;i++){ var v=h[i];
+    out+='<span class="dv-ddhb'+(v?'':' z')+'" title="'+('0'+i).slice(-2)+':00 · '+v+' ใบ">'
+      +'<i style="height:'+(v?Math.max(8,Math.round(v/mx*100)):2)+'%"></i>'
+      +'<u>'+(i%3===0?('0'+i).slice(-2):'')+'</u></span>'; }
+  return '<div class="dv-ddhr">'+out+'</div>';
+}
+function _ddList(rows){
+  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+  if(!rows.length) return '<div class="dv-ddnone" style="padding:22px 0">ยังไม่มีใบจองเข้ามา</div>';
+  return rows.map(function(r){
+    var t0=r.trips[0]||{}; var more=r.trips.length>1?(' +'+(r.trips.length-1)):'';
+    var ink=(r.agentColor&&typeof bkV2ContrastInk==='function')?bkV2ContrastInk(r.agentColor):'#5f5c56';
+    var chip=(r.side==='b2c')
+      ? '<span class="dv-ddmk" style="background:#FDE6EE;color:#8C2D52">'+esc(r.channel||'B2C')+'</span>'
+      : '<span class="dv-ddmk" style="background:'+(r.agentColor||'#F2EFEA')+';color:'+ink
+        +'" title="'+esc(r.agent)+'">'+esc(r.agent)+'</span>';
+    var tm=r.ts?(function(){var d=new Date(r.ts);
+      return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);})():'—';
+    var vc=r.vc.length>16?(r.vc.slice(0,15)+'…'):r.vc;
+    return '<div class="dv-ddrow'+(r.cxl?' cx':'')+'" onclick="dashOpenBooking(\''+r.id+'\')">'
+      +'<span class="tm">'+tm+'</span><span class="mk">'+chip+'</span>'
+      +'<span class="tx"><b style="color:'+_dvInk(t0.color)+'">'+esc(t0.route||'—')
+        +(r.cxl?' <em>· ยกเลิก</em>':'')+(t0.mode==='charter'?' <s>เหมาลำ</s>':'')+'</b>'
+        +'<i>'+esc(r.lead||'—')+(r.nat?(' · '+esc(r.nat)):'')
+        +(r.hotel?(' · '+esc(r.hotel)):'')+'</i></span>'
+      +'<span class="dt">'+_dashDateShort(t0.date)+more+'</span>'
+      +'<span class="px">'+r.pax+'</span>'
+      +'<span class="vc" title="'+esc(r.vc)+'">'+esc(vc)+'</span>'
+      +'<span class="mn">฿'+Math.round(r.val).toLocaleString()+'</span></div>';
+  }).join('');
+}
+function _ddSum(rows,side){
+  var ok=rows.filter(function(r){return r.side===side && !r.cxl;});
+  var ag={}; ok.forEach(function(r){ if(r.agentId) ag[r.agentId]=1; });
+  var val=0,pax=0; ok.forEach(function(r){ val+=r.val; pax+=r.pax; });
+  return {n:ok.length, pax:pax, val:val, avg:ok.length?val/ok.length:0,
+    ag:Object.keys(ag).length,
+    cxl:rows.filter(function(r){return r.side===side && r.cxl;}).length};
+}
+/* การ์ดสรุปสองใบอยู่คู่กันตลอด · นั่นคือทั้งหมดของคำว่า "แยก B2C / B2B"
+   ถ้าให้สลับดูทีละฝั่ง คนจะเทียบสัดส่วนไม่ได้ ซึ่งเป็นสิ่งเดียวที่อยากรู้จากหน้านี้
+   กดการ์ดใบไหน = ส่วนซอยข้างล่างสลับไปฝั่งนั้น */
+function _ddSumCard(side,S,totVal,on){
+  var c=(side==='b2c')?{ink:'#8C2D52',bg:'#FDE6EE',bar:'#C2557C'}
+                      :{ink:'#12518F',bg:'#E6F1FB',bar:'#3E7FBF'};
+  var sh=totVal?Math.round(S.val/totVal*100):0;
+  var last=(side==='b2c')
+    ? {v:S.cxl, k:'ยกเลิก', dim:!S.cxl}
+    : {v:S.ag,  k:'เอเย่นต์', dim:false};
+  return '<div class="dv-c dv-ddsum'+(on?' on':'')+'" data-side="'+side+'" '
+      +'onclick="dashDayDetailPick(\''+side+'\')">'
+    +'<div class="dv-ddsh"><span class="big" style="color:'+c.ink+'">'
+      +(side==='b2c'?'B2C · ขายเอง':'B2B · เอเย่นต์')+'</span>'
+      +'<span class="dv-cnt" style="background:'+c.bg+';color:'+c.ink+'">'+sh+'% ของยอดวันนี้</span></div>'
+    +'<div class="dv-ddsv">'
+      +'<span class="s"><b>'+S.n+'</b><i>ใบ</i></span><span class="sep"></span>'
+      +'<span class="s"><b>'+S.pax+'</b><i>pax</i></span><span class="sep"></span>'
+      +'<span class="s"><b>'+_dashMoneyShort(S.val)+'</b><i>ยอดขาย</i></span><span class="sep"></span>'
+      +'<span class="s"><b>'+_dashMoneyShort(S.avg)+'</b><i>เฉลี่ย / ใบ</i></span><span class="sep"></span>'
+      +'<span class="s"><b'+(last.dim?' class="dim"':'')+'>'+last.v+'</b><i>'+last.k+'</i></span>'
+    +'</div>'
+    +'<div class="dv-ddshb"><i style="width:'+sh+'%;background:'+c.bar+'"></i></div></div>';
+}
+function _ddSideBlock(rows,side){
+  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+  var all=rows.filter(function(r){return r.side===side;});
+  var ok=all.filter(function(r){return !r.cxl;});
+  var byRoute=_ddAgg(ok,function(r){return (r.trips[0]||{}).route;},
+                        function(r){return _dvInk((r.trips[0]||{}).color);});
+  var byMonth=_ddAgg(ok,function(r){return String((r.trips[0]||{}).date||'').slice(0,7);});
+  byMonth.sort(function(a,b){ return a.k<b.k?-1:1; });
+  var byWho=(side==='b2c')
+    ? _ddAgg(ok,function(r){return r.channel;})
+    : _ddAgg(ok,function(r){return r.agent;},function(r){return r.agentColor?_dvInk(r.agentColor):'';});
+  var byNat=_ddAgg(ok,function(r){return r.nat||'—';});
+  var MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var moLbl=function(ym){ var p=String(ym).split('-');
+    return (MO[(+p[1]||1)-1]||p[1])+' '+(p[0]||''); };
+  return '<div class="dv-ddg3">'
+    +'<div class="dv-c dv-ddcard"><div class="dv-ddh">เส้นทาง<span>'+byRoute.length+' เส้นทาง</span></div>'
+      +_ddBars(byRoute,{top:7})+'</div>'
+    +'<div class="dv-c dv-ddcard"><div class="dv-ddh">'
+      +(side==='b2c'?'ช่องทางที่ลูกค้าทักเข้ามา':'เอเย่นต์')+'<span>'+byWho.length
+      +(side==='b2c'?' ช่องทาง':' เจ้า')+'</span></div>'
+      +_ddBars(byWho,{top:7,color:(side==='b2c'?'#C2557C':'#3E7FBF')})+'</div>'
+    +'<div class="dv-c dv-ddcard">'
+      +'<div class="dv-ddh">เดือนที่จะเดินทาง<span>'+byMonth.length+' เดือน</span></div>'
+      +_ddBars(byMonth,{top:8,color:'#2E9B72',label:moLbl})
+      +'<div class="dv-ddh2">เวลาที่ใบเข้ามา</div>'+_ddHours(ok)
+      +'<div class="dv-ddh2">สัญชาติผู้จอง</div>'
+      +'<div class="dv-ddnats">'+(byNat.length
+        ? byNat.slice(0,8).map(function(x){ return '<span title="'+esc(x.k)+' · '+x.n
+            +' ใบ · '+x.pax+' pax">'+esc(x.k)+'<b>'+x.pax+'</b></span>'; }).join('')
+        : '<i class="dv-ddnone">ไม่มีข้อมูล</i>')+'</div>'
+    +'</div></div>'
+    +'<div class="dv-c dv-ddlist"><div class="dv-ddh">ใบจองทั้งหมดของวันนี้<span>'+all.length+' ใบ'
+      +((all.length-ok.length)?(' · ยกเลิก '+(all.length-ok.length)):'')+'</span></div>'
+      +'<div class="dv-ddrows">'+_ddList(all)+'</div></div>';
+}
+function _ddBodyHtml(){
+  var rows=_ddRows();
+  var S={b2c:_ddSum(rows,'b2c'), b2b:_ddSum(rows,'b2b')};
+  var tot=S.b2c.val+S.b2b.val;
+  var side=window._ddSide||'b2b';
+  return '<div class="dv-ddsums">'+_ddSumCard('b2c',S.b2c,tot,side==='b2c')
+      +_ddSumCard('b2b',S.b2b,tot,side==='b2b')+'</div>'
+    +_ddSideBlock(rows,side);
+}
+function _ddHeadHtml(){
+  var ds=(window._dashDate||TODAY_STR);
+  var dt=new Date(ds+'T00:00:00');
+  var WD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var MO=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER',
+          'OCTOBER','NOVEMBER','DECEMBER'];
+  var rows=_ddRows();
+  var ok=rows.filter(function(r){return !r.cxl;});
+  var pax=0,val=0; ok.forEach(function(r){ pax+=r.pax; val+=r.val; });
+  var cxl=rows.length-ok.length;
+  return '<button class="dv-arw" onclick="dashDayDetailShift(-1)" title="วันก่อนหน้า">&lsaquo;</button>'
+    +'<span class="dv-ddnum">'+dt.getDate()+'</span>'
+    +'<span class="dv-dddgrp"><b class="dv-dddwk">'+WD[dt.getDay()]+'</b>'
+      +'<span class="dv-dddmo">'+MO[dt.getMonth()]+' '+dt.getFullYear()+'</span></span>'
+    +'<button class="dv-arw" onclick="dashDayDetailShift(1)" title="วันถัดไป">&rsaquo;</button>'
+    +'<span class="dv-ddttl">รายละเอียดใบจองทั้งวัน<i>ทุกใบที่เข้าระบบวันนี้ · แยก B2C / B2B</i></span>'
+    +'<span class="dv-kpi">'
+      +'<span class="dv-chip"><b>'+ok.length+'</b> ใบ</span>'
+      +'<span class="dv-chip"><b>'+pax+'</b> pax</span>'
+      +'<span class="dv-chip"><b>'+_dashMoneyShort(val)+'</b> ยอดวันนี้</span>'
+      +(cxl?('<span class="dv-chip warn"><b>'+cxl+'</b> ยกเลิก</span>'):'')
+      +'<button class="dv-ddx" onclick="dashDayDetailClose()" title="ปิด">&times;</button>'
+    +'</span>';
+}
+/* §dayDetail · แขวนไว้ที่ body ไม่ใช่ใน #dash-wrap · renderDash() เขียนทับ
+   innerHTML ของ wrap ทั้งก้อน ป๊อปอัปที่อยู่ข้างในจะหายไปทุกครั้งที่เลื่อนวัน */
+window.dashOpenDayDetail=function(side){
+  window._ddSide=(side==='b2c'||side==='b2b')?side:'b2b';
+  var ov=document.getElementById('dv-ddov');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='dv-ddov'; ov.className='dv-ddov';
+    ov.onclick=function(e){ if(e.target===ov) window.dashDayDetailClose(); };
+    ov.innerHTML='<div class="dv-ddsheet"><div class="dv-ddhd" id="dv-ddhd"></div>'
+      +'<div class="dv-ddbd" id="dv-ddbd"></div></div>';
+    document.body.appendChild(ov);
+    document.addEventListener('keydown', window._ddKey);
+  }
+  window._ddPaint();
+  ov.style.display='block';
+};
+window._ddKey=function(e){ if(e.key==='Escape') window.dashDayDetailClose(); };
+window._ddPaint=function(){
+  var hd=document.getElementById('dv-ddhd'), bd=document.getElementById('dv-ddbd');
+  if(hd) hd.innerHTML=_ddHeadHtml();
+  if(bd) bd.innerHTML=_ddBodyHtml();
+};
+window.dashDayDetailPick=function(side){
+  window._ddSide=side;
+  var bd=document.getElementById('dv-ddbd'); if(bd) bd.innerHTML=_ddBodyHtml();
+};
+/* เลื่อนวันในป๊อปอัป · ขยับ _dashDate ตัวเดียวกับแถบหัวหน้า Dashboard แล้ววาดทั้งสองที่
+   ปิดป๊อปอัปแล้วหน้าข้างหลังต้องอยู่วันเดียวกัน ไม่ใช่เด้งกลับวันเดิม */
+window.dashDayDetailShift=function(delta){
+  if(typeof dashDateShift==='function') dashDateShift(delta);
+  window._ddPaint();
+};
+window.dashDayDetailClose=function(){
+  var ov=document.getElementById('dv-ddov'); if(!ov) return;
+  document.removeEventListener('keydown', window._ddKey);
+  ov.remove();
+};
+
 window.dashGoApprovals=function(){ var el=document.querySelector('[data-view=booking]'); if(el&&typeof nav==='function')nav(el); if(typeof bkV2SwitchTab==='function')bkV2SwitchTab('approvals'); };
 window.dashGoBytrip=function(ds){ if(typeof bkV2OpenFiltered==='function')bkV2OpenFiltered('',ds||TODAY_STR); };
 window.dashGoAccounting=function(){ var el=document.querySelector('[data-view=accounting]'); if(el&&typeof nav==='function')nav(el); };
@@ -1540,6 +1805,141 @@ const DV_CSS=`<style>
     .dv-bd,.dv-c{padding-left:12px;padding-right:12px}
     /* นิ้วต้องกดโดน */
     .dv-bdseg b,.dv-ovseg button{min-height:34px;display:inline-flex;align-items:center}
+  }
+
+  /* ══ §dayDetail · ป๊อปอัป "รายละเอียดทั้งวัน" ═════════════════════════════
+     เปลือกใช้แก้วชุดเดียวกับ .dv-pop (ฐานเข้มก่อนแล้วค่อยโปร่ง) แค่ขยายเป็นแผ่นเต็ม
+     ข้างในเป็นการ์ดขาว .dv-c ตามภาษาเดิมของหน้า — คนที่ใช้ Dashboard อยู่แล้ว
+     ไม่ต้องเรียนรู้อะไรใหม่ตอนเปิดป๊อปอัปนี้ */
+  .dv-ddbt{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:0;text-transform:none;
+    color:#12518F;background:#EDF3FA;border:1px solid #D8E4F2;border-radius:999px;
+    padding:3px 9px;cursor:pointer;white-space:nowrap}
+  .dv-ddbt:hover{background:#DEEAF7}
+  .dv-lvhd{cursor:pointer}
+  .dv-lvhd:hover .s b{color:#12518F}
+  .dv-ddov{display:none;position:fixed;inset:0;z-index:9000;overflow-y:auto;padding:14px;
+    background:rgba(8,16,44,.62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .dv-ddov *{box-sizing:border-box}
+  .dv-ddsheet{max-width:1560px;margin:0 auto;border-radius:18px;overflow:hidden;
+    display:flex;flex-direction:column;max-height:calc(100dvh - 28px);
+    font-family:'DM Sans',Manrope,-apple-system,system-ui,sans-serif;
+    background:linear-gradient(160deg, rgba(20,36,88,.96), rgba(12,24,62,.93));
+    -webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%);
+    border:1px solid rgba(255,255,255,.26);
+    box-shadow:0 24px 60px rgba(2,10,30,.55), inset 0 1px 0 rgba(255,255,255,.30)}
+  .dv-ddhd{display:flex;align-items:center;gap:13px;padding:11px 14px 12px;flex:none}
+  .dv-ddnum{font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1;color:#fff;
+    font-family:'DM Mono',ui-monospace,monospace;display:inline-block;min-width:34px;text-align:center}
+  .dv-dddgrp{display:inline-block;min-width:118px}
+  .dv-dddwk{display:block;font-size:14px;font-weight:800;line-height:1.05;color:#fff}
+  .dv-dddmo{display:block;font-size:9px;font-weight:800;letter-spacing:.13em;color:#A8BAD8;
+    text-transform:uppercase}
+  .dv-ddttl{font-size:12.5px;font-weight:800;color:#EAF0FB;letter-spacing:.02em;min-width:0}
+  .dv-ddttl i{display:block;font-style:normal;font-size:10px;font-weight:600;color:#A8BAD8;margin-top:2px}
+  .dv-ddx{width:29px;height:29px;flex:none;border:1px solid rgba(255,255,255,.26);
+    background:rgba(255,255,255,.10);border-radius:9px;color:#C9D6EC;font-size:16px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1}
+  .dv-ddx:hover{background:rgba(255,255,255,.22);color:#fff}
+  .dv-ddbd{padding:0 12px 13px;display:flex;flex-direction:column;gap:9px;
+    overflow-y:auto;min-height:0;overscroll-behavior:contain;
+    scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.34) transparent}
+  .dv-ddbd::-webkit-scrollbar{width:6px}
+  .dv-ddbd::-webkit-scrollbar-thumb{background:rgba(255,255,255,.30);border-radius:4px}
+  /* ── การ์ดสรุปสองใบ · อยู่คู่กันเสมอ ── */
+  .dv-ddsums{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .dv-ddsum{padding:11px 13px 10px;cursor:pointer;position:relative;opacity:.62}
+  .dv-ddsum.on{opacity:1}
+  .dv-ddsum::after{content:'';position:absolute;inset:-1px;border-radius:12px;pointer-events:none;
+    border:2px solid transparent}
+  .dv-ddsum[data-side="b2c"].on::after{border-color:#C2557C}
+  .dv-ddsum[data-side="b2b"].on::after{border-color:#3E7FBF}
+  .dv-ddsh{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .dv-ddsh .big{font-size:13.5px;font-weight:800}
+  .dv-ddsh .dv-cnt{margin-left:auto}
+  .dv-ddsv{display:flex;align-items:stretch;padding:1px 0 8px}
+  .dv-ddsv .s{flex:1;text-align:center;min-width:0}
+  .dv-ddsv .s b{display:block;font-family:'DM Mono',ui-monospace,monospace;font-size:21px;
+    font-weight:800;line-height:1.1;color:#3a3a36}
+  .dv-ddsv .s b.dim{color:#b6b1a8}
+  .dv-ddsv .s i{display:block;font-style:normal;font-size:9.5px;font-weight:600;color:#9b9088;margin-top:1px}
+  .dv-ddsv .sep{width:1px;margin:2px 0;background:#EFEBE5}
+  .dv-ddshb{height:6px;border-radius:999px;background:#F4F2EE;overflow:hidden}
+  .dv-ddshb i{display:block;height:100%;border-radius:999px}
+  /* ── การ์ดซอย 3 ใบ · สูงเท่ากันให้อ่านเป็นแถบเดียว ── */
+  .dv-ddg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;align-items:stretch}
+  .dv-ddcard{padding:11px 13px 12px;display:flex;flex-direction:column}
+  .dv-ddcard>.dv-ddh2:last-of-type{margin-top:auto}
+  .dv-ddh{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#1F2124;
+    display:flex;align-items:center;gap:7px;margin-bottom:9px}
+  .dv-ddh span{margin-left:auto;background:#EFEBE7;color:#7a736c;border-radius:999px;padding:2px 8px;
+    font-size:9.5px;font-weight:800;letter-spacing:0;text-transform:none}
+  .dv-ddh2{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#b0aaa0;
+    padding:11px 0 6px;margin-top:6px;border-top:1px solid #F1EEE9}
+  /* แท่งเรียงอันดับ · ป้ายบน · แท่งล่าง · ตัวเลขขวา · ปลายแท่งมน 4px บนรางที่เห็นเพดาน */
+  .dv-ddbr{display:grid;grid-template-columns:minmax(0,1fr) 62px;
+    grid-template-areas:'l v' 'tr v';gap:0 9px;align-items:center;padding:4px 0}
+  .dv-ddbr .l{grid-area:l;font-size:11px;font-weight:700;color:#2c2c2a;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+  .dv-ddbr .tr{grid-area:tr;height:8px;border-radius:4px;background:#F4F6F4;
+    box-shadow:inset 0 0 0 1px #ECEFEC;overflow:hidden;display:block}
+  .dv-ddbr .tr i{display:block;height:100%;border-radius:4px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+  .dv-ddbr .v{grid-area:v;text-align:right;font-family:'DM Mono',ui-monospace,monospace;
+    font-size:12px;font-weight:800;color:#2c2c2a;line-height:1.2}
+  .dv-ddbr .v em{display:block;font-style:normal;font-family:'DM Sans',sans-serif;font-size:9px;
+    font-weight:600;color:#a8a29a;white-space:nowrap}
+  .dv-ddbr:hover .l{color:#12518F}
+  .dv-ddnone{font-size:11px;color:#b0aaa0;text-align:center;padding:10px 0;font-style:normal}
+  .dv-ddhr{display:flex;align-items:flex-end;gap:2px;height:54px}
+  .dv-ddhb{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
+    height:100%;min-width:0}
+  .dv-ddhb i{display:block;width:100%;border-radius:3px;
+    background:linear-gradient(180deg,#A9E5C9,#2E9B72)}
+  .dv-ddhb.z i{background:#EDEBE6}
+  .dv-ddhb u{display:block;text-decoration:none;font-family:'DM Mono',ui-monospace,monospace;
+    font-size:8px;color:#b6b1a8;font-weight:600;margin-top:3px;height:10px}
+  .dv-ddnats{display:flex;flex-wrap:wrap;gap:4px}
+  .dv-ddnats span{font-size:10px;font-weight:700;color:#5f5c56;background:#F4F2EE;border-radius:6px;
+    padding:3px 7px;display:inline-flex;align-items:center;gap:5px}
+  .dv-ddnats b{font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:#2c2c2a}
+  /* ── รายการใบจองทั้งวัน · ทุกใบ ไม่ใช่ 12 ใบล่าสุดเหมือนฟีดข้างนอก ── */
+  .dv-ddlist{padding:11px 13px 10px}
+  .dv-ddrows{display:flex;flex-direction:column;gap:3px;max-height:330px;overflow-y:auto;
+    overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#DAD5CC transparent}
+  .dv-ddrows::-webkit-scrollbar{width:7px}
+  .dv-ddrows::-webkit-scrollbar-thumb{background:#DAD5CC;border-radius:4px}
+  .dv-ddrow{display:flex;align-items:center;gap:9px;padding:5px 7px;border-radius:8px;
+    border:1px solid #F1EEE9;background:#fff;cursor:pointer}
+  .dv-ddrow:hover{background:#FAFAF8;border-color:#E2DED6}
+  .dv-ddrow.cx{opacity:.5}
+  .dv-ddrow .tm{flex:none;width:38px;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;
+    font-weight:700;color:#b0aaa0}
+  .dv-ddrow .mk{flex:none;width:112px;display:flex}
+  .dv-ddmk{display:block;max-width:112px;height:21px;line-height:21px;padding:0 7px;border-radius:6px;
+    font-size:9px;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  .dv-ddrow .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+  .dv-ddrow .tx b{font-size:11.5px;font-weight:800;line-height:1.35;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .dv-ddrow .tx b em{font-style:normal;color:#A32D2D;font-weight:700}
+  .dv-ddrow .tx b s{text-decoration:none;font-size:9px;background:#EDE7FA;color:#534AB7;
+    border-radius:4px;padding:1px 5px;font-weight:800}
+  .dv-ddrow .tx i{font-style:normal;font-size:10px;font-weight:600;color:#8a857d;line-height:1.35;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dv-ddrow .dt{flex:none;width:76px;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;
+    font-weight:700;color:#5f5c56;text-align:right}
+  .dv-ddrow .px{flex:none;width:34px;font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px;
+    font-weight:800;color:#2c2c2a;text-align:right}
+  .dv-ddrow .vc{flex:none;width:126px;font-family:'DM Mono',ui-monospace,monospace;font-size:10px;
+    font-weight:600;color:#b0aaa0;text-align:right;overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap}
+  .dv-ddrow .mn{flex:none;width:80px;font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px;
+    font-weight:800;color:#2c2c2a;text-align:right}
+  /* จอแคบ · กริดยุบเป็นคอลัมน์เดียว แล้วตัดคอลัมน์ที่อ่านจากที่อื่นได้ออกจากแถว */
+  @media (max-width:1180px){
+    .dv-ddg3{grid-template-columns:1fr}
+    .dv-ddsums{grid-template-columns:1fr}
+    .dv-ddrow .vc,.dv-ddrow .tm{display:none}
   }
 </style>`;
 function renderDash(){
