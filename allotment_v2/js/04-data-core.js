@@ -6565,13 +6565,13 @@ function fcAddDays(ymd,n){ var d=new Date(ymd+'T00:00:00'); d.setDate(d.getDate(
 function fcInit(){
   var t=fcToday_();
   if(!_fc.ym) _fc.ym=t.slice(0,7);
-  if(!_fc.from) _fc.from=fcAddDays(t, _fc.mode==='m7'?-3:-6);
+  if(!_fc.from) _fc.from=t;
 }
 function fcNDays(){ return _fc.mode==='m7'?7:14; }
 window.fcSetMode=function(m){
   var t=fcToday_();
   _fc.mode=m;
-  if(m!=='mo') _fc.from=fcAddDays(t, m==='m7'?-3:-6);
+  if(m!=='mo') _fc.from=t;
   else _fc.ym=t.slice(0,7);
   renderFleetCal();
 };

@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-17 · branch `lk-inbox` @ `§fcPier` · **1 commit ahead of origin**
-(everything up to `§fcEn` is pushed and live; `§fcPier` is the one waiting)
+**As of:** 2026-09-17 · branch `lk-inbox` @ `§fcFwd` · **1 commit ahead of origin**
+(everything up to `§fcPier` is pushed and live; only `§fcFwd` is waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -146,6 +146,11 @@ this page into English**: the owner's guests and partners read this screen, and 
 operations view mixing Thai labels into a table that foreign readers use. Code comments stay Thai —
 their audience is whoever maintains the file, not whoever reads the screen. The two Thai strings
 left on screen are boat names (`สบายดีทัวร์`, `เรือปลอม`), which are data, not labels.
+
+`§fcFwd` changed where the matrix window starts. It had been centred on today (back 3 days for the
+7-day view, back 6 for the 14-day), so half the table was days already sailed. This page is used to
+plan forward — free capacity in the days ahead is the thing being looked for — so both windows now
+begin on **today** and count forward; `‹` still goes back for anyone who wants the history.
 
 `§fcPier` added the **pier filter chips** back (All piers / Tub Lamu / Visit Panwa / Ranong /
 In Shop) — the rebuild had dropped them. Selecting one narrows the table *and* the three counters in

@@ -83,6 +83,23 @@ const ok   = (m) => console.log('  ✓ ' + m);
       else ok(m + ' · ' + (want ? (g.cols + ' คอลัมน์') : (g.cells + ' ช่องวัน')));
     }
 
+    // ── §fcFwd · ช่วงต้องเริ่มที่วันนี้ แล้วนับไปข้างหน้า ───────────────
+    // ของเดิมวางวันนี้ไว้กลางช่วง ครึ่งตารางเป็นอดีตที่จัดเรือไปแล้ว
+    // หน้านี้ใช้วางแผนล่วงหน้า ที่ว่างวันข้างหน้าคือของที่ต้องเห็น
+    for (const [m, n] of [['m7', 7], ['m14', 14]]) {
+      await page.evaluate(x => fcSetMode(x), m);
+      await page.waitForTimeout(400);
+      const g = await page.evaluate(() => ({ from: _fc.from, today: TODAY_STR,
+        first: (document.querySelector('.fc-mt thead th:nth-child(2) .dn') || {}).textContent,
+        cols: document.querySelectorAll('.fc-mt thead th').length - 1 }));
+      const past = Math.round((Date.parse(g.today + 'T00:00:00') - Date.parse(g.from + 'T00:00:00')) / 864e5);
+      if (g.from !== g.today) fail(m + ' · ช่วงเริ่มที่ ' + g.from + ' ย้อนหลังไป ' + past + ' วัน · ควรเริ่มที่วันนี้ ' + g.today);
+      else if (g.cols !== n) fail(m + ' · ได้ ' + g.cols + ' คอลัมน์ ควรเป็น ' + n);
+      else ok(m + ' · เริ่มที่วันนี้ ' + g.from + ' แล้วนับไปข้างหน้า ' + n + ' วัน');
+    }
+    await page.evaluate(() => fcSetMode('m14'));
+    await page.waitForTimeout(400);
+
     // ── ชิปเลือกท่า ──────────────────────────────────────────────────
     await page.evaluate(() => fcSetMode('m14'));
     await page.waitForTimeout(400);
