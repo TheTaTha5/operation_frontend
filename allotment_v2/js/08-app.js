@@ -15151,6 +15151,30 @@ function ckVanIds(O){
     if(sp && sp.vanId && out.indexOf(sp.vanId)<0) out.push(sp.vanId); });
   return out;
 }
+/* §gvanSplit (2026-09-17) · "ทำไมถึงเป็นเดินทางเอง ทั้งๆที่มีการจัดรถ"
+
+   ต่อจากที่ §vckSplit เตือนไว้ข้างบน · ใบที่แยกจุดรับ รถย้ายไปอยู่ใน vanSplits
+   แล้ว ops.vanId ถูกลบทิ้ง · pckArrivalOf แก้ให้อ่าน ckVanIds แล้ว จึงรู้ว่า "มีรถ"
+   และจัดโซนเป็น PK/KL ถูกต้อง · แต่ตอน "จัดกลุ่มตามคัน" ทุกที่ยังเขียน r.vanId||'__own'
+   ใบพวกนี้เลยตกไปอยู่ถังเดียวกับคนที่มาเอง · ไกด์อ่านได้ว่า
+   "ไม่มีรถของเรา — เช็คว่ามาถึงท่าหรือยัง" ทั้งที่รถกำลังไปรับอยู่
+
+   วัดจากข้อมูลจริง · ใบที่มี vanSplits 6 ใบ · ops.vanId ว่างทั้ง 6 ใบ
+   และทั้ง 6 ใบแยกข้ามรถมากกว่าหนึ่งคัน · จึงต้องมีป้ายบอกด้วย ไม่ใช่แค่ย้ายถัง */
+function ckGroupVanId(r){
+  if(r && r.vanId) return r.vanId;
+  try{ var ids=ckVanIds(r&&r.O); return ids.length?ids[0]:''; }catch(_){ return ''; }
+}
+/* ใบเดียวแยกขึ้นหลายคัน · ใบงานไกด์เป็นใบต่อ "ลำเรือ" รถทุกคันอยู่ในใบเดียวกัน
+   จับไว้ใต้คันแรกแล้วบอกให้ครบว่าอีกคันไหนบ้าง ไกด์จึงยังเห็นครบ
+   (ฝั่งคนขับใช้ใบงานรถ ซึ่งแตกแถวตาม vanSplits ถูกอยู่แล้ว) */
+function ckVanSplitNote(O){
+  try{
+    var ids=ckVanIds(O); if(ids.length<2) return '';
+    return 'แยกขึ้นรถ '+ids.length+' คัน · '+ids.map(function(v){
+      return (typeof pckVanName==='function')?pckVanName(v):v; }).join(' · ');
+  }catch(_){ return ''; }
+}
 // ลูกค้ามาถึงท่าได้ยังไง · PK/KL = รถเรารับ · OWN = มาเอง/รถเอเย่นต์ · NOVAN = อยู่ในโซนรับแต่ยังไม่จัดรถ
 function pckArrivalOf(r){
   var b=r.b, t=r.t;
@@ -17753,8 +17777,8 @@ function pckGuideJobSheet(bid, date, rows, vd){
     var zr=rows.filter(function(r){ return r.arr===zk && !r._ovnBack; }); if(!zr.length) return;
     var vgs={}, vord=[];
     zr.forEach(function(r){
-      var vk=r.vanId||'__own';
-      if(!vgs[vk]){ vgs[vk]={vid:r.vanId||'', rows:[], gno:0}; vord.push(vk); }
+      var vk=ckGroupVanId(r)||'__own';   /* §gvanSplit */
+      if(!vgs[vk]){ vgs[vk]={vid:ckGroupVanId(r)||'', rows:[], gno:0}; vord.push(vk); }
       vgs[vk].rows.push(r);
       var gn=+((r.O&&r.O.vanGroup)||0); if(gn>0 && (!vgs[vk].gno||gn<vgs[vk].gno)) vgs[vk].gno=gn;
     });
@@ -18172,6 +18196,11 @@ function pckJobNote(b, date){
   var al=(typeof bkV2AllergyText==='function')?bkV2AllergyText(mm):String(mm.allergies||'').trim();
   al=String(al||'').trim();
   if(al) out.push({w:1, t:'แพ้อาหาร: '+al});
+  /* §gvanSplit · ใบนี้แยกขึ้นรถหลายคัน · ตัวหนา เพราะไกด์ต้องรู้ว่าคนกลุ่มนี้
+     ไม่ได้มาคันเดียวกันทั้งหมด แม้จะพิมพ์รวมอยู่ใต้หัวคันแรก */
+  var _vs=(typeof ckVanSplitNote==='function')
+    ? ckVanSplitNote((typeof bkOpsRead==='function')?bkOpsRead(b,date):(b.ops||{})) : '';
+  if(_vs) out.push({w:1, t:_vs});
   var sq=(typeof vanJobsSreqFinal==='function')?(vanJobsSreqFinal(b)||''):((b.notes||'').trim());
   if(sq) out.push({w:0, t:sq});
   // §pierNote · เรื่องที่แจ้งที่ท่า · ตัวหนา (w:1) เพราะเป็นของที่เพิ่งเกิด ไกด์ยังไม่รู้
@@ -19690,7 +19719,7 @@ function pckSheetGroups(boats, border){
   if(_pckGrp==='van'){
     var vg={}, vord=[], vrows={};
     border.forEach(function(bid){ (boats[bid].rows||[]).forEach(function(r){
-      var vk=r.vanId||'__own';
+      var vk=ckGroupVanId(r)||'__own';   /* §gvanSplit */
       if(!vg[vk]){ vg[vk]={subs:{}, sord:[]}; vord.push(vk); vrows[vk]=[]; }
       vrows[vk].push(r);
       var G=vg[vk]; if(!G.subs[r.bid]){ G.subs[r.bid]=[]; G.sord.push(r.bid); }
@@ -19702,7 +19731,7 @@ function pckSheetGroups(boats, border){
     border.forEach(function(bid){
       var G={subs:{}, sord:[]};
       (boats[bid].rows||[]).forEach(function(r){
-        var vk=r.vanId||'__own';
+        var vk=ckGroupVanId(r)||'__own';   /* §gvanSplit */
         if(!G.subs[vk]){ G.subs[vk]=[]; G.sord.push(vk); }
         G.subs[vk].push(r);
       });
@@ -20658,8 +20687,8 @@ function renderPierCheckin(){
         var zc=pckZoneColor(zk), az=pckAgg(zr);
         var vgs={}, vord=[];
         zr.forEach(function(r){
-          var vk=r.vanId||'__own';
-          if(!vgs[vk]){ vgs[vk]={vid:r.vanId||'', rows:[], gno:0, seq:1e9, zcol:zc, novan:(zk==='NOVAN')}; vord.push(vk); }
+          var vk=ckGroupVanId(r)||'__own';   /* §gvanSplit */
+          if(!vgs[vk]){ vgs[vk]={vid:ckGroupVanId(r)||'', rows:[], gno:0, seq:1e9, zcol:zc, novan:(zk==='NOVAN')}; vord.push(vk); }
           var vg=vgs[vk]; vg.rows.push(r);
           var gn=+((r.O&&r.O.vanGroup)||0); if(gn>0 && (!vg.gno||gn<vg.gno)) vg.gno=gn;
           var sq=+((r.O&&r.O.vanSeq)||0);   if(sq>0 && sq<vg.seq) vg.seq=sq;
