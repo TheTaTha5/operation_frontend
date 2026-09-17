@@ -1093,13 +1093,15 @@ function _dashLiveFeedHtml(dx,F,side){
       +(side==='b2b'?'<span class="dv-cnt" style="background:#E6F1FB;color:#12518F">B2B &middot; เอเย่นต์</span>':'')
       +(side==='b2c'?'<span class="dv-cnt" style="background:#FDE6EE;color:#8C2D52">B2C &middot; ขายเอง</span>':'')
       +'<span class="sp"></span>'
-      /* §dayDetail · ทางเข้าป๊อปอัป · เปิดฝั่งเดียวกับการ์ดที่กด */
-      +'<span class="dv-ddbt" onclick="event.stopPropagation();dashOpenDayDetail(\''+side+'\')" title="ดูใบจองทั้งหมดของวันนี้ แยก B2C / B2B">รายละเอียดทั้งวัน</span>'
       +'<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:#0F6E56;letter-spacing:0;text-transform:none"><span style="width:7px;height:7px;border-radius:50%;background:#2F9E5B;animation:dashlvpulse 1.4s infinite"></span>live</span>'
     +'</div>'
     +head
     +'<div class="dv-lvlist">'+rows+'</div>'
-    +'<div class="dv-sync">'+DASH_ICO.sync+'อัปเดตเองไม่ต้องรีเฟรช</div></div>';
+    /* §dayDetail · ทางเข้าป๊อปอัป · ท้ายการ์ดเป็นที่ของ "ข้อมูลเกี่ยวกับฟีดนี้" อยู่แล้ว
+       ปุ่มอยู่ตรงนั้นถูกที่กว่าหัวการ์ด และไม่ไปเบียดป้าย B2B/B2C ให้ตกบรรทัด */
+    +'<div class="dv-sync"><span class="sy">'+DASH_ICO.sync+'อัปเดตเองไม่ต้องรีเฟรช</span>'
+      +'<span class="dv-ddbt" onclick="dashOpenDayDetail(\''+side+'\')" '
+      +'title="ดูใบจองทั้งหมดของวันนี้ แยก B2C / B2B">รายละเอียดทั้งวัน &rsaquo;</span></div></div>';
 }
 
 /* ══ §dayDetail · "รายละเอียดทั้งวัน" ที่ห้อยจากการ์ด Live bookings ═══════
@@ -1272,23 +1274,24 @@ function _ddSideBlock(rows,side){
   var MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var moLbl=function(ym){ var p=String(ym).split('-');
     return (MO[(+p[1]||1)-1]||p[1])+' '+(p[0]||''); };
-  return '<div class="dv-ddg3">'
+  /* ทุกใบในแถวนี้วัดด้วยไม้บรรทัดเดียวกัน = ยอดขาย · ความยาวแท่งจึงเทียบข้ามการ์ดได้
+     สีเป็นของ "การ์ด" ไม่ใช่ของอันดับ — เส้นทางใช้สีเส้นทางจริง ที่เหลือใบละสี */
+  return '<div class="dv-ddg4">'
     +'<div class="dv-c dv-ddcard"><div class="dv-ddh">เส้นทาง<span>'+byRoute.length+' เส้นทาง</span></div>'
-      +_ddBars(byRoute,{top:7})+'</div>'
+      +_ddBars(byRoute,{top:9})+'</div>'
     +'<div class="dv-c dv-ddcard"><div class="dv-ddh">'
       +(side==='b2c'?'ช่องทางที่ลูกค้าทักเข้ามา':'เอเย่นต์')+'<span>'+byWho.length
       +(side==='b2c'?' ช่องทาง':' เจ้า')+'</span></div>'
-      +_ddBars(byWho,{top:7,color:(side==='b2c'?'#C2557C':'#3E7FBF')})+'</div>'
+      +_ddBars(byWho,{top:9,color:(side==='b2c'?'#C2557C':'#3E7FBF')})+'</div>'
     +'<div class="dv-c dv-ddcard">'
       +'<div class="dv-ddh">เดือนที่จะเดินทาง<span>'+byMonth.length+' เดือน</span></div>'
-      +_ddBars(byMonth,{top:8,color:'#2E9B72',label:moLbl})
+      +_ddBars(byMonth,{top:9,color:'#2E9B72',label:moLbl})
       +'<div class="dv-ddh2">เวลาที่ใบเข้ามา</div>'+_ddHours(ok)
-      +'<div class="dv-ddh2">สัญชาติผู้จอง</div>'
-      +'<div class="dv-ddnats">'+(byNat.length
-        ? byNat.slice(0,8).map(function(x){ return '<span title="'+esc(x.k)+' · '+x.n
-            +' ใบ · '+x.pax+' pax">'+esc(x.k)+'<b>'+x.pax+'</b></span>'; }).join('')
-        : '<i class="dv-ddnone">ไม่มีข้อมูล</i>')+'</div>'
-    +'</div></div>'
+    +'</div>'
+    +'<div class="dv-c dv-ddcard"><div class="dv-ddh">สัญชาติผู้จอง<span>'+byNat.length
+      +' สัญชาติ</span></div>'
+      +_ddBars(byNat,{top:9,color:'#7C6BA8'})+'</div>'
+    +'</div>'
     +'<div class="dv-c dv-ddlist"><div class="dv-ddh">ใบจองทั้งหมดของวันนี้<span>'+all.length+' ใบ'
       +((all.length-ok.length)?(' · ยกเลิก '+(all.length-ok.length)):'')+'</span></div>'
       +'<div class="dv-ddrows">'+_ddList(all)+'</div></div>';
@@ -1318,7 +1321,7 @@ function _ddHeadHtml(){
       +'<span class="dv-dddmo">'+MO[dt.getMonth()]+' '+dt.getFullYear()+'</span></span>'
     +'<button class="dv-arw" onclick="dashDayDetailShift(1)" title="วันถัดไป">&rsaquo;</button>'
     +'<span class="dv-ddttl">รายละเอียดใบจองทั้งวัน<i>ทุกใบที่เข้าระบบวันนี้ · แยก B2C / B2B</i></span>'
-    +'<span class="dv-kpi">'
+    +'<span class="dv-ddkpi">'
       +'<span class="dv-chip"><b>'+ok.length+'</b> ใบ</span>'
       +'<span class="dv-chip"><b>'+pax+'</b> pax</span>'
       +'<span class="dv-chip"><b>'+_dashMoneyShort(val)+'</b> ยอดวันนี้</span>'
@@ -1642,8 +1645,11 @@ const DV_CSS=`<style>
   .dv-more{margin:4px 12px 2px;text-align:center;font-size:10px;color:#7d7a74;cursor:pointer;
     padding:5px;border-radius:8px;background:#F7F5F2;font-weight:600}
   .dv-more b{font-family:'DM Mono',ui-monospace,monospace;color:#0C6B47}
-  .dv-sync{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px;
-    font-size:10px;color:#b0aaa0}
+  /* §dayDetail · แถวนี้เดิมมีแค่ข้อความสถานะจึงจัดกลาง · ตอนนี้มีปุ่มด้วย แยกไปคนละข้าง */
+  .dv-sync{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:10px;
+    padding:0 2px;font-size:10px;color:#b0aaa0}
+  .dv-sync .sy{display:inline-flex;align-items:center;gap:6px;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
   /* ── ปฏิทิน Seats available ── */
   .dv-cal{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:12px;
@@ -1811,22 +1817,21 @@ const DV_CSS=`<style>
      เปลือกใช้แก้วชุดเดียวกับ .dv-pop (ฐานเข้มก่อนแล้วค่อยโปร่ง) แค่ขยายเป็นแผ่นเต็ม
      ข้างในเป็นการ์ดขาว .dv-c ตามภาษาเดิมของหน้า — คนที่ใช้ Dashboard อยู่แล้ว
      ไม่ต้องเรียนรู้อะไรใหม่ตอนเปิดป๊อปอัปนี้ */
-  .dv-ddbt{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:0;text-transform:none;
+  .dv-ddbt{font-size:10px;font-weight:800;letter-spacing:0;text-transform:none;
     color:#12518F;background:#EDF3FA;border:1px solid #D8E4F2;border-radius:999px;
     padding:3px 9px;cursor:pointer;white-space:nowrap}
   .dv-ddbt:hover{background:#DEEAF7}
   .dv-lvhd{cursor:pointer}
   .dv-lvhd:hover .s b{color:#12518F}
-  .dv-ddov{display:none;position:fixed;inset:0;z-index:9000;overflow-y:auto;padding:14px;
+  .dv-ddov{display:none;position:fixed;inset:0;z-index:9000;overflow:hidden;
     background:rgba(8,16,44,.62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
   .dv-ddov *{box-sizing:border-box}
-  .dv-ddsheet{max-width:1560px;margin:0 auto;border-radius:18px;overflow:hidden;
-    display:flex;flex-direction:column;max-height:calc(100dvh - 28px);
+  .dv-ddsheet{width:100%;height:100dvh;max-height:100dvh;border-radius:0;overflow:hidden;
+    display:flex;flex-direction:column;
     font-family:'DM Sans',Manrope,-apple-system,system-ui,sans-serif;
     background:linear-gradient(160deg, rgba(20,36,88,.96), rgba(12,24,62,.93));
     -webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%);
-    border:1px solid rgba(255,255,255,.26);
-    box-shadow:0 24px 60px rgba(2,10,30,.55), inset 0 1px 0 rgba(255,255,255,.30)}
+    border:none;box-shadow:none}
   .dv-ddhd{display:flex;align-items:center;gap:13px;padding:11px 14px 12px;flex:none}
   .dv-ddnum{font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1;color:#fff;
     font-family:'DM Mono',ui-monospace,monospace;display:inline-block;min-width:34px;text-align:center}
@@ -1836,17 +1841,20 @@ const DV_CSS=`<style>
     text-transform:uppercase}
   .dv-ddttl{font-size:12.5px;font-weight:800;color:#EAF0FB;letter-spacing:.02em;min-width:0}
   .dv-ddttl i{display:block;font-style:normal;font-size:10px;font-weight:600;color:#A8BAD8;margin-top:2px}
+  /* ชุดชิปของป๊อปอัป · รูปเดียวกับ .dv-kpi แต่ต้องเป็นคลาสของตัวเอง — ดูบันทึกที่ _ddHeadHtml */
+  .dv-ddkpi{margin-left:auto;display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+    justify-content:flex-end;min-width:0}
   .dv-ddx{width:29px;height:29px;flex:none;border:1px solid rgba(255,255,255,.26);
     background:rgba(255,255,255,.10);border-radius:9px;color:#C9D6EC;font-size:16px;cursor:pointer;
     display:flex;align-items:center;justify-content:center;font-family:inherit;line-height:1}
   .dv-ddx:hover{background:rgba(255,255,255,.22);color:#fff}
-  .dv-ddbd{padding:0 12px 13px;display:flex;flex-direction:column;gap:9px;
+  .dv-ddbd{padding:0 14px 14px;display:flex;flex-direction:column;gap:9px;flex:1 1 auto;
     overflow-y:auto;min-height:0;overscroll-behavior:contain;
     scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.34) transparent}
   .dv-ddbd::-webkit-scrollbar{width:6px}
   .dv-ddbd::-webkit-scrollbar-thumb{background:rgba(255,255,255,.30);border-radius:4px}
   /* ── การ์ดสรุปสองใบ · อยู่คู่กันเสมอ ── */
-  .dv-ddsums{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .dv-ddsums{display:grid;grid-template-columns:1fr 1fr;gap:9px;flex:none}
   .dv-ddsum{padding:11px 13px 10px;cursor:pointer;position:relative;opacity:.62}
   .dv-ddsum.on{opacity:1}
   .dv-ddsum::after{content:'';position:absolute;inset:-1px;border-radius:12px;pointer-events:none;
@@ -1866,7 +1874,8 @@ const DV_CSS=`<style>
   .dv-ddshb{height:6px;border-radius:999px;background:#F4F2EE;overflow:hidden}
   .dv-ddshb i{display:block;height:100%;border-radius:999px}
   /* ── การ์ดซอย 3 ใบ · สูงเท่ากันให้อ่านเป็นแถบเดียว ── */
-  .dv-ddg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;align-items:stretch}
+  .dv-ddg4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;
+    align-items:stretch;flex:none}
   .dv-ddcard{padding:11px 13px 12px;display:flex;flex-direction:column}
   .dv-ddcard>.dv-ddh2:last-of-type{margin-top:auto}
   .dv-ddh{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#1F2124;
@@ -1903,8 +1912,8 @@ const DV_CSS=`<style>
     padding:3px 7px;display:inline-flex;align-items:center;gap:5px}
   .dv-ddnats b{font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:#2c2c2a}
   /* ── รายการใบจองทั้งวัน · ทุกใบ ไม่ใช่ 12 ใบล่าสุดเหมือนฟีดข้างนอก ── */
-  .dv-ddlist{padding:11px 13px 10px}
-  .dv-ddrows{display:flex;flex-direction:column;gap:3px;max-height:330px;overflow-y:auto;
+  .dv-ddlist{padding:11px 13px 10px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+  .dv-ddrows{display:flex;flex-direction:column;gap:3px;flex:1 1 auto;min-height:190px;overflow-y:auto;
     overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#DAD5CC transparent}
   .dv-ddrows::-webkit-scrollbar{width:7px}
   .dv-ddrows::-webkit-scrollbar-thumb{background:#DAD5CC;border-radius:4px}
@@ -1936,10 +1945,36 @@ const DV_CSS=`<style>
   .dv-ddrow .mn{flex:none;width:80px;font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px;
     font-weight:800;color:#2c2c2a;text-align:right}
   /* จอแคบ · กริดยุบเป็นคอลัมน์เดียว แล้วตัดคอลัมน์ที่อ่านจากที่อื่นได้ออกจากแถว */
+  @media (max-width:1400px){ .dv-ddg4{grid-template-columns:repeat(2,minmax(0,1fr))} }
   @media (max-width:1180px){
-    .dv-ddg3{grid-template-columns:1fr}
     .dv-ddsums{grid-template-columns:1fr}
     .dv-ddrow .vc,.dv-ddrow .tm{display:none}
+    .dv-ddrows{min-height:120px}
+  }
+  /* §dayDetail · จอมือถือ · วัดที่ 390x812 ได้ล้นแนวนอน 78px และเลข 5 ตัวบนการ์ดสรุป
+     ทับกันจนอ่านไม่ออก (฿23K กับ ฿7,699 ชนกัน) · สามอย่างที่ต้องทำ:
+     · แถบหัวตัดชิปตัวเลขทิ้ง — เลขชุดเดียวกันอยู่บนการ์ดสรุปที่อยู่ใต้ลงมาแค่บรรทัดเดียว
+       แต่ปุ่มปิดต้องอยู่ ไม่งั้นออกจากหน้าไม่ได้เลยบนมือถือ
+     · การ์ดสรุปเปลี่ยนจากแถวเดียว 5 ช่องเป็นกริด 3 คอลัมน์ · เส้นคั่นไม่มีความหมายในกริด
+     · แถวรายการ ย่อคอลัมน์ที่กว้างตายตัวลงให้พอดีจอ */
+  @media (max-width:760px){
+    .dv-ddg4{grid-template-columns:1fr}
+    .dv-ddbd{padding:0 8px 10px;gap:7px}
+    .dv-ddhd{flex-wrap:wrap;gap:9px;padding:9px 10px 10px}
+    .dv-ddhd .dv-chip{display:none}
+    .dv-ddkpi{margin-left:auto}
+    .dv-ddttl{flex:1 1 100%;order:9;font-size:11.5px}
+    .dv-ddttl i{display:inline;margin:0 0 0 6px}
+    .dv-ddsv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px 4px;padding:1px 0 9px}
+    .dv-ddsv .sep{display:none}
+    .dv-ddsv .s b{font-size:17px}
+    .dv-ddcard,.dv-ddlist,.dv-ddsum{padding-left:10px;padding-right:10px}
+    .dv-ddrow{gap:6px;padding:5px 5px}
+    .dv-ddrow .mk{width:74px}
+    .dv-ddmk{max-width:74px}
+    .dv-ddrow .dt{width:54px;font-size:10px}
+    .dv-ddrow .px{width:22px}
+    .dv-ddrow .mn{width:62px;font-size:11px}
   }
 </style>`;
 function renderDash(){

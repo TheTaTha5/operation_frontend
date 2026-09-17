@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-17 · branch `lk-inbox` @ `§dayDetail` · **1 commit ahead of origin**
-(the previous "1 commit ahead" note was stale — `87e5565` and everything before it is on origin)
+**As of:** 2026-09-17 · branch `lk-inbox` @ `§dayDetail2` · **1 commit ahead of origin**
+(`fe5f669` was pushed by the owner and is live; `§dayDetail2` is the one waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -63,6 +63,21 @@ Three reader rules, not four: `laIsB2C` (`§b2cOne`) splits the sides, `_dashBkD
 re-reads none of them raw — that is why its numbers cannot drift from the card's.
 `laB2CChannel` is new and joins them: the channel lived in `b2cChannel` **or** in the `note`
 line the website writes, and two readers of that would have been the next `§b2cOne`.
+
+A second pass on the owner's feedback (`§dayDetail2`): the sheet is **full-screen** (a 14px
+margin round a page that is open all day bought nothing and shortened the one long thing on it, the
+booking list); **nationality moved to a card of its own**, so the breakdown row is four cards, all
+four measured on the same ruler (ยอดขาย) so bar lengths compare across them; and the way in moved
+off the card header — where it crowded the B2B/B2C pill onto a second line — down beside
+"อัปเดตเองไม่ต้องรีเฟรช", which is already the card's line about the feed itself.
+
+That pass also found a real bug the first one shipped: the popup header reused `.dv-kpi` from the
+Dashboard's own header, whose narrow-screen rule is `width:100%` + `margin-right:-92px` — written
+for a bar that has a floating button in its right corner. The popup has no such button, so at
+390px the chips ran **82px past the right edge and took the close button off-screen with them —
+no way out of the popup on a phone**. It threw no error, so `t_smoke` could not see it. Own class
+(`.dv-ddkpi`), and `t_daydetail` now opens the popup at 390×812 and asserts 0px overflow with the
+close button on screen.
 
 `test/ui/t_daydetail.mjs` (`npm run test:daydetail`) recomputes the expected numbers from
 `SB_BOOKINGS` inside the same page and compares them against what the popup renders. **Proven to

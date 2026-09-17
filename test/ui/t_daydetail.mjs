@@ -115,5 +115,35 @@ try {
   else ok('ไม่มี console error');
 } finally { await close(); }
 
+// ── จอแคบ ────────────────────────────────────────────────────────────────
+// ป๊อปอัปยืมโทเคนหน้าตาจากแถบหัวหน้า Dashboard มาใช้ (.dv-chip ฯลฯ) ซึ่งถูกที่แล้ว
+// แต่ .dv-kpi มีกฎจอแคบของมันเอง — width:100% + margin-right:-92px สำหรับแถบหัว
+// ที่มีปุ่มลอยมุมขวา · ป๊อปอัปไม่มีปุ่มนั้น ชิปเลยทะลุขอบขวา **82px** และปุ่มปิด
+// หลุดออกนอกจอ = ออกจากหน้าไม่ได้เลยบนมือถือ · ไม่มี error ให้จับ t_smoke มองไม่เห็น
+// เกณฑ์เดียวกับ t_mobile: ล้นแนวนอน ≤ 4px · และปุ่มปิดต้องอยู่ในจอ
+{
+  const { page, close } = await open({ width: 390, height: 812 });
+  try {
+    await goView(page, 'dashboard', 700);
+    if (DAY) { await page.evaluate(d => setDashDate(d), DAY); await page.waitForTimeout(600); }
+    await page.evaluate(() => dashOpenDayDetail('b2b'));
+    await page.waitForTimeout(600);
+    const m = await page.evaluate(() => {
+      const sh = document.querySelector('.dv-ddsheet');
+      const x = document.querySelector('.dv-ddx').getBoundingClientRect();
+      const out = [];
+      document.querySelectorAll('#dv-ddov *').forEach(el => { const r = el.getBoundingClientRect();
+        if (r.right > innerWidth + 0.5) out.push(el.tagName + '.' + String(el.className).slice(0, 34)
+          + ' เกินไป ' + Math.round(r.right - innerWidth) + 'px'); });
+      return { over: sh.scrollWidth - sh.clientWidth, xIn: x.right <= innerWidth + 0.5 && x.left >= -0.5,
+        who: out.slice(0, 3) };
+    });
+    if (m.over > 4) fail('390px · ล้นแนวนอน ' + m.over + 'px · ' + (m.who.join(' | ') || '?'));
+    else ok('390px · ล้นแนวนอน ' + m.over + 'px');
+    if (!m.xIn) fail('390px · ปุ่มปิดหลุดนอกจอ · ออกจากป๊อปอัปไม่ได้');
+    else ok('390px · ปุ่มปิดอยู่ในจอ');
+  } finally { await close(); }
+}
+
 console.log('\nพัง ' + bad);
 process.exit(bad ? 1 : 0);
