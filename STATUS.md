@@ -1,6 +1,6 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§agHd`
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§agProgFill`
 (a merge from GitHub landed at `6aa8cff`, bringing `§vanAssignScroll` from another session —
 this work was re-tested on top of the merged tree, not on the pre-merge one)
 (push from GitHub Desktop — the shell here has no credentials)
@@ -52,6 +52,44 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — picking a Rate Type now fills Programs in Contract
+
+A rate type says which routes have a price. Programs in Contract says which routes the agent sells.
+They describe the same thing from two directions, and until now both had to be typed separately —
+so the second one was routinely skipped. That is where the 44 agents selling a route their own rate
+cannot price came from: booking Save is blocked for them from the first day of the season.
+
+**On changing an agent's rate type** (`§agProgFill`), the program list now follows:
+
+- **adding is silent** — a route the rate can price but the contract does not list is simply added.
+  Booking window = the agent's contract dates. Travel window = the rate's `routeValidity` for that
+  route, which is what the Information tab was already overlaying at render time anyway.
+- **removing always asks** — a route already in the contract that the new rate cannot price is only
+  dropped if the person confirms. Cancel keeps it, and it stays visible as *Route with no price* in
+  the agent's Needs-action block. Removing is deleting something Sales chose to put there.
+
+Coverage is read from `seatRates`, not `rt.routes`: the declared list is what someone meant, the
+price table is what the booking screen can actually charge.
+
+A new agent created with a rate type gets its programs at creation, after the contract dates are
+seeded (they are the booking window of every filled row).
+
+**For the agents already in the system**, a panel on Rate Expiry (`§agProgBulk`) splits them in two,
+because filling means different things to each:
+
+| | agents | routes | what filling does |
+|---|---|---|---|
+| no programs at all | **204** | 1,090 | today they have *no* route restriction; filling gives them one — strictly narrower |
+| partly filled | **51** | 58 | filling **widens** what they may sell, possibly past what Sales intended |
+| route with no price | 44 | — | not touched here at all; per-agent confirmation only |
+
+Programs are not a label — `§contract-scope` uses them as the whitelist of sellable routes at booking
+Save. That is why the second group is a separate, amber button rather than part of the first.
+
+`test/ui/t_agprog.mjs` (12 checks) computes coverage itself from `seatRates` instead of calling
+`agProgPlan`. Proven to fail on four breaks: dropping without asking, travel window not taken from
+`routeValidity`, the two bulk groups merged into one, and filling nothing.
 
 ### 2026-09-18 — the Agent List page, rebuilt around what needs doing
 

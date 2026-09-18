@@ -33458,6 +33458,130 @@ function rtExpBulkApply(){
   else console.log('[rtExpBulk] set seasons for ' + n + ' agents');
 }
 
+/* ══ §agProgBulk · เติมโปรแกรมให้ตรงกับเรท ทีเดียวหลายเจ้า ════════════════════
+   §agProgFill แก้ของ "ตั้งแต่วันนี้ไป" · ก้อนนี้คือของที่ค้างอยู่แล้ว
+   เติมอย่างเดียว ไม่ตัดอะไรทั้งนั้น — การตัดคือการลบของที่คนตั้งใจใส่ ต้องดูทีละเจ้า
+   เจ้าที่มีเส้นซึ่งเรทไม่มีราคา จึงแค่ "ขึ้นให้เห็น" ในกล่อง ไม่ได้ถูกแตะ
+   ═══════════════════════════════════════════════════════════════════════════ */
+function agProgBulkPlan(){
+  var A = (typeof SB_AGENTS!=='undefined') ? SB_AGENTS : [];
+  if(typeof laScopeAgents==='function') A = laScopeAgents(A.slice());
+  /* แยกสองกอง เพราะผลของการเติมไม่เหมือนกันเลย
+       empty   · ยังไม่ได้กรอกโปรแกรมสักเส้น → วันนี้ "ไม่มีขอบเขต" อะไรทั้งนั้น
+                 เติมแล้วได้ขอบเขตขึ้นมา = แคบลง ปลอดภัยเสมอ
+       partial · Sales กรอกไว้แล้วบางส่วน → เติมคือการ "เปิดสิทธิ์ขายเพิ่ม"
+                 อาจเป็นเส้นที่เขาตั้งใจไม่ให้ขาย · ต้องเป็นปุ่มแยก ไม่รวมกับกองแรก */
+  var empty = [], partial = [], mismatch = [], nEmpty = 0, nPartial = 0;
+  A.forEach(function(a){
+    if(!a || !a.rateTypeId) return;
+    var P = agProgPlan(a, a.rateTypeId);
+    if(!P.rt) return;
+    if(P.add.length){
+      if((a.programs||[]).length){ partial.push({a:a, add:P.add}); nPartial += P.add.length; }
+      else { empty.push({a:a, add:P.add}); nEmpty += P.add.length; }
+    }
+    if(P.drop.length) mismatch.push({a:a, drop:P.drop});
+  });
+  var by = function(x,y){ return y.add.length - x.add.length; };
+  empty.sort(by); partial.sort(by);
+  return {empty:empty, partial:partial, mismatch:mismatch, nEmpty:nEmpty, nPartial:nPartial};
+}
+function agProgBulkPanel(hostId){
+  var host = document.getElementById(hostId); if(!host) return;
+  var P;
+  try{ P = agProgBulkPlan(); }catch(e){ console.warn('agProgBulkPlan failed', e); host.innerHTML=''; return; }
+  if(!P.empty.length && !P.partial.length && !P.mismatch.length){ host.innerHTML=''; return; }
+  var line = function(txt, btn){ return '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;'
+    +'border-top:1px solid #F1F3F6;padding:7px 0;font-size:11.5px;color:#4A5360;line-height:1.55">'
+    + txt + (btn||'') + '</div>'; };
+  var b = function(scope, label, dark){ return '<button onclick="agProgBulkOpen(\''+scope+'\')" '
+    +'style="margin-left:auto;border:'+(dark?'0':'1px solid #D6DCE5')+';background:'+(dark?'#0F172A':'#fff')
+    +';color:'+(dark?'#fff':'#5A6270')+';border-radius:999px;padding:5px 14px;font:700 11px inherit;'
+    +'cursor:pointer;font-family:inherit;white-space:nowrap">'+label+'</button>'; };
+  host.innerHTML = '<div style="background:#fff;border:1px solid #E7EAEF;border-radius:11px;'
+    +'padding:12px 15px;margin:0 0 14px">'
+    +'<div style="font-size:12.5px;font-weight:800;color:#2C3440">โปรแกรมในสัญญา กับ เรทที่ผูกอยู่</div>'
+    +'<div style="font-size:11px;color:#6B7280;line-height:1.6;margin-bottom:4px">'
+      +'เรทบอกว่ามีราคาของเส้นทางไหนบ้าง · สัญญาบอกว่าเอเย่นต์ขายเส้นทางไหนบ้าง '
+      +'และรายการในสัญญายังเป็น<b>ขอบเขตที่ขายได้</b>ตอนเปิดบุกกิ้งด้วย</div>'
+    + (P.empty.length ? line('<b style="color:#2C3440">'+P.empty.length+' เจ้ายังไม่ได้กรอกโปรแกรมเลย</b>'
+        +'<span>· วันนี้จึงจองเส้นไหนก็ได้ ไม่มีอะไรกั้น · เติมตามเรทแล้วจะมีขอบเขตขึ้นมา (+'+P.nEmpty+' เส้นทาง)</span>',
+        b('empty','เติมให้ '+P.empty.length+' เจ้า', true)) : '')
+    + (P.partial.length ? line('<b style="color:#8A5410">'+P.partial.length+' เจ้ากรอกไว้แล้วบางส่วน</b>'
+        +'<span>· เติมคือการเปิดสิทธิ์ขายเพิ่ม (+'+P.nPartial+' เส้นทาง) ซึ่งอาจเป็นเส้นที่ Sales ตั้งใจไม่ให้ขาย · ดูก่อนค่อยตัดสิน</span>',
+        b('partial','ดู '+P.partial.length+' เจ้า', false)) : '')
+    + (P.mismatch.length ? line('<b style="color:#A32D2D">'+P.mismatch.length+' เจ้ามีเส้นที่เรทไม่มีราคาให้</b>'
+        +'<span>· กล่องนี้ไม่ตัดให้ · ขึ้นเป็นเตือนในบล็อก Needs action ของเจ้านั้นอยู่แล้ว ต้องยืนยันทีละเจ้า</span>','') : '')
+    +'</div>';
+}
+var _agProgBulkScope = 'empty';
+function agProgBulkOpen(scope){
+  if(typeof laGuardEdit==='function' && !laGuardEdit('sales')) return;
+  _agProgBulkScope = (scope==='partial') ? 'partial' : 'empty';
+  var P = agProgBulkPlan();
+  var list = (_agProgBulkScope==='partial') ? P.partial : P.empty;
+  var nAdd = (_agProgBulkScope==='partial') ? P.nPartial : P.nEmpty;
+  if(!list.length) return;
+  var e = _rtExpE, isP = (_agProgBulkScope==='partial');
+  var h = '<div style="padding:16px 18px;border-bottom:1px solid #EEF0F3">'
+    +'<div style="font-size:15px;font-weight:800;color:#1F2937">เติมโปรแกรมให้ตรงกับเรท</div>'
+    +'<div style="font-size:11.5px;color:#6B7280;margin-top:3px">'
+      + (isP ? 'กลุ่มที่กรอกไว้แล้วบางส่วน · ' : 'กลุ่มที่ยังไม่ได้กรอกเลย · ')
+      + list.length + ' เอเย่นต์ · เติมรวม ' + nAdd + ' เส้นทาง</div></div>'
+    +'<div style="padding:14px 18px">';
+  h += isP
+    ? '<div style="background:#FEF6E7;border:1px solid #EFD9AE;border-radius:9px;padding:9px 12px;'
+      +'font-size:11.5px;color:#8A5410;line-height:1.65;margin-bottom:12px">'
+      +'<b>กลุ่มนี้มีคนกรอกไว้แล้ว</b> — การเติมคือการเปิดให้ขายเส้นที่วันนี้ขายไม่ได้<br>'
+      +'<span style="color:#9A6A2A">ถ้า Sales ตั้งใจให้ขายแค่บางเส้น อย่ากดทั้งกลุ่ม · เข้าไปเติมทีละเจ้าที่หน้า Agent</span></div>'
+    : '<div style="background:#F1F8F5;border:1px solid #BEE0D2;border-radius:9px;padding:9px 12px;'
+      +'font-size:11.5px;color:#0F6E56;line-height:1.65;margin-bottom:12px">'
+      +'<b>เติมอย่างเดียว ไม่ตัดอะไรเลย</b> — กลุ่มนี้ยังไม่มีโปรแกรมสักเส้น จึงไม่มีของเดิมให้ทับ<br>'
+      +'<span style="color:#4E7F6C">ช่วงจองของแถวที่เติม = ช่วงสัญญาของเจ้านั้น · ช่วงเดินทาง = ตามที่เรทกำหนดไว้</span></div>';
+  list.slice(0, 40).forEach(function(f){
+    h += '<div style="border-top:1px solid #EEF0F3;padding:7px 0;font-size:11.5px;line-height:1.55">'
+      +'<b style="color:#2C3440">' + e(f.a.code || f.a.name || f.a.id) + '</b> '
+      + (isP ? ('<span style="color:#9AA3AE">มีอยู่ '+(f.a.programs||[]).length+'</span> ') : '')
+      +'<span style="color:#0F6E56;font-weight:700">+' + f.add.length + '</span> '
+      +'<span style="color:#6B7280">' + f.add.slice(0,5).map(function(r){ return e(agProgRouteName(r)); }).join(' · ')
+      + (f.add.length>5 ? (' · และอีก '+(f.add.length-5)) : '') + '</span></div>';
+  });
+  if(list.length > 40)
+    h += '<div style="font-size:11px;color:#8A929E;padding-top:7px">· และอีก ' + (list.length-40) + ' เจ้า</div>';
+  h += '</div><div style="padding:12px 18px;border-top:1px solid #EEF0F3;display:flex;gap:8px;justify-content:flex-end">'
+    +'<button onclick="acctModalClose()" style="border:1px solid #D6DCE5;background:#fff;color:#5A6270;'
+      +'border-radius:8px;padding:7px 15px;font:600 11.5px inherit;cursor:pointer;font-family:inherit">ปิด</button>'
+    +'<button onclick="agProgBulkApply()" style="border:0;background:'+(isP?'#8A5410':'#0F172A')+';color:#fff;'
+      +'border-radius:8px;padding:7px 17px;font:700 11.5px inherit;cursor:pointer;font-family:inherit">'
+      +'เติมให้ ' + list.length + ' เอเย่นต์</button></div>';
+  acctModal(h);
+}
+function agProgBulkApply(){
+  if(typeof laGuardEdit==='function' && !laGuardEdit('sales')) return;
+  var P = agProgBulkPlan();
+  var list = (_agProgBulkScope==='partial') ? P.partial : P.empty;
+  if(!list.length) return;
+  var who = (typeof window!=='undefined' && window._rmUser) ? window._rmUser : '';
+  var at = new Date().toISOString(), n = 0, routes = 0;
+  list.forEach(function(f){
+    var R = agProgFill(f.a, f.a.rateTypeId, {});      /* เติมอย่างเดียว · removeExtra ไม่ถูกส่ง */
+    if(!R || !R.add.length) return;
+    /* เขียน activity เองแล้วเซฟทีเดียวตอนจบ · agLog เซฟทุกครั้งที่เรียก (ดู §rtExpBulk) */
+    if(!Array.isArray(f.a.activity)) f.a.activity = [];
+    f.a.activity.push({ at:at, by:who, kind:'programs',
+      text:'เติมโปรแกรมตามเรทแบบกลุ่ม · +' + R.add.length + ' · ' + R.add.map(agProgRouteName).join(' · ') });
+    if(f.a.activity.length > 200) f.a.activity = f.a.activity.slice(-200);
+    n++; routes += R.add.length;
+  });
+  if(typeof sbAgentsPersist==='function') sbAgentsPersist();
+  acctModalClose();
+  if(typeof renderRateAdmin==='function') renderRateAdmin();
+  var av = document.getElementById('view-agents');
+  if(av && av.classList.contains('active') && typeof renderAgents==='function') renderAgents();
+  if(typeof flShowToast==='function') flShowToast('เติมโปรแกรมให้ ' + n + ' เอเย่นต์ · ' + routes + ' เส้นทาง');
+  else console.log('[agProgBulk] filled ' + n + ' agents / ' + routes + ' routes');
+}
+
 /* แผงบนหน้า Rate Types · ไม่มีอะไรจะเตือน = ไม่วาดเลย ไม่ใช่วาดกล่องว่าง */
 /* §rtAdmin · หน้า Rate Types มีหน้าที่ทำเรท · แผงเตือน 11 ชุด 202 เอเย่นต์ ดันรายการเรทตกจอไปเลย
    ย้ายแผงเต็มไปหน้า Rate Type Management แล้วเหลือบรรทัดเดียวไว้ตรงนี้ · เห็นว่ามีเรื่อง แล้วกดไปดู */
@@ -33516,6 +33640,7 @@ function renderRateAdmin(){
         +'<span style="color:#4E7F6C">กดวันนี้ได้เลย ไม่ต้องรอไปกดวันที่เรทหมดจริง</span></div>'
       +'</div>';
   }
+  if(typeof agProgBulkPanel==='function') agProgBulkPanel('rta-fill');   /* §agProgBulk */
   rtExpRender('rta-exp');
 }
 function rtExpRender(hostId){
@@ -36976,6 +37101,10 @@ function agEditSave(){
     /* §ctRateSync · การ์ดสัญญาด้านบนอ่านจาก SB_CONTRACTS ไม่ใช่ a.rateTypeId
        ถ้าไม่ตามไปด้วย จะเปลี่ยนแล้วข้างบนไม่เปลี่ยน · และเอกสารสัญญาจะออกด้วยชุดเก่า */
     if(_b.rateTypeId!==a.rateTypeId) _ctSyncMainRate(a.id, a.rateTypeId, 'เปลี่ยน Rate Type');
+    /* §agProgFill · เลือกเรทแล้วโปรแกรมในสัญญาตามไปเอง · เติมเงียบ ๆ ตัดต้องยืนยัน
+       ทำหลัง _ctSyncMainRate เพราะตัวนั้นแตะใบสัญญา ส่วนตัวนี้แตะรายการโปรแกรมของเอเย่นต์ */
+    if(_b.rateTypeId!==a.rateTypeId && a.rateTypeId && typeof agProgSyncOnRate==='function')
+      agProgSyncOnRate(a, a.rateTypeId);
     if(typeof rtPersist === 'function') rtPersist();
     // Re-render rate type cards too (in case usage count changed)
     if(typeof rtRenderCards === 'function') rtRenderCards();
@@ -37125,6 +37254,85 @@ function agContractPillsHTML(a){
       `).join('')}
       <span class="ct-history-total">${n} contract${n===1?'':'s'} · all kept</span>
     </div>`;
+}
+
+/* ══ §agProgFill · เลือก Rate Type แล้ว "Programs in Contract" ตามไปเอง ══════
+   ที่มา (2026-09-18) · สองอย่างนี้ต้องตรงกันอยู่แล้วโดยธรรมชาติ
+   เรทคือ "ราคาของเส้นทางไหนบ้าง" · โปรแกรมในสัญญาคือ "เอเย่นต์ขายเส้นทางไหนบ้าง"
+   แต่ก่อนหน้านี้คนต้องกรอกสองรอบ และรอบที่สองมักถูกลืม
+   ผลคือ 44 เจ้าขายเส้นที่เรทของตัวเองไม่มีราคา — หน้าจองกด Save ไม่ได้ตั้งแต่วันแรกของฤดู
+
+   กติกา · เติมเงียบ ๆ ตัดต้องยืนยัน
+     เติม  = เส้นที่เรทมีราคาให้ แต่ยังไม่อยู่ในสัญญา → ใส่ให้เลย ไม่ต้องถาม (ไม่มีอะไรเสียหาย)
+     ตัด   = เส้นที่อยู่ในสัญญา แต่เรทใหม่ไม่มีราคาให้ → ถามก่อนทุกครั้ง
+             เพราะการตัดคือการลบของที่ Sales ตั้งใจใส่ไว้ · ไม่ตัดก็ยังเห็นเป็นเตือนในบล็อก Needs action
+
+   "เรทมีราคาให้" อ่านจาก seatRates ไม่ใช่ rt.routes
+   rt.routes คือรายการที่ประกาศไว้ · seatRates คือราคาที่มีจริง · ตัวที่ทำให้จองได้คือตัวหลัง
+   ═══════════════════════════════════════════════════════════════════════════ */
+function agRtRoutes(rt){
+  if(!rt) return [];
+  var sr = rt.seatRates || {};
+  var declared = (rt.routes||[]).filter(function(r){ return r && sr[r]; });
+  return declared.length ? declared : Object.keys(sr);
+}
+/* แผนของเอเย่นต์รายเดียว · ไม่แตะข้อมูล แค่บอกว่าจะเติมอะไร ตัดอะไร */
+function agProgPlan(a, rtId){
+  var rt = (typeof getRateType==='function' && rtId) ? getRateType(rtId) : null;
+  var cover = agRtRoutes(rt);
+  var have  = (a && Array.isArray(a.programs)) ? a.programs.filter(Boolean) : [];
+  return {
+    rt: rt, cover: cover,
+    add:  cover.filter(function(r){ return have.indexOf(r) < 0; }),
+    drop: have.filter(function(r){ return cover.indexOf(r) < 0; })
+  };
+}
+function agProgRouteName(id){
+  var r = (typeof getRoute==='function') ? getRoute(id) : null;
+  return (r && r.name) || id;
+}
+/* ลงมือจริง · คืนแผนที่ใช้ไป เพื่อให้คนเรียกเอาไปเขียน log ได้โดยไม่ต้องคำนวณซ้ำ
+   ช่วงวันของแถวที่เติม · จอง = ช่วงสัญญาของเอเย่นต์ · เดินทาง = routeValidity ของเรท
+   (หน้า Information เอา routeValidity มาทับตอนวาดอยู่แล้ว เก็บลงข้อมูลด้วยให้ตรงกันตั้งแต่ต้น) */
+function agProgFill(a, rtId, opt){
+  opt = opt || {};
+  var P = agProgPlan(a, rtId);
+  if(!P.rt) return P;
+  var rv = P.rt.routeValidity || {};
+  var bf = a.contractStart || '', bt = a.contractEnd || '';
+  if(!Array.isArray(a.programPeriods)) a.programPeriods = [];
+  P.add.forEach(function(r){
+    var v = rv[r] || {};
+    a.programPeriods.push({ routeId:r, bookFrom:bf, bookTo:bt,
+      travelFrom: v.from || '', travelTo: v.to || '', note:'' });
+  });
+  if(opt.removeExtra && P.drop.length){
+    a.programPeriods = a.programPeriods.filter(function(x){ return x && P.drop.indexOf(x.routeId) < 0; });
+  }
+  /* programs ต้องเป็นรายการไม่ซ้ำเสมอ · programPeriods ของจริงมีแถวซ้ำเส้นเดียวกันอยู่ (คนละช่วงวัน) */
+  a.programs = a.programPeriods.map(function(x){ return x.routeId; })
+    .filter(function(r, i, arr){ return r && arr.indexOf(r) === i; });
+  return P;
+}
+/* เรียกตอนเปลี่ยนเรทจากหน้า Agent · ตัวที่ถามคำถามเรื่อง "ตัด" อยู่ตรงนี้ที่เดียว */
+function agProgSyncOnRate(a, rtId){
+  var P = agProgPlan(a, rtId);
+  if(!P.rt || (!P.add.length && !P.drop.length)) return 0;
+  var rm = false;
+  if(P.drop.length){
+    var names = P.drop.map(agProgRouteName).join('\n  · ');
+    rm = confirm('This rate has no price for ' + P.drop.length + ' program(s) already in the contract:\n\n  · '
+      + names + '\n\nOK = remove them from Programs in Contract\n'
+      + 'Cancel = keep them (they will be flagged as "Route with no price" and booking Save stays blocked)');
+  }
+  if(!P.add.length && !rm) return 0;
+  agProgFill(a, rtId, { removeExtra: rm });
+  var parts = [];
+  if(P.add.length)   parts.push('+' + P.add.length + ' ' + P.add.map(agProgRouteName).join(' · '));
+  if(rm)             parts.push('-' + P.drop.length + ' ' + P.drop.map(agProgRouteName).join(' · '));
+  if(typeof agLog==='function')
+    agLog(a.id, 'programs', 'Programs ตามเรทอัตโนมัติ · ' + parts.join(' · '));
+  return P.add.length + (rm ? P.drop.length : 0);
 }
 
 function agRenderDetail(aId){
@@ -39859,8 +40067,17 @@ function agCreateSubmit(){
     };
   }
   if(typeof _seedAgentContractDefaults==='function'){ const prev=SB_AGENTS; SB_AGENTS=[a]; try{_seedAgentContractDefaults();}catch(e){} SB_AGENTS=prev; }
+  /* §agProgFill · เอเยนต์ใหม่ที่เลือกเรทมาแล้ว ได้โปรแกรมครบตั้งแต่วินาทีแรก
+     ต้องอยู่หลัง _seedAgentContractDefaults() เพราะตัวนั้นเป็นคนใส่ contractStart/End
+     ซึ่งเป็นช่วง "จอง" ของแถวที่เติมให้ · ตัวใหม่ไม่มีอะไรให้ตัด จึงไม่มีคำถาม */
+  if(a.rateTypeId && typeof agProgFill==='function'){
+    const _pf = agProgFill(a, a.rateTypeId, {});
+    if(_pf && _pf.add && _pf.add.length) a._progAutoN = _pf.add.length;
+  }
   SB_AGENTS.unshift(a);
-  if(typeof agLog==='function') agLog(a.id,'created','Agent created'+(a.rateTypeId?(' · rate type '+((getRateType(a.rateTypeId)||{}).name||a.rateTypeId)):''));
+  if(typeof agLog==='function') agLog(a.id,'created','Agent created'+(a.rateTypeId?(' · rate type '+((getRateType(a.rateTypeId)||{}).name||a.rateTypeId)):'')
+    +(a._progAutoN?(' · programs ตามเรทอัตโนมัติ '+a._progAutoN+' เส้นทาง'):''));
+  delete a._progAutoN;
   if(typeof sbAgentsPersist==='function') sbAgentsPersist();
   agEditClose();
   agRenderList();
