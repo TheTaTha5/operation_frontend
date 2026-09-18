@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtSeason` · **1 commit ahead of origin**
-(everything up to `§rateBind` is pushed and live; only `§rtSeason` is waiting)
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtExpBulk` · **1 commit ahead of origin**
+(everything up to `§rtSeason` is pushed and live; only `§rtExpBulk` is waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -51,6 +51,54 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — filling 44 of those schedules from what the contracts already say
+
+The schedule feature shipped with nobody using it and 26 days left. But the data needed to fill one
+is already on file for most of them: current rate, successor named on the contract, and the date the
+successor says it starts. That is a form, filled 44 times.
+
+**It sets a schedule, it does not change the rate.** That distinction is the whole safety argument:
+swapping the rate would move today's price while the low season is still running; a schedule leaves
+every date before the split untouched and only changes travel dates from the split onward. So it can
+be pressed today instead of remembered on the 15th.
+
+**The split date needed two guards, and the first version had neither.** The naive rule — use the
+successor's `validFrom` — produced **16 May 2026** for several groups, a date four months in the
+past, because some rate types carry a `validFrom` from their own season rather than from where they
+follow on. Applying that would have re-priced those agents immediately, the exact opposite of what
+the dialog promises.
+
+| Guard | Why |
+|---|---|
+| Split = successor's `validFrom` only when it is not earlier than the expiring rate's `validTo`, else the day after that `validTo` | Real data has both the clean hand-off (14 → 15 Oct) and a one-day overlap (15 → 15 Oct), plus the nonsense case above. This is contiguous by construction |
+| Split must be later than today | Anything else moves a price that is already being quoted |
+| Successor must not be `active: false` | One of the named successors is a disabled rate type |
+| Agents who already have a schedule are skipped | Never overwrite something a person set by hand |
+
+Measured on the 17 Sep data: **44 agents across 5 expiring rates**, in 4 successor groups, every
+split 15 Oct 26. After applying all of them: **not one agent's price moves for today or for any date
+before its split**, every one switches on the split date, and the warning panel drops **172 → 128**,
+exactly the number set. Pressing again does nothing.
+
+That last number found a second bug. The panel's "is this answered?" test was `season.from >
+rate.validTo`, which misses the group whose new season starts on the same day the old rate expires —
+151 agents. It now asks the precise question, "does any season cover the day after this rate ends",
+and the count drops by exactly what was set rather than by 5.
+
+`test/ui/t_rtbulk.mjs` (12 checks, `npm run test:rtbulk`) applies every plan for real and then
+compares prices before and after, per agent, on three dates each. It also re-enables the disabled
+past-dated successor on purpose to exercise the split rule with the `active` guard out of the way.
+Proven to fail: allow disabled successors → `พัง 1`; overwrite hand-set schedules → `พัง 1`; revert
+the panel's test to the old `>` form → `พัง 1`; remove **both** split guards → `พัง 1` (either one
+alone still catches it — that is the point of having two).
+
+Suite green: `t_smoke` พัง 2 (environment-only), `t_mobile` · `t_fleetcal` · `t_daydetail` ·
+`t_ovnmeal` · `t_ratexp` · `t_ratebind` · `t_rtseason` all พัง 0.
+
+**Still not pressed.** The button is on each panel row that has a named successor; nothing is applied
+until someone reviews the dialog and confirms. The remaining 128 have no successor on file and need a
+schedule set by hand.
 
 ### 2026-09-18 — a main rate that changes with the season, without a second priority ladder
 

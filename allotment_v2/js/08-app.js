@@ -33252,10 +33252,11 @@ function rtExpRowFor(rt, within){
   if(!rt || rt.active===false) return null;
   var to=String(rt.validTo||''); if(!to) return null;      /* ไม่มีวันหมด = ไม่มีอะไรให้เตือน */
   var d=rtExpDaysTo(to); if(d===null || d>(within==null?_RT_EXP_WINDOW:within)) return null;
+  var _after=laDayAfter(to);
   var ags=rtExpAgentsOn(rt.id).filter(function(a){
     /* §rtSeason · เจ้าที่ตั้งฤดูถัดไปไว้แล้ว ไม่ต้องอยู่ในแผงรวม · กติกาเดียวกับ rtExpForAgent
        ตัวนับบนแผงกับบรรทัดในหน้า Agent จึงพูดตรงกันเสมอ */
-    return !laSeasonsOf(a).some(function(x){ return x.from > to; });
+    return !laSeasonAt(a, _after);
   });
   if(!ags.length) return null;                             /* ไม่มีใครใช้ = ไม่ใช่เรื่องของใคร */
   var have=rt.seatRates||{}, blocked={}, next={};
@@ -33281,9 +33282,11 @@ function rtExpForAgent(a){
   if(!a || !a.rateTypeId) return null;
   var rt=(typeof getRateType==='function')?getRateType(a.rateTypeId):null; if(!rt) return null;
   var to=String(rt.validTo||''); if(!to) return null;
-  /* §rtSeason · ตั้งฤดูถัดไปที่เริ่มหลังวันหมดไว้แล้ว = คำถาม "หมดแล้วใช้เรทไหน" ถูกตอบแล้ว
-     เตือนต่อก็เป็นเสียงรบกวน · ตั้งตารางเสร็จ คำเตือนหายไปเอง */
-  if(laSeasonsOf(a).some(function(x){ return x.from > to; })) return null;
+  /* §rtSeason · คำถามของแผงคือ "พ้นวันหมดแล้วใช้เรทไหน" · ตอบแล้วก็ไม่ต้องเตือน
+     เกณฑ์ที่ถูกคือ "มีช่วงไหนคลุมวันถัดจากวันหมดหรือเปล่า" ไม่ใช่ "มีช่วงที่เริ่มหลังวันหมด"
+     เพราะของจริงมีเคสที่ช่วงใหม่เริ่มวันเดียวกับวันหมดพอดี (เรทเก่าหมด 15 ต.ค. ใหม่เริ่ม 15 ต.ค.)
+     ใช้เกณฑ์เดิมแบบ > จะตกหล่นทั้งกลุ่มนั้น แล้วแผงจะยังเตือนทั้งที่ตั้งให้ไปแล้ว */
+  if(laSeasonAt(a, laDayAfter(to))) return null;
   var d=rtExpDaysTo(to); if(d===null || d>_RT_EXP_WINDOW) return null;
   var have=rt.seatRates||{}, blocked=[];
   (a.programs||[]).forEach(function(p){ if(p && !have[p]) blocked.push(p); });
@@ -33303,6 +33306,153 @@ function rtExpRouteName(rid){
   var r=(typeof getRoute==='function')?getRoute(rid):null;
   return (r&&r.name)||rid;
 }
+/* ══ §rtExpBulk · ตั้งตารางฤดูกาลทีเดียวหลายเจ้า ══════════════════════════════
+   ที่มา · เรทฤดูต่ำหมดพร้อมกันเป็นร้อยเจ้า และ 76 เจ้าในนั้นระบุ "ตัวถัดไป" ไว้ในสัญญาแล้ว
+   ข้อมูลครบทั้งสามอย่าง — เรทเก่า เรทใหม่ วันแบ่ง — เหลือแค่งานกรอกซ้ำ ๆ 76 รอบ
+
+   ทำไมตั้งตารางแทนที่จะเปลี่ยนเรทให้เลย
+     เปลี่ยนเรทตรง ๆ = ราคาของ "วันนี้" เปลี่ยนทันที ทั้งที่ยังอยู่ในฤดูเก่า
+     ตั้งตาราง = ก่อนวันแบ่งยังเป็นเรทเดิมทุกบาท เปลี่ยนเฉพาะวันเดินทางตั้งแต่วันแบ่งไป
+     กดตอนไหนก็ได้ ไม่ต้องรอไปกดวันที่ 15
+
+   วันแบ่ง · ใช้ validFrom ของเรทตัวถัดไป ไม่ใช่ validTo+1 ของตัวเก่า
+     เพราะของจริงมีทั้งแบบต่อกันพอดี (14 → 15) และแบบคาบกันหนึ่งวัน (15 → 15)
+     ยึดวันที่เรทตัวใหม่ประกาศว่าตัวเองเริ่ม แล้วปิดตัวเก่าที่วันก่อนหน้า · ต่อกันเสมอ ไม่มีวันโหว่
+   ═══════════════════════════════════════════════════════════════════════════ */
+var _rtExpBulkRt = '';
+/* ผู้เข้าข่ายของเรทชุดหนึ่ง · จัดกลุ่มตามเรทตัวถัดไป เพราะวันแบ่งของแต่ละกลุ่มไม่เท่ากัน */
+function rtExpBulkPlan(rtId){
+  var rt = (typeof getRateType === 'function') ? getRateType(rtId) : null;
+  if(!rt) return null;
+  var groups = {}, order = [], skipHas = 0, skipNo = 0, skipOff = 0, skipPast = 0;
+  rtExpAgentsOn(rtId).forEach(function(a){
+    if(laSeasonsOf(a).length){ skipHas++; return; }      /* ตั้งเองไว้แล้ว ไม่ไปทับของใคร */
+    var nx = rtExpNextOf(a.id);
+    if(!nx || nx === rtId){ skipNo++; return; }           /* สัญญาไม่ได้ระบุตัวถัดไป · ไม่เดาให้ */
+    var nrt = (typeof getRateType === 'function') ? getRateType(nx) : null;
+    if(!nrt){ skipNo++; return; }
+    if(nrt.active === false){ skipOff++; return; }          /* เรทที่ปิดไปแล้ว ไม่เอามาเป็นตัวถัดไป */
+    /* §rtExpSplit · วันแบ่งต้องมาจากข้อมูลที่สมเหตุสมผล ไม่ใช่หยิบ validFrom มาดื้อ ๆ
+       ของจริงมีเรทที่ validFrom ย้อนหลังไปก่อนวันที่เรทเก่าหมด (เจอ 16 พ.ค. ทั้งที่เรทเก่าหมด 14 ต.ค.)
+       หยิบมาตรง ๆ = ตารางจะสั่งให้เรทใหม่มีผลตั้งแต่พฤษภา คือ "ราคาวันนี้ขยับทันที"
+       ซึ่งขัดกับสิ่งที่กล่องนี้สัญญาไว้ว่าก่อนวันแบ่งไม่ขยับสักบาท
+       กติกา · ใช้ validFrom ของตัวใหม่ก็ต่อเมื่อมันไม่ย้อนไปก่อนวันที่ตัวเก่าหมด
+              ไม่งั้นถอยไปใช้ "วันถัดจากวันที่ตัวเก่าหมด" ซึ่งต่อกันพอดีเสมอ */
+    var vf = String(nrt.validFrom || ''), vt = String(rt.validTo || '');
+    var split = (vf && (!vt || vf >= vt)) ? vf : _rtExpDayAfter(vt);
+    if(!split){ skipNo++; return; }                        /* ไม่รู้ว่าจะแบ่งวันไหน ก็ไม่ตั้ง */
+    /* วันแบ่งที่อยู่ในอดีต = กดแล้วราคาวันนี้เปลี่ยนทันที · ตัวนี้ไม่ได้มีไว้ทำแบบนั้น */
+    if(TODAY_STR && split <= TODAY_STR){ skipPast++; return; }
+    var k = nx + '|' + split;
+    if(!groups[k]){ groups[k] = { next:nx, nextRt:nrt, split:split, ags:[] }; order.push(k); }
+    groups[k].ags.push(a);
+  });
+  order.sort(function(x,y){ return groups[y].ags.length - groups[x].ags.length; });
+  return { rt:rt, groups:order.map(function(k){ return groups[k]; }),
+           skipHas:skipHas, skipNo:skipNo, skipOff:skipOff, skipPast:skipPast,
+           total:order.reduce(function(n,k){ return n + groups[k].ags.length; }, 0) };
+}
+/* เหตุผลที่ข้าม · บอกให้ครบ ไม่งั้นคนเห็นตัวเลขไม่ตรงแล้วไม่รู้ว่าหายไปไหน */
+function _rtExpSkipTxt(P, sep){
+  return [ P.skipHas  ? ('<b>'+P.skipHas+'</b> เจ้าตั้งตารางเองไว้แล้ว · ระบบไม่ไปทับ') : '',
+           P.skipNo   ? ('<b>'+P.skipNo+'</b> เจ้าไม่ได้ระบุเรทตัวถัดไปในสัญญา') : '',
+           P.skipOff  ? ('<b>'+P.skipOff+'</b> เจ้าชี้ไปเรทที่ปิดใช้งานแล้ว') : '',
+           P.skipPast ? ('<b>'+P.skipPast+'</b> เจ้าได้วันแบ่งที่เป็นอดีต · ตั้งให้จะทำให้ราคาวันนี้ขยับ') : ''
+         ].filter(Boolean).join(sep);
+}
+function _rtExpDayAfter(ymd){
+  return (typeof laDayAfter === 'function') ? laDayAfter(ymd) : '';
+}
+function _rtExpDayBefore(ymd){
+  var p = String(ymd||'').split('-'); if(p.length !== 3) return '';
+  var d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0,10);
+}
+function rtExpBulkOpen(rtId){
+  if(typeof laGuardEdit === 'function' && !laGuardEdit('sales')) return;
+  _rtExpBulkRt = rtId;
+  var P = rtExpBulkPlan(rtId); if(!P) return;
+  var e = _rtExpE, rt = P.rt;
+  var h = '<div style="padding:16px 18px;border-bottom:1px solid #EEF0F3">'
+    +'<div style="font-size:15px;font-weight:800;color:#1F2937">ตั้งตารางฤดูกาลให้ทั้งกลุ่ม</div>'
+    +'<div style="font-size:11.5px;color:#6B7280;margin-top:3px">'
+      + e(rt.name || rt.id) + ' · หมด ' + e(_rtExpDate(rt.validTo || '')) + '</div></div>'
+    +'<div style="padding:14px 18px">';
+  if(!P.total){
+    h += '<div style="font-size:12px;color:#6B7280;line-height:1.7">ไม่มีเจ้าไหนตั้งให้อัตโนมัติได้<br>'
+      + _rtExpSkipTxt(P, '<br>')
+      + '</div>';
+  } else {
+    h += '<div style="background:#F1F8F5;border:1px solid #BEE0D2;border-radius:9px;padding:9px 12px;'
+      +'font-size:11.5px;color:#0F6E56;line-height:1.65;margin-bottom:12px">'
+      +'<b>ราคาก่อนวันแบ่งไม่ขยับสักบาท</b> — ตารางฤดูกาลเปลี่ยนเฉพาะทริปที่<b>เดินทาง</b>ตั้งแต่วันแบ่งเป็นต้นไป<br>'
+      +'<span style="color:#4E7F6C">กดวันนี้ได้เลย ไม่ต้องรอไปกดวันที่เรทหมด</span></div>';
+    P.groups.forEach(function(g){
+      var names = g.ags.slice(0, 14).map(function(a){ return e(a.code || a.name || a.id); }).join(' · ');
+      h += '<div style="border:1px solid #E7EAEF;border-radius:9px;padding:10px 12px;margin-bottom:8px">'
+        +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px">'
+          +'<b style="color:#2C3440">' + g.ags.length + ' เอเย่นต์</b>'
+          +'<span style="color:#9AA3AE">→</span>'
+          +'<b style="color:#0F6E56">' + e(g.nextRt.name || g.next) + '</b>'
+          +'<span style="margin-left:auto;font-size:11px;color:#6B7280;font-variant-numeric:tabular-nums">'
+            +'แบ่งวันที่ <b>' + e(_rtExpDate(g.split)) + '</b></span></div>'
+        +'<div style="font-size:10.5px;color:#8A929E;margin-top:5px;line-height:1.6">'
+          + e(rt.name || '') + ' ถึง ' + e(_rtExpDate(_rtExpDayBefore(g.split)))
+          + ' · แล้วเปลี่ยนเป็น ' + e(g.nextRt.name || '') + ' ตั้งแต่ ' + e(_rtExpDate(g.split)) + ' ไม่มีวันสิ้นสุด</div>'
+        +'<div style="font-size:10.5px;color:#6B7280;margin-top:5px;line-height:1.6">' + names
+          + (g.ags.length > 14 ? (' · และอีก ' + (g.ags.length - 14)) : '') + '</div>'
+      +'</div>';
+    });
+    var _sk = _rtExpSkipTxt(P, ' · ');
+    if(_sk){
+      h += '<div style="font-size:11px;color:#8A5A00;background:#FEF6E7;border:1px solid #EFD9AE;'
+        +'border-radius:8px;padding:7px 11px;line-height:1.6">ข้ามไป — ' + _sk + '</div>';
+    }
+  }
+  h += '</div><div style="padding:12px 18px;border-top:1px solid #EEF0F3;display:flex;gap:8px;justify-content:flex-end">'
+    +'<button onclick="acctModalClose()" style="border:1px solid #D6DCE5;background:#fff;color:#5A6270;'
+      +'border-radius:8px;padding:7px 15px;font:600 11.5px inherit;cursor:pointer;font-family:inherit">ปิด</button>'
+    + (P.total ? ('<button onclick="rtExpBulkApply()" style="border:0;background:#0F172A;color:#fff;'
+      +'border-radius:8px;padding:7px 17px;font:700 11.5px inherit;cursor:pointer;font-family:inherit">'
+      +'ตั้งให้ ' + P.total + ' เอเย่นต์</button>') : '')
+    +'</div>';
+  acctModal(h);
+}
+function rtExpBulkApply(){
+  if(typeof laGuardEdit === 'function' && !laGuardEdit('sales')) return;
+  var P = rtExpBulkPlan(_rtExpBulkRt); if(!P || !P.total) return;
+  var rt = P.rt, n = 0;
+  var who = (typeof window !== 'undefined' && window._rmUser) ? window._rmUser : '';
+  var at = new Date().toISOString();
+  P.groups.forEach(function(g){
+    var endOld = _rtExpDayBefore(g.split);
+    g.ags.forEach(function(a){
+      if(laSeasonsOf(a).length) return;                  /* เผื่อมีคนตั้งไประหว่างเปิดกล่องค้างไว้ */
+      var seasons = [];
+      /* ช่วงแรกใส่ก็ต่อเมื่อรู้วันเริ่มของเรทเดิม · ไม่รู้ก็ไม่ต้องใส่
+         เพราะวันก่อนช่วงแรกถอยไปใช้ a.rateTypeId ซึ่งคือเรทเดิมอยู่แล้ว ผลเท่ากันเป๊ะ */
+      if(rt.validFrom && endOld && rt.validFrom <= endOld)
+        seasons.push({ rt: rt.id, from: String(rt.validFrom), to: endOld });
+      seasons.push({ rt: g.next, from: g.split, to: '' });
+      a.rateSeasons = seasons;
+      /* เขียน activity เองแล้วค่อยเซฟทีเดียวตอนจบ · agLog เซฟทุกครั้งที่เรียก
+         76 เจ้า = เขียน blob ทั้งก้อน 76 รอบ ซึ่งช้าจนหน้าค้าง */
+      if(!Array.isArray(a.activity)) a.activity = [];
+      a.activity.push({ at:at, by:who, kind:'rate',
+        text:'ตั้งตารางฤดูกาลแบบกลุ่ม · ' + (rt.name || rt.id) + ' ถึง ' + endOld
+           + ' → ' + ((g.nextRt && g.nextRt.name) || g.next) + ' ตั้งแต่ ' + g.split });
+      if(a.activity.length > 200) a.activity = a.activity.slice(-200);
+      n++;
+    });
+  });
+  if(typeof sbAgentsPersist === 'function') sbAgentsPersist();
+  acctModalClose();
+  if(typeof rtExpRender === 'function') rtExpRender();
+  if(typeof flShowToast === 'function') flShowToast('ตั้งตารางฤดูกาลให้ ' + n + ' เอเย่นต์แล้ว');
+  else console.log('[rtExpBulk] set seasons for ' + n + ' agents');
+}
+
 /* แผงบนหน้า Rate Types · ไม่มีอะไรจะเตือน = ไม่วาดเลย ไม่ใช่วาดกล่องว่าง */
 function rtExpRender(){
   var host=document.getElementById('rt-expiry'); if(!host) return;
@@ -33342,11 +33492,23 @@ function rtExpRender(){
         +'</div>';
     }
     if(nx.length){
-      h+='<div style="font-size:11px;color:#0F6E56;margin-top:3px;line-height:1.55">สัญญาระบุตัวถัดไปไว้แล้ว — '
+      /* §rtExpBulk · รู้ครบทั้งเรทเก่า เรทใหม่ และวันแบ่ง → ตั้งให้ทั้งกลุ่มได้เลย
+         ปุ่มอยู่ตรงนี้เพราะมันคือการกระทำต่อจากข้อมูลบรรทัดนี้พอดี ไม่ต้องไปหาที่อื่น */
+      var _nBulk=0;
+      try{ var _p=rtExpBulkPlan(r.rt.id); _nBulk=_p?_p.total:0; }catch(_){}
+      h+='<div style="font-size:11px;color:#0F6E56;margin-top:3px;line-height:1.55;'
+        +'display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>สัญญาระบุตัวถัดไปไว้แล้ว — '
         + nx.slice(0,2).map(function(id){
             var t=(typeof getRateType==='function')?getRateType(id):null;
             return '<b>'+_rtExpE((t&&(t.name||t.code))||id)+'</b> ('+r.next[id]+' เจ้า)'; }).join(' · ')
-        + '<span style="color:#8A929E"> · ยังไม่ได้ผูกให้ ต้องเปลี่ยนเอง</span></div>';
+        + '</span>'
+        + (_nBulk
+            ? ('<button onclick="event.stopPropagation();rtExpBulkOpen(\''+_rtExpE(r.rt.id)+'\')" '
+              +'style="border:1px solid #BEE0D2;background:#F1F8F5;color:#0F6E56;border-radius:7px;'
+              +'padding:3px 11px;font:700 10.5px inherit;cursor:pointer;font-family:inherit;white-space:nowrap">'
+              +'ตั้งตารางฤดูกาลให้ '+_nBulk+' เจ้า</button>')
+            : '<span style="color:#8A929E">· ยังไม่ได้ผูกให้ ต้องเปลี่ยนเอง</span>')
+        +'</div>';
     }
     h+='</div>';
   });
