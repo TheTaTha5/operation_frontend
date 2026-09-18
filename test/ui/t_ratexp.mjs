@@ -56,7 +56,11 @@ const R = await page.evaluate(() => {
     ? !!rtExpRowFor({ id:withAg.id, name:'(past)', active:true, validTo:'2026-01-01', seatRates:{} })
     : null;
   // DOM
-  const host = document.getElementById('rt-expiry');
+  /* §rtAdmin · แผงเต็มย้ายไปหน้า Rate Type Management แล้ว
+     หน้า Rate Types เหลือแถบบรรทัดเดียว · ข้อความเต็มจึงต้องอ่านจากหน้าใหม่ */
+  let host = document.getElementById('rta-exp');
+  if (host && !host.innerHTML && typeof rtExpRender === 'function') rtExpRender('rta-exp');
+  host = document.getElementById('rta-exp');
   o.dom = host ? host.innerHTML.length : -1;
   o.domTxt = host ? host.innerText : '';
   // แถวเดียวของเอเย่นต์ · ต้องพูดวันเดียวกับแผง
@@ -110,8 +114,8 @@ else ok('\u0e40\u0e23\u0e17\u0e17\u0e35\u0e48\u0e2b\u0e21\u0e14\u0e2d\u0e32\u0e2
 if (!R.sorted) fail('แถวไม่ได้เรียงตามความใกล้หมด');
 else ok('เรียงใกล้หมดก่อน · อันแรกอีก ' + R.rows[0].days + ' วัน');
 
-if (R.dom <= 0) fail('แผงไม่ถูกวาดลงหน้า Rate Types (#rt-expiry ว่าง)');
-else ok('แผงวาดลงหน้าแล้ว');
+if (R.dom <= 0) fail('แผงไม่ถูกวาดลงหน้า Rate Type Management (#rta-exp ว่าง)');
+else ok('แผงวาดลงหน้า Rate Type Management แล้ว');
 
 if (R.domTxt.indexOf(String(R.agents)) < 0)
   fail('หัวแผงไม่ขึ้นจำนวนเอเย่นต์ ' + R.agents);
@@ -120,6 +124,66 @@ else ok('หัวแผงขึ้น ' + R.rows.length + ' ชุด · ' + R
 if (R.domTxt.indexOf('ไม่ได้กั้นการคิดเงิน') < 0)
   fail('แผงไม่ได้บอกว่าวันหมดอายุไม่ได้กั้นการคิดเงิน — จุดที่คนเข้าใจผิดมาตลอด');
 else ok('แผงบอกชัดว่าวันหมดไม่ได้กั้นการคิดเงิน');
+
+/* ── §rtAdmin · แผงเต็มอยู่หน้าของตัวเอง · หน้า Rate Types เหลือบรรทัดเดียว ────
+   หน้า Rate Types มีไว้ทำเรท · แผงเตือนเคยสูงเป็นร้อย px ดันรายการเรทตกจอ
+   ข้อนี้กันไม่ให้มันไหลกลับมา */
+const L = await page.evaluate(async () => {
+  const o = {};
+  const band = document.getElementById('rt-expiry');
+  o.banner = band ? Math.round(band.getBoundingClientRect().height) : -1;
+  o.bannerLinks = !!(band && /rate-admin|rtAdminGo/.test(band.innerHTML));
+  const navEl = document.querySelector('.nav-item[data-view="rate-admin"]');
+  o.hasNav = !!navEl;
+  if (navEl) nav(navEl);
+  await new Promise(r => setTimeout(r, 400));
+  const v = document.getElementById('view-rate-admin');
+  o.viewActive = !!(v && v.classList.contains('active'));
+  o.how = (document.getElementById('rta-how') || {}).innerHTML ? 1 : 0;
+  const exp = document.getElementById('rta-exp');
+  o.fullRows = exp ? (exp.innerText.match(/เอเย่นต์/g) || []).length : 0;
+  return o;
+});
+if (!L.hasNav) fail('\u0e44\u0e21\u0e48\u0e21\u0e35\u0e40\u0e21\u0e19\u0e39 Rate Type Management');
+else if (!L.viewActive) fail('\u0e01\u0e14\u0e40\u0e21\u0e19\u0e39\u0e41\u0e25\u0e49\u0e27\u0e2b\u0e19\u0e49\u0e32\u0e44\u0e21\u0e48\u0e40\u0e1b\u0e34\u0e14');
+else ok('\u0e21\u0e35\u0e2b\u0e19\u0e49\u0e32 Rate Type Management \u0e41\u0e22\u0e01\u0e2d\u0e2d\u0e01\u0e21\u0e32\u0e41\u0e25\u0e49\u0e27');
+if (!L.how) fail('\u0e2b\u0e19\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e44\u0e21\u0e48\u0e21\u0e35\u0e02\u0e31\u0e49\u0e19\u0e15\u0e2d\u0e19\u0e01\u0e32\u0e23\u0e43\u0e0a\u0e49');
+else ok('\u0e2b\u0e19\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48\u0e21\u0e35\u0e02\u0e31\u0e49\u0e19\u0e15\u0e2d\u0e19\u0e01\u0e32\u0e23\u0e43\u0e0a\u0e49\u0e1a\u0e19\u0e2b\u0e19\u0e49\u0e32');
+if (!L.fullRows) fail('\u0e41\u0e1c\u0e07\u0e40\u0e15\u0e47\u0e21\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e22\u0e49\u0e32\u0e22\u0e21\u0e32\u0e2b\u0e19\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48');
+else ok('\u0e41\u0e1c\u0e07\u0e40\u0e15\u0e47\u0e21\u0e2d\u0e22\u0e39\u0e48\u0e2b\u0e19\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48 \u00b7 ' + L.fullRows + ' \u0e41\u0e16\u0e27');
+if (L.banner < 0) fail('\u0e2b\u0e19\u0e49\u0e32 Rate Types \u0e44\u0e21\u0e48\u0e21\u0e35\u0e17\u0e35\u0e48\u0e27\u0e32\u0e07\u0e41\u0e16\u0e1a');
+else if (L.banner > 80)
+  fail('\u0e41\u0e16\u0e1a\u0e1a\u0e19\u0e2b\u0e19\u0e49\u0e32 Rate Types \u0e2a\u0e39\u0e07 ' + L.banner + 'px \u00b7 \u0e04\u0e27\u0e23\u0e40\u0e1b\u0e47\u0e19\u0e1a\u0e23\u0e23\u0e17\u0e31\u0e14\u0e40\u0e14\u0e35\u0e22\u0e27 \u0e44\u0e21\u0e48\u0e43\u0e0a\u0e48\u0e41\u0e1c\u0e07\u0e40\u0e15\u0e47\u0e21');
+else ok('\u0e2b\u0e19\u0e49\u0e32 Rate Types \u0e40\u0e2b\u0e25\u0e37\u0e2d\u0e41\u0e16\u0e1a\u0e2a\u0e39\u0e07 ' + L.banner + 'px');
+if (!L.bannerLinks) fail('\u0e41\u0e16\u0e1a\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e1e\u0e32\u0e44\u0e1b\u0e2b\u0e19\u0e49\u0e32\u0e23\u0e27\u0e21');
+else ok('\u0e41\u0e16\u0e1a\u0e01\u0e14\u0e41\u0e25\u0e49\u0e27\u0e44\u0e1b\u0e2b\u0e19\u0e49\u0e32\u0e23\u0e27\u0e21\u0e44\u0e14\u0e49');
+
+/* ── ที่ว่างเหนือตารางราคาในหน้า Agent ────────────────────────────────────
+   วัดจากของที่หน้าวาดจริง (agTabPrices) ไม่ใช่เรียกฟังก์ชันแถบตรง ๆ
+   ไม่งั้นถ้าวันไหนมีคนถอดแถบออกแล้วเอากล่องใหญ่กลับมาเสียบ เทสจะไม่รู้เรื่อง
+   หน้านี้ชื่อ Pricing Matrix · ตารางราคาต้องอยู่ในระยะที่เลื่อนถึงได้ไว */
+const ST = await page.evaluate(ag => {
+  const a = (SB_AGENTS||[]).filter(x => x.id === ag)[0];
+  if (!a) return null;
+  const box = document.createElement('div');
+  box.style.cssText = 'position:absolute;left:-9999px;top:0;width:1100px';
+  box.innerHTML = agTabPrices(a);
+  document.body.appendChild(box);
+  const top = box.getBoundingClientRect().top;
+  const seat = [...box.querySelectorAll('*')]
+    .filter(n => /Seat rates/.test(n.textContent || '') && n.children.length < 6)[0];
+  const toSeat = seat ? Math.round(seat.getBoundingClientRect().top - top) : -1;
+  const usesStrip = /rtSeasonOpen/.test(box.innerHTML);
+  box.remove();
+  return { toSeat, usesStrip };
+}, 'a13');
+if (!ST) warn('subset \u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35 a13 \u00b7 \u0e02\u0e49\u0e32\u0e21\u0e02\u0e49\u0e2d\u0e19\u0e35\u0e49');
+else if (ST.toSeat < 0) fail('\u0e2b\u0e32\u0e2b\u0e31\u0e27\u0e15\u0e32\u0e23\u0e32\u0e07 Seat rates \u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d');
+else if (ST.toSeat > 680)
+  fail('\u0e01\u0e27\u0e48\u0e32\u0e08\u0e30\u0e16\u0e36\u0e07\u0e15\u0e32\u0e23\u0e32\u0e07\u0e23\u0e32\u0e04\u0e32\u0e15\u0e49\u0e2d\u0e07\u0e1c\u0e48\u0e32\u0e19 ' + ST.toSeat + 'px \u00b7 \u0e02\u0e2d\u0e07\u0e02\u0e49\u0e32\u0e07\u0e1a\u0e19\u0e01\u0e34\u0e19\u0e17\u0e35\u0e48\u0e40\u0e01\u0e34\u0e19\u0e44\u0e1b');
+else ok('\u0e15\u0e32\u0e23\u0e32\u0e07\u0e23\u0e32\u0e04\u0e32\u0e40\u0e23\u0e34\u0e48\u0e21\u0e17\u0e35\u0e48 ' + ST.toSeat + 'px \u0e08\u0e32\u0e01\u0e2b\u0e31\u0e27\u0e2b\u0e19\u0e49\u0e32');
+if (ST && !ST.usesStrip) fail('\u0e2b\u0e19\u0e49\u0e32 Agent \u0e44\u0e21\u0e48\u0e21\u0e35\u0e17\u0e32\u0e07\u0e40\u0e02\u0e49\u0e32\u0e15\u0e31\u0e49\u0e07\u0e15\u0e32\u0e23\u0e32\u0e07\u0e24\u0e14\u0e39\u0e01\u0e32\u0e25');
+else if (ST) ok('\u0e2b\u0e19\u0e49\u0e32 Agent \u0e21\u0e35\u0e17\u0e32\u0e07\u0e40\u0e02\u0e49\u0e32\u0e15\u0e31\u0e49\u0e07\u0e15\u0e32\u0e23\u0e32\u0e07\u0e24\u0e14\u0e39\u0e01\u0e32\u0e25');
 
 /* ── สองที่ต้องพูดเลขเดียวกัน ────────────────────────────────────────── */
 if (R.a13 && R.a13panel) {

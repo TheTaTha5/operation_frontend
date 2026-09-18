@@ -700,6 +700,7 @@ function nav(el){
     else if(view==='settings') renderSettings();
     else if(view==='agents') renderAgents();
     else if(view==='rate-types') renderRateTypes();
+    else if(view==='rate-admin'){ if(typeof renderRateAdmin==='function') renderRateAdmin(); }   /* §rtAdmin */
     else if(view==='sales-board') renderSalesBoard();
     else if(view==='b2b-dash') renderB2BDash();
     else if(view==='contract-tmpl') renderContractTemplates();

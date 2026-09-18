@@ -33454,10 +33454,73 @@ function rtExpBulkApply(){
 }
 
 /* แผงบนหน้า Rate Types · ไม่มีอะไรจะเตือน = ไม่วาดเลย ไม่ใช่วาดกล่องว่าง */
-function rtExpRender(){
+/* §rtAdmin · หน้า Rate Types มีหน้าที่ทำเรท · แผงเตือน 11 ชุด 202 เอเย่นต์ ดันรายการเรทตกจอไปเลย
+   ย้ายแผงเต็มไปหน้า Rate Type Management แล้วเหลือบรรทัดเดียวไว้ตรงนี้ · เห็นว่ามีเรื่อง แล้วกดไปดู */
+function rtExpBanner(){
   var host=document.getElementById('rt-expiry'); if(!host) return;
   var rows=rtExpScan();
   if(!rows.length){ host.innerHTML=''; return; }
+  var nAg=0; rows.forEach(function(r){ nAg+=r.agents.length; });
+  var tn=rtExpTone(rows[0].days);
+  var nBulk=0;
+  rows.forEach(function(r){ try{ var p=rtExpBulkPlan(r.rt.id); if(p) nBulk+=p.total; }catch(_){} });
+  host.innerHTML='<div onclick="rtAdminGo()" style="background:'+tn.bg+';border:1px solid '+tn.bd
+    +';border-left:3px solid '+tn.fg+';border-radius:10px;padding:8px 13px;margin:0 0 12px;cursor:pointer;'
+    +'display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:11.5px;color:#4A5360">'
+    +'<b style="color:'+tn.fg+'">&#9888; เรทกำลังจะหมดอายุ</b>'
+    +'<span>'+rows.length+' ชุด · '+nAg+' เอเย่นต์ · ชุดที่ใกล้ที่สุด'+_rtExpE(tn.t)+'</span>'
+    +(nBulk?('<span style="background:#E3F3EC;border:1px solid #BEE0D2;color:#0F6E56;border-radius:999px;'
+      +'padding:2px 9px;font-size:10px;font-weight:800">ตั้งตารางให้ได้ทันที '+nBulk+' เจ้า</span>'):'')
+    +'<span style="margin-left:auto;color:#5A6270;font-weight:600;text-decoration:underline">'
+    +'เปิด Rate Type Management</span></div>';
+}
+function rtAdminGo(){
+  var el=document.querySelector('.nav-item[data-view="rate-admin"]');
+  if(el && typeof nav==='function') nav(el);
+}
+/* ── หน้า Rate Type Management ─────────────────────────────────────────────
+   งานดูแลเรทที่ไม่ใช่การแก้ตัวเรทเอง · ตอนนี้มีเรื่องเดียวคือ "เรทหมดอายุแล้วยังไงต่อ"
+   วิธีใช้เขียนไว้บนหน้าเลย เพราะเป็นของใหม่ที่ไม่มีใครเคยทำ และทำปีละสองครั้ง จำไม่ได้แน่ */
+function renderRateAdmin(){
+  var head=document.getElementById('rta-how');
+  if(head){
+    var step=function(n,t,d){ return '<div style="display:flex;gap:10px;align-items:flex-start;'
+      +'padding:7px 0;border-top:1px solid #F1F3F6">'
+      +'<span style="flex:none;width:19px;height:19px;border-radius:50%;background:#0F172A;color:#fff;'
+      +'font:700 10.5px inherit;display:flex;align-items:center;justify-content:center">'+n+'</span>'
+      +'<div style="font-size:11.5px;line-height:1.6;color:#4A5360"><b style="color:#2C3440">'+t+'</b>'
+      +'<div style="color:#6B7280">'+d+'</div></div></div>'; };
+    head.innerHTML='<div style="background:#fff;border:1px solid #E7EAEF;border-radius:11px;'
+      +'padding:12px 15px;margin:0 0 14px">'
+      +'<div style="font-size:12.5px;font-weight:800;color:#2C3440;margin-bottom:2px">ขั้นตอนการใช้</div>'
+      +'<div style="font-size:11px;color:#6B7280;line-height:1.6;margin-bottom:4px">'
+        +'ทำตอนใกล้เปลี่ยนฤดู · ปีละสองครั้ง (ราว 15 ต.ค. และ 15 พ.ค.)</div>'
+      + step(1,'ดูรายการข้างล่าง',
+          'เรียงตามชุดที่ใกล้หมดที่สุด · ตัวเลขขวาสุดคือจำนวนเอเย่นต์ที่ผูกอยู่กับชุดนั้น')
+      + step(2,'แถวที่มีปุ่มเขียว กดได้เลย',
+          'ปุ่มจะขึ้นเมื่อสัญญาของเอเย่นต์ระบุเรทตัวถัดไปไว้แล้ว · กดแล้วเปิดกล่องให้ตรวจก่อน '
+          +'เห็นว่าใครบ้าง เปลี่ยนเป็นเรทอะไร แบ่งวันไหน แล้วค่อยยืนยัน')
+      + step(3,'แถวที่ไม่มีปุ่ม ต้องตั้งเอง',
+          'เปิดหน้า Agent รายนั้น → แท็บ Pricing Matrix → แถบ "ตารางฤดูกาล" → ปุ่มตั้งตารางฤดูกาล')
+      + step(4,'ตั้งแล้วแถวนั้นจะหายไปเอง',
+          'ระบบถือว่าคำถาม "หมดแล้วใช้อะไร" ถูกตอบแล้ว · เหลือแต่ชุดที่ยังไม่มีคนจัดการ')
+      +'<div style="margin-top:10px;background:#F1F8F5;border:1px solid #BEE0D2;border-radius:9px;'
+        +'padding:8px 12px;font-size:11px;color:#0F6E56;line-height:1.65">'
+        +'<b>ตั้งตาราง ≠ เปลี่ยนเรท</b> — ตารางฤดูกาลไม่แตะราคาก่อนวันแบ่งเลยสักบาท '
+        +'เปลี่ยนเฉพาะทริปที่<b>เดินทาง</b>ตั้งแต่วันแบ่งไป<br>'
+        +'<span style="color:#4E7F6C">กดวันนี้ได้เลย ไม่ต้องรอไปกดวันที่เรทหมดจริง</span></div>'
+      +'</div>';
+  }
+  rtExpRender('rta-exp');
+}
+function rtExpRender(hostId){
+  var host=document.getElementById(hostId||'rt-expiry'); if(!host) return;
+  var rows=rtExpScan();
+  if(!rows.length){
+    host.innerHTML='<div style="background:#F1F8F5;border:1px solid #BEE0D2;border-radius:11px;'
+      +'padding:12px 15px;font-size:12px;color:#0F6E56">&#10003; ไม่มีเรทชุดไหนกำลังจะหมดอายุในช่วง 60 วันข้างหน้า</div>';
+    return;
+  }
   var nAg=0; rows.forEach(function(r){ nAg+=r.agents.length; });
   var soon=rows[0].days;
   var head=rtExpTone(soon);
@@ -33570,6 +33633,68 @@ function rtSeasonBlock(a){
   }
   return h+'</div>';
 }
+/* §rtStrip · แถบเดียวใต้ Source ของ Pricing Matrix · รวมสองเรื่องที่คนต้องรู้ตรงนั้นพอดี
+     1) เรทที่ใช้อยู่กำลังจะหมดหรือยัง   2) หลังหมดแล้วใช้อะไร (ตารางฤดูกาล)
+   ตั้งใจให้สูงไม่เกินสองบรรทัด · รายละเอียดเต็ม ๆ อยู่ที่หน้า Rate Type Management
+   ของเดิมเป็นสองกล่องใหญ่ กินที่จนตารางราคาถูกดันตกจอ */
+function rtAgentRateStrip(a){
+  if(!a) return '';
+  var e = _rsE, out = [];
+  var X = (typeof rtExpForAgent === 'function') ? rtExpForAgent(a) : null;
+  var S = laSeasonsOf(a), T = (typeof TODAY_STR !== 'undefined') ? TODAY_STR : '';
+  var cur = laSeasonAt(a, T);
+  var pill = function(t, bg, bd, fg){ return '<span style="flex:none;font-size:9.5px;font-weight:800;'
+    +'border-radius:999px;padding:2px 9px;background:'+bg+';border:1px solid '+bd+';color:'+fg+';'
+    +'white-space:nowrap">'+t+'</span>'; };
+  var row = function(inner, bg, bd){ return '<div style="display:flex;align-items:center;gap:9px;'
+    +'flex-wrap:wrap;background:'+bg+';border:1px solid '+bd+';border-radius:9px;padding:7px 12px;'
+    +'margin:0 0 8px;font-size:11.5px;color:#4A5360;line-height:1.55">'+inner+'</div>'; };
+
+  /* ── เรทที่ใช้อยู่ใกล้หมด · บรรทัดเดียว รายละเอียดไปดูหน้ารวม ── */
+  if(X){
+    var tn = rtExpTone(X.days);
+    var det = [];
+    if(X.blocked.length) det.push('<span style="color:#A32D2D">จองไม่ได้ '+X.blocked.length+' โปรแกรม</span>');
+    if(X.next){
+      var nx = (typeof getRateType==='function') ? getRateType(X.next) : null;
+      if(nx) det.push('<span style="color:#0F6E56">สัญญาระบุตัวถัดไป <b>'+e(nx.name||nx.code)+'</b></span>');
+    }
+    out.push(row(
+      pill(tn.t, tn.bg, tn.bd, tn.fg)
+      + '<span>เรทที่ใช้อยู่หมด <b>'+e(_rtExpDate(X.to))+'</b></span>'
+      + (det.length ? ('<span style="color:#C9CFD8">·</span>' + det.join('<span style="color:#C9CFD8"> · </span>')) : '')
+      + '<button onclick="nav(document.querySelector(\'.nav-item[data-view=&quot;rate-admin&quot;]\'))" '
+        +'style="margin-left:auto;flex:none;border:0;background:transparent;color:#5A6270;'
+        +'font:600 10.5px inherit;cursor:pointer;font-family:inherit;text-decoration:underline">ดูภาพรวม</button>',
+      tn.bg, tn.bd));
+  }
+
+  /* ── ตารางฤดูกาล · ยังไม่ตั้ง = บรรทัดชวน · ตั้งแล้ว = บรรทัดสรุปอ่านจบในตาเดียว ── */
+  var btn = '<button onclick="rtSeasonOpen(\''+e(a.id)+'\')" style="flex:none;border:1px solid #C9D2DE;'
+    +'background:#fff;color:#33506F;border-radius:7px;padding:3px 11px;font:600 10.5px inherit;'
+    +'cursor:pointer;font-family:inherit;white-space:nowrap">'+(S.length?'แก้':'ตั้งตารางฤดูกาล')+'</button>';
+  if(!S.length){
+    out.push(row('<b style="flex:none;color:#3C4553">ตารางฤดูกาล</b>'
+      +'<span style="color:#8A929E">ยังไม่ได้ตั้ง · ใช้ชุดราคาเดียวตลอดทั้งปี ไม่ว่าจะเดินทางวันไหน</span>'
+      +'<span style="margin-left:auto;display:flex">'+btn+'</span>', '#F7F8FA', '#E7EAEF'));
+  } else {
+    var nm = function(x){ return e(rtSeasonName(x.rt)); };
+    var txt = S.map(function(x){
+      var on = cur && cur === x;
+      return '<span style="'+(on?'color:#0F6E56;font-weight:700':'color:#6B7280')+'">'
+        + nm(x) + ' <span style="font-variant-numeric:tabular-nums;opacity:.75">'
+        + e(_rsDate(x.from)) + (x.to ? ('–'+e(_rsDate(x.to))) : '→') + '</span></span>';
+    }).join('<span style="color:#C9CFD8"> · </span>');
+    var iss = laSeasonIssues(a);
+    out.push(row('<b style="flex:none;color:#2C3440">ตารางฤดูกาล</b>'
+      + pill(S.length+' ช่วง', '#EDF2F8', '#D6DEE8', '#33506F')
+      + '<span style="flex:1;min-width:0">'+txt+'</span>'
+      + (iss.length ? pill('⚠ '+iss.length, '#FEF6E7', '#EFD9AE', '#8A5A00') : '')
+      + '<span style="display:flex">'+btn+'</span>', '#fff', '#DDE3EC'));
+  }
+  return out.join('');
+}
+
 /* ── ตัวแก้ · ทำงานบนสำเนา กดบันทึกถึงจะลง ──────────────────────────────── */
 function rtSeasonOpen(agentId){
   if(typeof laGuardEdit==='function' && !laGuardEdit('sales')) return;
@@ -33699,7 +33824,7 @@ function renderRateTypes(){
   if(!_rtSelected && (SB_RATE_TYPES||[]).length){
     _rtSelected = SB_RATE_TYPES[0].id;
   }
-  rtExpRender();                 /* §rtExpiry · แผงเตือนก่อนรายการ · ไม่มีอะไรเตือน = ไม่วาด */
+  rtExpBanner();                 /* §rtAdmin · หน้านี้เอาไว้ทำเรท · แผงเตือนย้ายไปหน้ารวม เหลือบรรทัดเดียวชี้ทาง */
   rtApplyViewMode();
   rtRenderList();
   if(_rtSelected){
@@ -38113,25 +38238,13 @@ function agTabPrices(a){
       ${isInactive?'<span style="background:#F1EFE8;color:#5F5E5A;font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.04em">Inactive</span>':''}
       <span style="font-size:10px;color:${isInactive?'#854F0B':rt.color};opacity:.7;font-variant-numeric:tabular-nums" title="ช่วงที่ตกลงราคากันไว้ · ไม่ได้กั้นการคิดเงิน — จองนอกช่วงก็ยังคิดราคาชุดนี้">${validHint}</span>
       <span style="font-size:9.5px;color:#8A929E;font-weight:500">(ช่วงที่ตกลงราคา &middot; ไม่ได้กั้นการคิดเงิน)</span>
-    </div>${(function(){
-      /* §rtExpiry · อ่านจากตัวเดียวกับแผงหน้า Rate Types · สองที่จึงพูดเลขเดียวกันเสมอ
-         วางตรงนี้เพราะคนที่กำลังอ่านราคาของเอเย่นต์รายนี้อยู่ตรงนี้พอดี ไม่ใช่อีกหน้าหนึ่ง */
-      if(typeof rtExpForAgent!=='function') return '';
-      const X=rtExpForAgent(a); if(!X) return '';
-      const T=rtExpTone(X.days), E=(typeof _rtExpE==='function')?_rtExpE:(v=>v);
-      const nx=X.next?((typeof getRateType==='function'?getRateType(X.next):null)||null):null;
-      return `<div style="background:${T.bg};border:1px solid ${T.bd};border-left:3px solid ${T.fg};border-radius:10px;padding:9px 13px;margin:-6px 0 12px;font-size:11.5px;line-height:1.65;color:#4A5360">
-        <b style="color:${T.fg}">&#9888; เรทชุดนี้${X.days<0?'หมดอายุแล้ว':'ใกล้หมดอายุ'}</b> ${E(_rtExpDate(X.to))} · ${E(T.t)}
-        <span style="color:#8A929E">— พ้นวันนี้ไป ระบบยังคิดราคาชุดนี้ต่อ ไม่มีอะไรเตือนตอนจอง</span>
-        ${X.blocked.length?`<br><span style="color:#A32D2D">จองไม่ได้ — ${X.blocked.slice(0,4).map(p=>'<b>'+E(rtExpRouteName(p))+'</b>').join(' · ')}${X.blocked.length>4?(' · และอีก '+(X.blocked.length-4)):''} · เรทชุดนี้ไม่มีราคาของโปรแกรมนี้</span>`:''}
-        ${nx?`<br><span style="color:#0F6E56">สัญญาระบุตัวถัดไปไว้แล้ว — <b>${E(nx.name||nx.code)}</b><span style="color:#8A929E"> · ยังไม่ได้ผูกให้ ต้องเปลี่ยนเอง</span></span>`:''}
-      </div>`;
-    })()}
+    </div>
     <button onclick="agEditOpen('ratetype','${a.id}')" style="background:#fff;color:${rt.color};border:1px solid ${rt.color}55;font-family:inherit;font-size:10.5px;font-weight:600;padding:4px 11px;border-radius:6px;cursor:pointer">เปลี่ยน Rate Type</button>
   </div>`;
-  /* §rtSeason · ตารางฤดูกาล · อยู่ใต้แถบ Source เพราะมันตอบคำถามที่แถบนั้นเพิ่งทำให้เกิด
-     ("ชุดนี้หมด 14 ต.ค. — แล้วหลังจากนั้นใช้อะไร") · คำถามกับที่ตอบจึงต้องอยู่ติดกัน */
-  html += (typeof rtSeasonBlock==='function') ? rtSeasonBlock(a) : '';
+  /* §rtStrip · ของสองอย่างที่เคยแยกกันอยู่ตรงนี้ — กล่องเตือนวันหมด กับบล็อกตารางฤดูกาล —
+     รวมเป็นแถบเดียว · เดิมสองก้อนนั้นสูงรวมกันเกือบครึ่งจอ ดันตารางราคาซึ่งเป็นพระเอกของหน้าลงไป
+     หน้านี้ชื่อ Pricing Matrix · ตารางราคาต้องมาก่อน เรื่องสัญญา-ฤดูกาลเป็นบรรทัดประกอบ */
+  html += (typeof rtAgentRateStrip==='function') ? rtAgentRateStrip(a) : '';
 
   /* §promoMx · ACTIVE PERIOD ในตารางดูเหมือนประตูกั้นราคา แต่วัดแล้วไม่ใช่
      จองนอกช่วงก็ยังคิดราคาเดิม · และตามที่ตกลงกันไว้ก็ควรเป็นแบบนั้น
@@ -38216,7 +38329,10 @@ function agTabPrices(a){
       + nCov+' จาก '+routes.length+' route มีโปรทับบางช่วง &middot; ที่เหลือใช้เรทมาตรฐานทั้งปี'
       + (nSkip?(' &middot; <b style="color:#A32D2D">'+nSkip+' route โปรไม่มีราคา &rarr; ถูกข้าม</b>'):'')
       + '</span></div>'
-      + rows + '</div>';
+      /* §prList · ไม่มีใบโปรสักใบ = ไม่ต้องไล่ route ทีละบรรทัดมาบอกว่า "ไม่มีโปรโมชั่น"
+         12 route ก็ 12 บรรทัดที่พูดเรื่องเดียวกัน ดันตารางราคาตกจอไปฟรี ๆ
+         มีโปรเมื่อไหร่ค่อยกาง · ตอนนั้นแต่ละบรรทัดมีเนื้อหาต่างกันจริง */
+      + (_PR.length ? rows : '') + '</div>';
   })();
 
   // Full Rate Type detail form — seat rates (with Active period + Not-Offered),

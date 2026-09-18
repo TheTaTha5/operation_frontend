@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtExpBulk` · **1 commit ahead of origin**
-(everything up to `§rtSeason` is pushed and live; only `§rtExpBulk` is waiting)
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtAdmin` · **1 commit ahead of origin**
+(everything up to `§rtExpBulk` is pushed and live; only `§rtAdmin` is waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -51,6 +51,34 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — the warning and the schedule were crowding out the pages they sat on
+
+Feedback after seeing the three previous pieces on real data: on production there are **11 rate
+types and 202 agents** expiring, so the panel ran about **1,024px** and pushed the Rate Types list —
+the reason that page exists — clean off the screen. On an agent, the expiry box plus the season block
+added a second wall above the price table on a tab literally called Pricing Matrix.
+
+| Tag | Change | Measured |
+|---|---|---|
+| `§rtAdmin` | New sidebar page **Rate Type Management**, holding the full panel. Rate Types keeps a one-line banner that carries the counts and links through | panel **1,024px → 39px** on Rate Types |
+| `§rtStrip` | The agent's expiry box and season block merged into one strip, max two rows — status, what follows it, and the edit button. Detail lives on the new page | the price table now starts at **588px** instead of 733px |
+| `§prList` | With zero promos, the per-route list printed one line per route to say "no promotion" — 12 lines saying the same thing. Collapsed to the header line; it expands as soon as a promo exists | part of the 733 → 588 |
+
+The new page also carries **how to use it**, four numbered steps, because this is a twice-a-year job
+nobody has done before: read the list, press the green button where the contract already names the
+successor, set the rest by hand from the agent's Pricing Matrix, and watch rows disappear as they get
+answered. With the reminder that setting a schedule is not the same as changing the rate, so it can
+be done today rather than remembered on the 15th.
+
+Three layout assertions added to `test/ui/t_ratexp.mjs` (now 19 checks): the Rate Types banner stays
+under 80px and links onward, the full panel renders on the new page with its steps, and — measured
+from what `agTabPrices` actually renders, not from calling the strip directly — the price table
+starts within 680px of the top. Proven to fail: put the full panel back on Rate Types → `พัง 2`;
+re-expand the empty promo list → `พัง 1`.
+
+Suite green: `t_smoke` พัง 2 (environment-only), `t_mobile` · `t_fleetcal` · `t_daydetail` ·
+`t_ovnmeal` · `t_rtseason` · `t_rtbulk` · `t_ratebind` all พัง 0.
 
 ### 2026-09-18 — filling 44 of those schedules from what the contracts already say
 
