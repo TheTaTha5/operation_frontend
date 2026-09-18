@@ -7588,10 +7588,15 @@ function bkV2GoBoatAssign(){
   _bkV2.tab='bytrip'; _bkV2.boatAssignMode=true; _bkV2.vanAssignMode=false; if(typeof bkV2Render==='function') bkV2Render();
 }
 // ── Van assign ──
-function bkV2AssignVan(bkId, vanId, date){ const b=SB_BOOKINGS.find(x=>x.id===bkId); if(!b) return; const _o=bkOpsFor(b, bkOpsDate(b,date)); _o.vanId=vanId||null; acctPersistBookings(); if(_bkV2&&_bkV2.vanAssignMode&&typeof bkV2Render==='function') bkV2Render(); else if(typeof renderVehicles==='function') renderVehicles(); }
-function bkV2AssignVanReturn(bkId, vanId, date){ const b=SB_BOOKINGS.find(x=>x.id===bkId); if(!b) return; const _o=bkOpsFor(b, bkOpsDate(b,date)); _o.vanReturnId=vanId||null; if(vanId) _o.returnSameVan=false; acctPersistBookings(); if(_bkV2&&_bkV2.vanAssignMode&&typeof bkV2Render==='function') bkV2Render(); }
+/* ══ §vanAssignScroll (2026-09-18) · จัดรถ/กดบันทึกแล้วตารางเด้งกลับหัว ═══════
+   ทุกฟังก์ชันของโหมดจัดรถเรียก bkV2Render() = วาดใหม่ทั้งหน้า · .t2-wrap กลายเป็น
+   กล่องใหม่ scrollTop จึงเป็น 0 ทุกครั้ง · ต้องเลื่อนกลับลงมาเองหลังจัดรถทุกคัน
+   เปลี่ยนมาใช้ bkV2RenderKeep() (§btTickScroll) ที่เก็บตำแหน่งเลื่อนไว้ก่อนวาด
+   แล้วคืนให้หลังวาดเสร็จ · ครอบทั้งจัดรถไป/รถกลับ · จัดกรุ๊ป · แยกคน · บันทึก */
+function bkV2AssignVan(bkId, vanId, date){ const b=SB_BOOKINGS.find(x=>x.id===bkId); if(!b) return; const _o=bkOpsFor(b, bkOpsDate(b,date)); _o.vanId=vanId||null; acctPersistBookings(); if(_bkV2&&_bkV2.vanAssignMode) bkV2RenderKeep(); else if(typeof renderVehicles==='function') renderVehicles(); }
+function bkV2AssignVanReturn(bkId, vanId, date){ const b=SB_BOOKINGS.find(x=>x.id===bkId); if(!b) return; const _o=bkOpsFor(b, bkOpsDate(b,date)); _o.vanReturnId=vanId||null; if(vanId) _o.returnSameVan=false; acctPersistBookings(); if(_bkV2&&_bkV2.vanAssignMode) bkV2RenderKeep(); }
 // "↩ กลับคันเดิม" — confirm the OUTBOUND van brings them back (to the different drop-off) · clears the "ยังไม่จัดรถกลับ" alert · mutually exclusive with a different return van
-function bkV2SetReturnSameVan(bkId, val, date){ const b=SB_BOOKINGS.find(x=>x.id===bkId); if(!b) return; const _o=bkOpsFor(b, bkOpsDate(b,date)); _o.returnSameVan=!!val; if(val) _o.vanReturnId=null; acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render(); }
+function bkV2SetReturnSameVan(bkId, val, date){ const b=SB_BOOKINGS.find(x=>x.id===bkId); if(!b) return; const _o=bkOpsFor(b, bkOpsDate(b,date)); _o.returnSameVan=!!val; if(val) _o.vanReturnId=null; acctPersistBookings(); bkV2RenderKeep(); }
 // Return-trip state for a booking: separate drop-off location + whether a return van is arranged.
 // alert = customer returns to a DIFFERENT place than pickup (dropoffSame===false) but no return van assigned yet.
 function bkV2RetInfo(bk, date){ const o=((typeof bkOpsRead==='function')?bkOpsRead(bk,date):((bk&&bk.ops)||{}))||{};   /* §per-trip ops · สถานะ "จัดรถกลับแล้วยัง" ต้องดูของวันนั้น */
@@ -7620,7 +7625,7 @@ function bkV2VanAutoAssign(date, routeId){
     if(pick){ bkOpsFor(b, bkOpsDate(b,date)).vanId=pick.id; load[pick.id]+=pax; assigned++; }   /* §per-trip ops · อ่าน per-day อยู่แล้ว แต่เขียนลง b.ops (วันแรก) → auto-assign วันที่ 2 ไม่เคยติด */
   });
   acctPersistBookings();
-  if(_bkV2&&_bkV2.vanAssignMode&&typeof bkV2Render==='function') bkV2Render();
+  if(_bkV2&&_bkV2.vanAssignMode) bkV2RenderKeep();
 }
 function bkV2VanClearRoute(date, routeId){
   const rows=baSeatBookingsForRoute(date,routeId).filter(({b})=>{ const o=bkOpsRead(b,date); return o.vanId||(Array.isArray(o.vanSplits)&&o.vanSplits.some(s=>s.vanId)); });
@@ -7628,7 +7633,7 @@ function bkV2VanClearRoute(date, routeId){
   if(!confirm('Clear van assignments for this program on '+date+'? ('+rows.length+' booking(s))')) return;
   rows.forEach(({b})=>{ const o=bkOpsFor(b, bkOpsDate(b,date)); if(Array.isArray(o.vanSplits)){ o.vanSplits.forEach(s=>{ s.vanId=null; }); } else { o.vanId=null; } });   /* §per-trip ops · เคลียร์เฉพาะวันที่กดเท่านั้น */
   acctPersistBookings();
-  if(_bkV2&&_bkV2.vanAssignMode&&typeof bkV2Render==='function') bkV2Render();
+  if(_bkV2&&_bkV2.vanAssignMode) bkV2RenderKeep();
 }
 // ── Manual van grouping · mark bookings that go together = 1 group · van assigned to the group later (optional) ──
 function bkV2VanSelToggle(bkId){ window._bkV2VanSel=window._bkV2VanSel||{}; if(window._bkV2VanSel[bkId]) delete window._bkV2VanSel[bkId]; else { window._bkV2VanSelN=(window._bkV2VanSelN||0)+1; window._bkV2VanSel[bkId]=window._bkV2VanSelN; } bkV2RenderKeep(); }   // value = tick order (for pickup sequencing) · §btTickScroll คงตำแหน่งเลื่อนไว้
@@ -7676,7 +7681,7 @@ function bkV2VanGroupSelected(date, routeId, zone, groupId){
   }
   // a group = ONE van by design → adding a booking to a group with a van OVERWRITES any van it carried in (else "รถปนกันในกรุ๊ป": booking keeps its old van → job order routes it to the wrong van while the group header shows the group's van). Return van stays per-booking (only fills if empty · §73).
   ordered.forEach((key,i)=>{ const p=String(key).split('@'); const b=SB_BOOKINGS.find(x=>x.id===p[0]); if(!b)return; const o=bkOpsFor(b, bkOpsDate(b,date)); if(p.length>1 && Array.isArray(o.vanSplits) && o.vanSplits[+p[1]]){ const s=o.vanSplits[+p[1]]; s.vanGroup=gid; s.vanSeq=_maxSeq+i+1; if(_gVan)s.vanId=_gVan; if(_gRet&&!s.vanReturnId)s.vanReturnId=_gRet; } else { o.vanGroup=gid; o.vanSeq=_maxSeq+i+1; if(_gVan)o.vanId=_gVan; if(_gRet&&!o.vanReturnId)o.vanReturnId=_gRet; } delete window._bkV2VanSel[key]; });
-  acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render();
+  acctPersistBookings(); bkV2RenderKeep();
 }
 // ── Safety net · reconcile vanGroup → vanId so a grouped booking can never silently lack a van ──
 // For each van-group (date|route|zone|gid), if ANY member has a vanId but others don't, the others inherit it.
@@ -7731,7 +7736,7 @@ function bkV2VanGroupSetVan(date, routeId, zone, gid, vanId){
   if(vanId){
     const v=(typeof vehGet==='function')?vehGet(vanId):null; const cap=(v&&v.capacity)||0;
     const pax=bkV2VanGroupPax(date,routeId,zone,gid);
-    if(cap && pax>cap){ alert('ที่นั่งไม่พอ · กรุ๊ปนี้มี '+pax+' คน แต่รถ '+((v&&v.name)||vanId)+' มี '+cap+' ที่นั่ง\n\nแยกคน (✂ แยกคน) หรือเลือกรถที่ใหญ่กว่า'); if(typeof bkV2Render==='function') bkV2Render(); return; }
+    if(cap && pax>cap){ alert('ที่นั่งไม่พอ · กรุ๊ปนี้มี '+pax+' คน แต่รถ '+((v&&v.name)||vanId)+' มี '+cap+' ที่นั่ง\n\nแยกคน (✂ แยกคน) หรือเลือกรถที่ใหญ่กว่า'); bkV2RenderKeep(); return; }
     /* ══ §vgRound · รถคันเดิมลงกรุ๊ปที่สองของโปรแกรมเดียวกัน = ให้วิ่งอีกรอบ ══
        ของเดิมห้ามด้วยกฎ "1 รถ = 1 กรุ๊ป" ปิดช่องเลือกทิ้งไปเลย
        แต่มันไปปิดเคสจริงด้วย: รอบแรกรับป่าตอง 07:30 · ส่งถึงท่า ~08:15
@@ -7746,15 +7751,15 @@ function bkV2VanGroupSetVan(date, routeId, zone, gid, vanId){
         +'\n\nเลือกต่อ = ให้วิ่งอีกรอบ รวมเป็น '+(_oth.length+1)+' รอบวันนี้'
         +'\nแต่ละรอบแยกใบงานคนละใบ · อย่าลืมตั้งเวลารับให้ต่างกัน'
         +'\n\nยืนยันหรือไม่?')){
-        if(typeof bkV2Render==='function') bkV2Render(); return;
+        bkV2RenderKeep(); return;
       }
     }
   }
-  _bkV2GrpApply(date,routeId,zone,gid,(b,s,o)=>{ if(s) s.vanId=vanId||null; else o.vanId=vanId||null; }); acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render();
+  _bkV2GrpApply(date,routeId,zone,gid,(b,s,o)=>{ if(s) s.vanId=vanId||null; else o.vanId=vanId||null; }); acctPersistBookings(); bkV2RenderKeep();
 }
-function bkV2VanGroupDisband(date, routeId, zone, gid){ _bkV2GrpApply(date,routeId,zone,gid,(b,s,o)=>{ if(s){ s.vanGroup=0; s.vanId=null; s.vanReturnId=null; delete s.vanSeq; } else { delete o.vanGroup; delete o.vanSeq; o.vanId=null; o.vanReturnId=null; } }); acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render(); }   // disband must ALSO clear vanId + vanReturnId (was leaving them set in the non-split branch) — else the booking keeps its old van → re-grouping into another van = "รถปนกัน" + the disbanded booking still ships on the old van's job order. clear vanSeq too · else a stale pickup-order freezes the row after re-grouping/sorting
+function bkV2VanGroupDisband(date, routeId, zone, gid){ _bkV2GrpApply(date,routeId,zone,gid,(b,s,o)=>{ if(s){ s.vanGroup=0; s.vanId=null; s.vanReturnId=null; delete s.vanSeq; } else { delete o.vanGroup; delete o.vanSeq; o.vanId=null; o.vanReturnId=null; } }); acctPersistBookings(); bkV2RenderKeep(); }   // disband must ALSO clear vanId + vanReturnId (was leaving them set in the non-split branch) — else the booking keeps its old van → re-grouping into another van = "รถปนกัน" + the disbanded booking still ships on the old van's job order. clear vanSeq too · else a stale pickup-order freezes the row after re-grouping/sorting
 function bkV2VanGroupSetTime(date, routeId, zone, gid, val){ const t=(val||'').trim(); _bkV2GrpApply(date,routeId,zone,gid,(b,s,o)=>{ o.pickupTimeFinal=t; }); acctPersistBookings(); }   // no re-render · keep input focus
-function bkV2VanGroupClearSeq(date, routeId, zone, gid){ _bkV2GrpApply(date,routeId,zone,gid,(b,s,o)=>{ if(s){ delete s.vanSeq; } else { delete o.vanSeq; } }); acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render(); }   // clear manual pickup order → back to time sort
+function bkV2VanGroupClearSeq(date, routeId, zone, gid){ _bkV2GrpApply(date,routeId,zone,gid,(b,s,o)=>{ if(s){ delete s.vanSeq; } else { delete o.vanSeq; } }); acctPersistBookings(); bkV2RenderKeep(); }   // clear manual pickup order → back to time sort
 /* §per-trip ops · เดิมไม่รับ date เลย → ลำดับรับ (vanSeq) ของวันที่ 2 ไปเขียนทับวันที่ 1 · ตัวเรียกส่ง date มาแล้ว */
 function bkV2VanGroupSave(date){
   // if rows are currently ticked, re-order their pickup sequence by the order they were ticked (per group)
@@ -7765,9 +7770,9 @@ function bkV2VanGroupSave(date){
     ordered.forEach(key=>{ const p=String(key).split('@'); const b=SB_BOOKINGS.find(x=>x.id===p[0]); if(!b)return; const o=bkOpsRead(b,date); if(!o)return; let tgt,g; if(p.length>1 && Array.isArray(o.vanSplits) && o.vanSplits[+p[1]]){ tgt=o.vanSplits[+p[1]]; g=+tgt.vanGroup||0; } else { tgt=o; g=+o.vanGroup||0; } perG[g]=(perG[g]||0)+1; tgt.vanSeq=perG[g]; });
     window._bkV2VanSel={};
   }
-  acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render();
+  acctPersistBookings(); bkV2RenderKeep();
 }
-function bkV2VanGroupSetReturn(date, routeId, zone, gid, vanId){ _bkV2GrpApply(date,routeId,zone,gid,(b,s,o)=>{ if(s) s.vanReturnId=vanId||null; else o.vanReturnId=vanId||null; }); acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render(); }
+function bkV2VanGroupSetReturn(date, routeId, zone, gid, vanId){ _bkV2GrpApply(date,routeId,zone,gid,(b,s,o)=>{ if(s) s.vanReturnId=vanId||null; else o.vanReturnId=vanId||null; }); acctPersistBookings(); bkV2RenderKeep(); }
 // Split a booking's pax across vans (e.g. 16 → 12 + 4 on another van)
 // §แยกคน · โมดัลของแอปเอง แทน prompt() ของเบราว์เซอร์ · ระบุ AD/CHD/INF/FOC ได้ตรงๆ
 // เดิมถามแค่ "กี่คน" แล้วให้ระบบเดาว่าใครเป็นเด็ก — เดาผิดเมื่อไหร่ เด็กก็กลายเป็นผู้ใหญ่ในใบงาน
@@ -7815,7 +7820,7 @@ function bkV2SplitApply(){
     delete o.vanGroup; delete o.vanId;
   }
   bkV2SplitClose();
-  acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render();
+  acctPersistBookings(); bkV2RenderKeep();
   if(typeof laSaveToast==='function') laSaveToast({kind:'success', title:'แยกคนแล้ว', msg:n+' คนไปอีกคัน · เหลือ '+bkPaxSum(keep)+' คนคันเดิม'});
 }
 function bkV2SplitRender(){
@@ -7877,7 +7882,7 @@ function bkV2VanUnsplit(bkId, date){
   const o=bkOpsFor(b, bkOpsDate(b,date)); if(!Array.isArray(o.vanSplits)) return;   /* §per-trip ops · รวมเฉพาะวันที่กำลังดูอยู่ */
   const first=o.vanSplits[0]||{}; o.vanGroup=+first.vanGroup||0; o.vanId=first.vanId||null; o.vanReturnId=first.vanReturnId||null;
   delete o.vanSplits; delete o.altSplitAuto;
-  acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render();
+  acctPersistBookings(); bkV2RenderKeep();
 }
 // §pax breakdown on a split · PAX_K = the four headcount types the job sheet has columns for.
 // A split used to carry only { pax: 4 } — a bare headcount — so the job sheet dumped all four
@@ -25034,7 +25039,7 @@ function vanJobsSaveImage(date, vanId, routeId, leg, grp){
   });
 }
 // Van cell · vehicle dropdown (zone-aware) + editable final pickup time
-function bkV2AssignVanReturnSplit(bkId, ai, vanId, date){ const b=SB_BOOKINGS.find(x=>x.id===bkId); if(!b)return; const o=bkOpsFor(b, bkOpsDate(b,date)); if(!Array.isArray(o.vanSplits)||!o.vanSplits[ai])return; o.vanSplits[ai].vanReturnId=vanId||null; acctPersistBookings(); if(typeof bkV2Render==='function') bkV2Render(); }   /* §per-trip ops · รถกลับของ split ตามวัน */
+function bkV2AssignVanReturnSplit(bkId, ai, vanId, date){ const b=SB_BOOKINGS.find(x=>x.id===bkId); if(!b)return; const o=bkOpsFor(b, bkOpsDate(b,date)); if(!Array.isArray(o.vanSplits)||!o.vanSplits[ai])return; o.vanSplits[ai].vanReturnId=vanId||null; acctPersistBookings(); bkV2RenderKeep(); }   /* §per-trip ops · รถกลับของ split ตามวัน */
 function bkV2VanCellHTML(bk, zone, date, groupColor, routeId, allocKey, allocG, isSplit, isFirst){
   const e=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   if(zone==='NoTransfer'||zone==='NT') return '<span style="font-size:10px;color:#8a8a82;font-style:italic">self-arrive</span>';
