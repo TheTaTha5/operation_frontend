@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§ovnRet` · **1 commit ahead of origin**
-(everything up to `§fcFwd` is pushed and live; only `§ovnRet` is waiting)
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtExpiry` · **1 commit ahead of origin**
+(everything up to `§ovnRet` is pushed and live; only `§rtExpiry` is waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -51,6 +51,54 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — 172 agents are riding a rate that expires in 26 days, and nothing says so
+
+Asked from the Agent screen: SAYAMA's rate covers 16 May → 14 Oct 26 — what gets used after that?
+
+**The same one.** `validTo` is a label, not a gate; `§promoMx` says so deliberately, because the main
+rate is the fallback that must always exist. The side effect is that the day it expires, pricing
+carries on silently.
+
+Measured on the 17 Sep backup, read the way the app reads it:
+
+| | |
+|---|---|
+| Rate types expiring within 60 days, with agents on them | **12** |
+| Agents riding them | **172** (biggest: `RT-MAIN TH-WW Low-Promotion`, 15 Oct, **151 agents**) |
+| Of those, agents who sell a route their rate cannot price | **38** — Similan/Surin have no low-season price because the park is shut, so on the first day of the season the Save button locks (`noRate`) |
+| Trips already booked to travel after 14 Oct on an expiring rate | **11** · 54 pax |
+| Price drift where both rates price the route | Phi Phi Bamboo 1,700 → 1,800 · Whale Shark 3,000 → 3,200 — **undercharged by 100–200 ฿/pax**, silently |
+| Promo contracts reaching past 14 Oct, system-wide | **1** — the promo overlay is not being used for the season change |
+| Agents whose main contract names a *different* rate than the binding | **90**, of which **76** name `RT - Main 26-27 TH-WW` — the successor is already written down, just never applied |
+
+SAYAMA shows the last row on one screen: the contract card reads `RT - Main 26-27 TH-WW`, the Source
+line reads `MISHA-SPECIA-2 · Special RATE Sayama LOW 2026`. Pricing uses the agent binding; the card
+shows the contract field. Two facts, one truth.
+
+**`§rtExpiry` — a warning, and only a warning.** It does not touch pricing by one line. One reader,
+two places that can never disagree: a panel at the top of Rate Types (every expiring set, soonest
+first, agents on each, which routes will be blocked, and the successor the contract already names),
+and one line in that agent's Pricing Matrix, right where the person is already reading the price.
+
+**Found while measuring, worth its own line:** the Agent→Rate Type binding is stored **twice** —
+`sb_agents[].rateTypeId` and a sidecar `sb_agents_rate_bindings`, and the sidecar overwrites the
+agent record at load. They have drifted for **32 agents**. Anything reading the export's
+`sb_agents[].rateTypeId` — a report, a BI pull, a script — gets the wrong rate for those 32. It read
+wrong for me first, which is why the first numbers in this session were too high. The panel reads
+in-memory `SB_AGENTS`, i.e. post-override, so it is correct; the export is not.
+
+`test/ui/t_ratexp.mjs` (13 checks, `npm run test:ratexp`) pins the count against `SB_AGENTS`, pins
+that the sidecar won, and pins the two rules this panel must never break: an expired rate still
+prices, and an expired rate still appears. Proven to fail: make the panel read a different agent set
+→ `พัง 1`; drop already-expired rates from the panel → `พัง 1`. Suite green: `t_smoke` พัง 2
+(environment-only), `t_mobile` · `t_fleetcal` · `t_daydetail` · `t_ovnmeal` all พัง 0.
+
+**Still open — the question that started this.** A rate list with priority 1/2/3 was asked for.
+Priority already exists on Promotion, and a second priority ladder is two ladders that can disagree.
+Agreed direction instead: **a season schedule on the main rate** — several rates, each with a date
+range, non-overlapping, no priority, last one open-ended so a booking can never fall into a gap with
+no price. Promotion keeps overlaying on top, untouched. Not built yet.
 
 ### 2026-09-18 — the OVN return day was being treated as a day at anchor
 

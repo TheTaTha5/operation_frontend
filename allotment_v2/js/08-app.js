@@ -33190,12 +33190,148 @@ let _rtSelected = null;
 let _rtViewMode = 'detail';      // 'detail' (2-col) | 'agents' (3-col)
 let _rtAgentMktFilter = 'all';   // filter pills in 3rd column
 
+/* ══ §rtExpiry · เรทที่กำลังจะหมดอายุ ═══════════════════════════════════════════
+   ACTIVE PERIOD / validTo ไม่ได้กั้นการคิดเงิน (ดู §promoMx) — จงใจให้เป็นแบบนั้น
+   ราคามาตรฐานต้องมีเสมอ ไม่งั้นวันหนึ่งจะจองไม่ได้เพราะไม่มีราคา
+   แต่ผลข้างเคียงคือ พอถึงวันหมดอายุ ระบบไม่ได้บอกอะไรเลย ยังคิดราคาฤดูเก่าต่อไปเงียบ ๆ
+   บล็อกนี้ทำหน้าที่ "บอก" อย่างเดียว ไม่แตะการคิดเงินสักบรรทัด
+
+   อ่านที่เดียว ใช้สองที่ · แผงบนหน้า Rate Types (ภาพรวม) และบรรทัดใน Pricing Matrix
+   ของเอเย่นต์รายนั้น (ตรงที่คนกำลังดูราคาอยู่พอดี) · สองที่จึงพูดเลขเดียวกันเสมอ
+   ═══════════════════════════════════════════════════════════════════════════ */
+var _RT_EXP_WINDOW = 60;                 /* เตือนล่วงหน้ากี่วัน · ฤดูกาลเปลี่ยนปีละสองครั้ง 60 วันพอให้ทัน */
+function rtExpDaysTo(ymd){
+  var T=(typeof TODAY_STR!=='undefined')?TODAY_STR:'';
+  if(!ymd || !T) return null;
+  var a=ymd.split('-'), b=T.split('-');
+  if(a.length!==3 || b.length!==3) return null;
+  var A=Date.UTC(+a[0],+a[1]-1,+a[2]), B=Date.UTC(+b[0],+b[1]-1,+b[2]);
+  return Math.round((A-B)/86400000);
+}
+/* ตัวถัดไปที่ "มีคนเขียนไว้แล้ว" · สัญญาหลักของเอเย่นต์ระบุ Rate Type ไว้คนละตัวกับที่ผูกอยู่
+   ระบบไม่เดาตัวถัดไปให้เอง · แค่หยิบสิ่งที่กรอกไว้แล้วมาวางตรงหน้า ให้คนตัดสิน */
+function rtExpNextOf(agentId){
+  if(!agentId || typeof SB_CONTRACTS==='undefined' || !Array.isArray(SB_CONTRACTS)) return '';
+  for(var i=0;i<SB_CONTRACTS.length;i++){
+    var c=SB_CONTRACTS[i];
+    if(c && c.agentId===agentId && c.kind==='main'
+       && c.status!=='void' && c.status!=='cancelled' && c.rateTypeId) return c.rateTypeId;
+  }
+  return '';
+}
+/* เอเย่นต์ที่ผูกอยู่กับเรทชุดนี้ · ผ่านขอบเขตของผู้ใช้เหมือนหน้า Agents (เซลล์เห็นเฉพาะของตัว) */
+function rtExpAgentsOn(rtId){
+  var A=(typeof SB_AGENTS!=='undefined')?SB_AGENTS:[];
+  if(typeof laScopeAgents==='function') A=laScopeAgents(A.slice());
+  return A.filter(function(a){ return a && a.rateTypeId===rtId; });
+}
+/* แถวเดียวของเรทหนึ่งชุด · null = ชุดนี้ไม่ต้องเตือน */
+function rtExpRowFor(rt, within){
+  if(!rt || rt.active===false) return null;
+  var to=String(rt.validTo||''); if(!to) return null;      /* ไม่มีวันหมด = ไม่มีอะไรให้เตือน */
+  var d=rtExpDaysTo(to); if(d===null || d>(within==null?_RT_EXP_WINDOW:within)) return null;
+  var ags=rtExpAgentsOn(rt.id);
+  if(!ags.length) return null;                             /* ไม่มีใครใช้ = ไม่ใช่เรื่องของใคร */
+  var have=rt.seatRates||{}, blocked={}, next={};
+  ags.forEach(function(a){
+    /* โปรแกรมที่เอเย่นต์ขาย แต่เรทชุดนี้ไม่มีราคาให้ · พอถึงฤดู ปุ่มบันทึกจะถูกล็อก (noRate)
+       เคสจริงคือสิมิลัน/สุรินทร์ — เรทฤดูต่ำไม่มีราคาเพราะอุทยานปิด พอเปิดฤดูจึงจองไม่ได้ */
+    (a.programs||[]).forEach(function(p){ if(p && !have[p]) blocked[p]=(blocked[p]||0)+1; });
+    var nx=rtExpNextOf(a.id);
+    if(nx && nx!==rt.id) next[nx]=(next[nx]||0)+1;
+  });
+  return { rt:rt, to:to, days:d, agents:ags, blocked:blocked, next:next };
+}
+function rtExpScan(within){
+  var out=[];
+  (typeof SB_RATE_TYPES!=='undefined'?SB_RATE_TYPES:[]).forEach(function(rt){
+    var r=rtExpRowFor(rt, within); if(r) out.push(r);
+  });
+  out.sort(function(a,b){ return a.days-b.days || String(a.rt.name||'').localeCompare(String(b.rt.name||'')); });
+  return out;
+}
+/* ของเอเย่นต์รายเดียว · ใช้ในแถบ Source ของ Pricing Matrix */
+function rtExpForAgent(a){
+  if(!a || !a.rateTypeId) return null;
+  var rt=(typeof getRateType==='function')?getRateType(a.rateTypeId):null; if(!rt) return null;
+  var to=String(rt.validTo||''); if(!to) return null;
+  var d=rtExpDaysTo(to); if(d===null || d>_RT_EXP_WINDOW) return null;
+  var have=rt.seatRates||{}, blocked=[];
+  (a.programs||[]).forEach(function(p){ if(p && !have[p]) blocked.push(p); });
+  var nx=rtExpNextOf(a.id);
+  return { rt:rt, to:to, days:d, blocked:blocked, next:(nx&&nx!==rt.id)?nx:'' };
+}
+function _rtExpE(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function _rtExpDate(y){ return (typeof _rtFmtDate==='function') ? (_rtFmtDate(y)||y) : y; }
+/* ป้ายบอกเวลา · "หมดแล้ว" กับ "อีก 27 วัน" ต้องอ่านออกจากระยะไกล สีจึงไล่ตามความใกล้ */
+function rtExpTone(d){
+  if(d<0)  return {bg:'#FCEBEB', bd:'#E8A9A2', fg:'#A32D2D', t:'หมดแล้ว '+Math.abs(d)+' วัน'};
+  if(d<=30) return {bg:'#FDEEDD', bd:'#E9B583', fg:'#9A5410', t:'อีก '+d+' วัน'};
+  return      {bg:'#FEF6E7', bd:'#EFD9AE', fg:'#8A5A00', t:'อีก '+d+' วัน'};
+}
+function rtExpRouteName(rid){
+  var r=(typeof getRoute==='function')?getRoute(rid):null;
+  return (r&&r.name)||rid;
+}
+/* แผงบนหน้า Rate Types · ไม่มีอะไรจะเตือน = ไม่วาดเลย ไม่ใช่วาดกล่องว่าง */
+function rtExpRender(){
+  var host=document.getElementById('rt-expiry'); if(!host) return;
+  var rows=rtExpScan();
+  if(!rows.length){ host.innerHTML=''; return; }
+  var nAg=0; rows.forEach(function(r){ nAg+=r.agents.length; });
+  var soon=rows[0].days;
+  var head=rtExpTone(soon);
+  var h='<div style="background:#fff;border:1px solid '+head.bd+';border-left:3px solid '+head.fg
+    +';border-radius:11px;padding:12px 15px;margin:0 0 14px">'
+    +'<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:3px">'
+      +'<span style="font-size:13px;font-weight:800;color:'+head.fg+'">&#9888; เรทที่กำลังจะหมดอายุ</span>'
+      +'<span style="font-size:11.5px;color:#5A6270">'+rows.length+' ชุด · '+nAg+' เอเย่นต์</span>'
+    +'</div>'
+    +'<div style="font-size:11px;color:#6B7280;line-height:1.6;margin-bottom:10px">'
+      +'วันหมดอายุ<b>ไม่ได้กั้นการคิดเงิน</b> — พ้นวันนี้ไปแล้วระบบยังคิดราคาชุดเดิมต่อ ไม่มีอะไรเตือนตอนจอง<br>'
+      +'ชุดที่มีโปรแกรมขึ้น <b style="color:#A32D2D">จองไม่ได้</b> คือชุดที่ไม่มีราคาของโปรแกรมนั้นเลย · ปุ่มบันทึกจะถูกล็อกตั้งแต่วันแรกของฤดู'
+    +'</div>';
+  rows.forEach(function(r){
+    var tn=rtExpTone(r.days);
+    var bk=Object.keys(r.blocked);
+    var nx=Object.keys(r.next).sort(function(a,b){ return r.next[b]-r.next[a]; });
+    h+='<div onclick="rtSelectCard(\''+_rtExpE(r.rt.id)+'\')" style="border-top:1px solid #EEF0F3;padding:9px 0;cursor:pointer">'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'<span style="background:'+tn.bg+';border:1px solid '+tn.bd+';color:'+tn.fg
+          +';font-size:10px;font-weight:800;border-radius:999px;padding:2px 9px;white-space:nowrap">'+tn.t+'</span>'
+        +'<b style="font-size:12.5px;color:#2C3440">'+_rtExpE(r.rt.name||r.rt.code||r.rt.id)+'</b>'
+        +'<span style="font-size:10px;color:#93A0AE;font-variant-numeric:tabular-nums">'+_rtExpE(r.rt.code||'')
+          +' · หมด '+_rtExpE(_rtExpDate(r.to))+'</span>'
+        +'<span style="margin-left:auto;font-size:11px;font-weight:700;color:#3C4553;white-space:nowrap">'
+          +r.agents.length+' เอเย่นต์</span>'
+      +'</div>';
+    if(bk.length){
+      h+='<div style="font-size:11px;color:#A32D2D;margin-top:4px;line-height:1.55">จองไม่ได้ — '
+        + bk.slice(0,4).map(function(p){ return '<b>'+_rtExpE(rtExpRouteName(p))+'</b> ('+r.blocked[p]+' เจ้า)'; }).join(' · ')
+        + (bk.length>4?(' · และอีก '+(bk.length-4)):'')
+        +'</div>';
+    }
+    if(nx.length){
+      h+='<div style="font-size:11px;color:#0F6E56;margin-top:3px;line-height:1.55">สัญญาระบุตัวถัดไปไว้แล้ว — '
+        + nx.slice(0,2).map(function(id){
+            var t=(typeof getRateType==='function')?getRateType(id):null;
+            return '<b>'+_rtExpE((t&&(t.name||t.code))||id)+'</b> ('+r.next[id]+' เจ้า)'; }).join(' · ')
+        + '<span style="color:#8A929E"> · ยังไม่ได้ผูกให้ ต้องเปลี่ยนเอง</span></div>';
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+  host.innerHTML=h;
+}
+
 function renderRateTypes(){
   _rtBackfillOwners();   // §one-time seed เจ้าของ rate type เดิม (idempotent · เฉพาะอันที่ owner ยังว่าง)
   // Auto-select first rate type if nothing selected (after refresh / first visit)
   if(!_rtSelected && (SB_RATE_TYPES||[]).length){
     _rtSelected = SB_RATE_TYPES[0].id;
   }
+  rtExpRender();                 /* §rtExpiry · แผงเตือนก่อนรายการ · ไม่มีอะไรเตือน = ไม่วาด */
   rtApplyViewMode();
   rtRenderList();
   if(_rtSelected){
@@ -37596,7 +37732,20 @@ function agTabPrices(a){
       ${isInactive?'<span style="background:#F1EFE8;color:#5F5E5A;font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.04em">Inactive</span>':''}
       <span style="font-size:10px;color:${isInactive?'#854F0B':rt.color};opacity:.7;font-variant-numeric:tabular-nums" title="ช่วงที่ตกลงราคากันไว้ · ไม่ได้กั้นการคิดเงิน — จองนอกช่วงก็ยังคิดราคาชุดนี้">${validHint}</span>
       <span style="font-size:9.5px;color:#8A929E;font-weight:500">(ช่วงที่ตกลงราคา &middot; ไม่ได้กั้นการคิดเงิน)</span>
-    </div>
+    </div>${(function(){
+      /* §rtExpiry · อ่านจากตัวเดียวกับแผงหน้า Rate Types · สองที่จึงพูดเลขเดียวกันเสมอ
+         วางตรงนี้เพราะคนที่กำลังอ่านราคาของเอเย่นต์รายนี้อยู่ตรงนี้พอดี ไม่ใช่อีกหน้าหนึ่ง */
+      if(typeof rtExpForAgent!=='function') return '';
+      const X=rtExpForAgent(a); if(!X) return '';
+      const T=rtExpTone(X.days), E=(typeof _rtExpE==='function')?_rtExpE:(v=>v);
+      const nx=X.next?((typeof getRateType==='function'?getRateType(X.next):null)||null):null;
+      return `<div style="background:${T.bg};border:1px solid ${T.bd};border-left:3px solid ${T.fg};border-radius:10px;padding:9px 13px;margin:-6px 0 12px;font-size:11.5px;line-height:1.65;color:#4A5360">
+        <b style="color:${T.fg}">&#9888; เรทชุดนี้${X.days<0?'หมดอายุแล้ว':'ใกล้หมดอายุ'}</b> ${E(_rtExpDate(X.to))} · ${E(T.t)}
+        <span style="color:#8A929E">— พ้นวันนี้ไป ระบบยังคิดราคาชุดนี้ต่อ ไม่มีอะไรเตือนตอนจอง</span>
+        ${X.blocked.length?`<br><span style="color:#A32D2D">จองไม่ได้ — ${X.blocked.slice(0,4).map(p=>'<b>'+E(rtExpRouteName(p))+'</b>').join(' · ')}${X.blocked.length>4?(' · และอีก '+(X.blocked.length-4)):''} · เรทชุดนี้ไม่มีราคาของโปรแกรมนี้</span>`:''}
+        ${nx?`<br><span style="color:#0F6E56">สัญญาระบุตัวถัดไปไว้แล้ว — <b>${E(nx.name||nx.code)}</b><span style="color:#8A929E"> · ยังไม่ได้ผูกให้ ต้องเปลี่ยนเอง</span></span>`:''}
+      </div>`;
+    })()}
     <button onclick="agEditOpen('ratetype','${a.id}')" style="background:#fff;color:${rt.color};border:1px solid ${rt.color}55;font-family:inherit;font-size:10.5px;font-weight:600;padding:4px 11px;border-radius:6px;cursor:pointer">เปลี่ยน Rate Type</button>
   </div>`;
 

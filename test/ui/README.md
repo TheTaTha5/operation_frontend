@@ -41,6 +41,14 @@ LAD=allotment_v2/data_exports/<subset>.json npm run test:daydetail -- 2026-09-17
 subset ต้องครอบช่วงของใบเหมาทั้งช่วง (ออก→0กลับ) และต้องมี **`ops` ของใบจอง · `trips` · `meal_venues` · `routes[].mealVenueId`**
 ⚠ ขาดอย่างใดอย่างหนึ่ง เทสจะฟ้องที่ข้อ "ชุดข้อมูล" ทันที — จงใจให้เช็คข้อมูลก่อน ไม่ให้ผ่านแบบว่างเปล่า
 
+`t_ratexp` ตรวจแผงเตือน "เรทกำลังจะหมดอายุ" บนหน้า Rate Types
+(`LAD=allotment_v2/data_exports/subset_ratexp.json npm run test:ratexp`)
+subset ต้องมี **`sb_rate_types` · `sb_agents` · `sb_agents_rate_bindings` · `sb_contracts` · `routes`**
+⚠ **`sb_agents_rate_bindings` สำคัญที่สุด** — การผูก Agent→Rate Type ถูกเก็บสองที่
+`sb_agents[].rateTypeId` กับ sidecar นี้ · **ตอนโหลด sidecar เขียนทับเสมอ**
+ถ้าตัด sidecar ออกจาก subset ตัวเลขจะเพี้ยนจากของจริง (รอบที่ทำนี้ต่าง 32 เอเย่นต์)
+เทสนี้เช็คให้ด้วยว่าสองที่ตรงกัน
+
 ผ่าน = พิมพ์ `พัง 0` และ exit code 0
 
 ใช้เวลาราว 1 นาทีต่อรอบจอ (67 หน้า × ~0.4 วิ) · `test:ui` วัดสองขนาดจอจึงราว 2–3 นาที
@@ -68,6 +76,7 @@ LAD=allotment_v2/data_exports/backup_2026-09-14_1355.json npm run test:smoke
 | `t_daydetail` | ป๊อปอัป "รายละเอียดทั้งวัน" ขึ้นตัวเลขคนละชุดกับการ์ด Live bookings |
 | `t_fleetcal` | Fleet Calendar ยืมตัวอ่านของหน้าอื่นมาแล้วเพี้ยน |
 | `t_ovnmeal` | สองหน้าตอบไม่ตรงกันว่าวันนี้เรือออกหรือไม่ออก |
+| `t_ratexp` | เรทหมดอายุแล้วไม่มีอะไรเตือน / แผงเตือนนับจากคนละชุดกับที่คิดเงินจริง |
 
 `t_daydetail` อยู่คนละชั้นกับสองตัวบน · มันไม่ได้ถามว่า "หน้าเปิดได้ไหม" แต่ถามว่า
 **"ตัวเลขที่เห็นมาจากกฎเดียวกับที่หน้าอื่นใช้หรือเปล่า"** — คิดค่าที่ควรจะเป็นจาก
