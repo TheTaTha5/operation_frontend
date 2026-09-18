@@ -32445,10 +32445,29 @@ function _agImpSales(v){
   const hit=(SB_SALES||[]).find(x=>(x.name||'').toLowerCase()===s.toLowerCase() || (x.code||'').toLowerCase()===s.toLowerCase());
   return hit ? hit.id : '';
 }
-function _agImpRate(v){
+/* §rtImpCode · จับคู่เรทตอนนำเข้า Agent · ห้ามเดา
+   ของเดิมใช้ find() ตัวแรกที่เจอ ไม่ว่าจะเจอกี่ตัว · และยอมชนกันได้ทั้ง code และ name
+   ของจริงมีเรท 5 ชุดใช้โค้ด RT-NANA เหมือนกัน ราคาต่างกันถึง 900 บาท/คน
+   ลำดับใน SB_RATE_TYPES มาจากลำดับแถวใน Postgres ซึ่งไม่การันตี — ไฟล์เดิมนำเข้าคนละวันจึงได้คนละเรท
+   กติกาใหม่ · id ก่อน → ชื่อ (ต้องตรงตัวเดียว) → โค้ด (ต้องตรงตัวเดียว)
+   ถ้ากำกวม คืนค่าว่างพร้อมเหตุผล ให้หน้าพรีวิวขึ้นเตือน แล้วคนเลือกเองทีหลัง ดีกว่าผูกผิดเงียบ ๆ */
+function _agImpRate(v, note){
   const s=_agImpClean(v); if(!s) return '';
-  const hit=(SB_RATE_TYPES||[]).find(x=>(x.code||'').toLowerCase()===s.toLowerCase() || (x.name||'').toLowerCase()===s.toLowerCase() || x.id===s);
-  return hit ? hit.id : '';
+  const L=(SB_RATE_TYPES||[]);
+  const byId = L.filter(x=>x.id===s);
+  if(byId.length===1) return byId[0].id;
+  const low = s.toLowerCase();
+  const byName = L.filter(x=>String(x.name||'').trim().toLowerCase()===low);
+  if(byName.length===1) return byName[0].id;
+  const byCode = L.filter(x=>String(x.code||'').trim().toLowerCase()===low);
+  if(byCode.length===1) return byCode[0].id;
+  const amb = byName.length>1 ? byName : (byCode.length>1 ? byCode : null);
+  if(note){
+    note.rateAmb = amb
+      ? { txt:s, names:amb.map(x=>x.name||x.id) }          // ตรงหลายตัว · ต้องเลือกเอง
+      : { txt:s, names:[] };                                // ไม่ตรงสักตัว · สะกดผิดหรือยังไม่มีเรทนี้
+  }
+  return '';
 }
 function _agImpPrograms(v){
   const s=_agImpClean(v); if(!s) return null;
@@ -32460,7 +32479,7 @@ function _agImpPrograms(v){
 }
 
 // Map ONE spreadsheet row → a clean agent-shaped object (only fields the file actually filled)
-function _agImpRow(o){
+function _agImpRow(o, note){
   const g=k=>o[k]!==undefined?o[k]:o[k+'*'];
   const src={};
   const name=_agImpClean(g('name')); if(name) src.name=name;
@@ -32473,7 +32492,7 @@ function _agImpRow(o){
   const cl=g('creditLimit'); if(cl!==''&&cl!=null&&!isNaN(+cl)) src.creditLimit=+cl;
   const vm=_agImpClean(g('vatMode')).toLowerCase(); if(vm) src.vatMode=vm;
   const pg=_agImpPrograms(g('programs')); if(pg) src.programs=pg;
-  const rt=_agImpRate(g('rateType')); if(rt) src.rateTypeId=rt;
+  const rt=_agImpRate(g('rateType'), note); if(rt) src.rateTypeId=rt;
   ['contact','note'].forEach(f=>{ const v=_agImpClean(g(f)); if(v) src[f]=v; });
   const em=_agImpEmail(g('email')); if(em) src.email=em;
   const ph=_agImpClean(g('phone')); if(ph) src.phone=ph;
@@ -32568,10 +32587,12 @@ function agImportFile(file){
 
     const rows=[];
     raw.forEach((o,i)=>{
-      const src=_agImpRow(o);
+      const note={};
+      const src=_agImpRow(o, note);
       if(!src.name) return;                                  // skip blank lines
       const match=_agImpFind(src);
-      rows.push({ n:i+2, src, match, action: match?'update':'create', checked:true });
+      /* §rtImpCode · แถวที่ระบุเรทไว้แต่จับคู่ไม่ได้แน่ชัด · ไม่ผูกให้ แต่ต้องขึ้นให้เห็นในพรีวิว */
+      rows.push({ n:i+2, src, match, action: match?'update':'create', checked:true, rateAmb: note.rateAmb||null });
     });
     if(!rows.length){ alert('ไม่พบแถวที่มีชื่อเอเจ้น (คอลัมน์ name)'); return; }
     _agImp={ rows, overwrite:false, fileName:file.name };
@@ -32619,6 +32640,7 @@ function agImportRender(){
   const nNew=R.filter(r=>r.action==='create').length;
   const nUpd=R.filter(r=>r.action==='update').length;
   const nConf=R.filter(r=>r.ownerConflict).length;
+  const nRateAmb=R.filter(r=>r.rateAmb).length;   /* §rtImpCode */
   const nSel=R.filter(r=>r.checked && (r.action==='create' || r.writes.length)).length;
   const nSkip=R.filter(r=>r.action==='update' && !r.writes.length).length;
 
@@ -32639,7 +32661,9 @@ function agImportRender(){
       +'<td style="padding:7px 6px;font-size:11px;color:#98a29c">'+r.n+'</td>'
       +'<td style="padding:7px 6px"><div style="font-size:12px;font-weight:600;color:#2b3a34">'+e(r.src.name)+'</div>'
         +(r.match?'<div style="font-size:10.5px;color:#98a29c">→ ตรงกับ <b>'+e(r.match.name)+'</b> ['+e(r.match.market||'')+']</div>':'')
-        +(r.ownerConflict?'<div style="font-size:10px;font-weight:700;color:#A32D2D;background:#FCEBEB;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block">⚠ เป็นของเซลล์ '+e(_snm(r.ownerSalesId))+' อยู่แล้ว · ไม่ย้ายเจ้าของ</div>':'')+'</td>'
+        +(r.ownerConflict?'<div style="font-size:10px;font-weight:700;color:#A32D2D;background:#FCEBEB;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block">⚠ เป็นของเซลล์ '+e(_snm(r.ownerSalesId))+' อยู่แล้ว · ไม่ย้ายเจ้าของ</div>':'')
+        /* §rtImpCode · จับคู่เรทไม่ได้แน่ชัด · ไม่ผูกให้ · ต้องเห็นก่อนกดนำเข้า ไม่ใช่รู้ทีหลังตอนราคาออกมาผิด */
+        +(r.rateAmb?'<div style="font-size:10px;font-weight:700;color:#8A5410;background:#FDF3E4;border-radius:6px;padding:2px 8px;margin-top:3px;display:inline-block">⚠ Rate "'+e(r.rateAmb.txt)+'" '+(r.rateAmb.names.length?('ตรงกับ '+r.rateAmb.names.length+' ชุด ('+e(r.rateAmb.names.slice(0,3).join(' · '))+') · ไม่ผูกให้'):'ไม่ตรงกับเรทไหนเลย')+'</div>':'')+'</td>'
       +'<td style="padding:7px 6px">'+badge+'</td>'
       +'<td style="padding:7px 6px">'+chips+'</td></tr>';
   }).join('');
@@ -32652,7 +32676,7 @@ function agImportRender(){
    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'
      +'<div><div style="font-size:16px;font-weight:800;color:#15396B">นำเข้า Agent จาก Excel</div>'
      +'<div style="font-size:11.5px;color:#8b9a94;margin-top:2px">'+e(_agImp.fileName)+' · '+R.length+' แถว &nbsp;·&nbsp; '
-       +'<b style="color:#0F6E56">ใหม่ '+nNew+'</b> &nbsp; <b style="color:#854F0B">มีอยู่แล้ว '+nUpd+'</b>'+(nConf?' &nbsp; <b style="color:#A32D2D">⚠ เป็นของเซลล์อื่น '+nConf+'</b>':'')
+       +'<b style="color:#0F6E56">ใหม่ '+nNew+'</b> &nbsp; <b style="color:#854F0B">มีอยู่แล้ว '+nUpd+'</b>'+(nConf?' &nbsp; <b style="color:#A32D2D">⚠ เป็นของเซลล์อื่น '+nConf+'</b>':'')+(nRateAmb?' &nbsp; <b style="color:#8A5410">⚠ จับคู่เรทไม่ได้ '+nRateAmb+'</b>':'')
        +(nSkip?' &nbsp; <span style="color:#98a29c">ไม่มีอะไรเปลี่ยน '+nSkip+'</span>':'')+'</div></div>'
      +'<button onclick="agImportClose()" style="border:0;background:#eee;color:#444;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit">ปิด</button></div>'
 
@@ -33217,6 +33241,107 @@ let _rtSelected = null;
 let _rtViewMode = 'detail';      // 'detail' (2-col) | 'agents' (3-col)
 let _rtAgentMktFilter = 'all';   // filter pills in 3rd column
 
+/* ══ §rtDupCode · โค้ดเรทซ้ำกัน ═══════════════════════════════════════════════
+   ที่มา (2026-09-18) · ตรวจตามที่ถูกขอให้ดูว่า "สร้างเรทแล้วทับกันไหม"
+   ตัวสร้างไม่ทับกัน (id มาจาก LA_UID + มีเกราะกันชนอีกชั้นใน rtSaveDraft)
+   แต่เจอของจริงคาอยู่ · เรท 5 ชุดใช้โค้ด RT-NANA เหมือนกันหมด
+   ทั้งห้าสร้างวันเดียวกัน (22 ก.ค. 2026) ตอนที่โค้ดยังพิมพ์เอง ก่อนจะเปลี่ยนเป็นสร้างอัตโนมัติ
+
+   ทำไมต้องแก้ ทั้งที่ระบบคิดราคาด้วย id ไม่ใช่โค้ด
+     1 นำเข้า Agent จาก Excel จับคู่เรท "ด้วยโค้ด" — โค้ดซ้ำ = ผูกผิดชุดแบบเงียบ ๆ
+       และลำดับใน SB_RATE_TYPES มาจากลำดับแถวใน Postgres ซึ่งไม่การันตี
+       ไฟล์เดิมนำเข้าคนละวันจึงได้คนละเรทได้ · ห้าชุดนั้นราคาต่างกันถึง 900 บาท/คน
+     2 คนเลือกเรทจากลิสต์ที่โชว์โค้ด · เห็นโค้ดเดียวกันห้าแถวก็เลือกผิดเป็นธรรมดา
+   ═══════════════════════════════════════════════════════════════════════════ */
+function rtDupCodeScan(){
+  var by = {};
+  (typeof SB_RATE_TYPES!=='undefined'?SB_RATE_TYPES:[]).forEach(function(r){
+    var c = String((r&&r.code)||'').trim().toUpperCase();
+    if(!c) return;
+    (by[c] = by[c] || []).push(r);
+  });
+  var out = [];
+  Object.keys(by).forEach(function(c){ if(by[c].length > 1) out.push({code:c, list:by[c]}); });
+  out.sort(function(a,b){ return b.list.length - a.list.length; });
+  return out;
+}
+function _rtDupUsers(rtId){
+  var A = (typeof SB_AGENTS!=='undefined')?SB_AGENTS:[];
+  return A.filter(function(a){ return a && a.rateTypeId===rtId; }).length;
+}
+/* ตัวที่ "ได้เก็บโค้ดเดิมไว้" · เจ้าที่มีเอเย่นต์ผูกมากที่สุด แล้วค่อยดูว่าใครสร้างก่อน
+   เหตุผล: โค้ดนั้นถูกพิมพ์ลงไฟล์นำเข้าและเอกสารไปแล้ว ตัวที่คนใช้กันมากที่สุดควรเป็นตัวที่ความหมายไม่เปลี่ยน */
+function _rtDupKeeper(list){
+  var best = list[0], bestN = _rtDupUsers(best.id);
+  list.forEach(function(r){
+    var n = _rtDupUsers(r.id);
+    if(n > bestN || (n === bestN && String(r.createdDate||'') < String(best.createdDate||''))){ best = r; bestN = n; }
+  });
+  return best;
+}
+function rtDupCodeBanner(){
+  var host = document.getElementById('rt-dupcode'); if(!host) return;
+  var G = rtDupCodeScan();
+  if(!G.length){ host.innerHTML=''; return; }
+  var e = _rtExpE;
+  var nRt = 0, nAg = 0;
+  G.forEach(function(g){ nRt += g.list.length; g.list.forEach(function(r){ nAg += _rtDupUsers(r.id); }); });
+  var rows = G.slice(0,6).map(function(g){
+    var keep = _rtDupKeeper(g.list);
+    return '<div style="border-top:1px solid #EEF0F3;padding:7px 0;font-size:11.5px;line-height:1.6">'
+      +'<span class="mono" style="font-weight:800;color:#A32D2D">'+e(g.code)+'</span> '
+      +'<span style="color:#6B7280">'+g.list.length+' ชุด · '
+      + g.list.map(function(r){
+          var n=_rtDupUsers(r.id);
+          return '<b style="color:'+(r.id===keep.id?'#0F6E56':'#2C3440')+'">'+e(r.name||r.id)+'</b>'
+            + (n?('<span style="color:#93A0AE"> ('+n+')</span>'):'');
+        }).join(' · ')
+      +'</span></div>';
+  }).join('');
+  host.innerHTML = '<div style="background:#fff;border:1px solid #E8A9A2;border-left:3px solid #A32D2D;'
+    +'border-radius:11px;padding:12px 15px;margin:0 0 14px">'
+    +'<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">'
+      +'<b style="font-size:13px;color:#A32D2D">&#9888; โค้ดเรทซ้ำกัน</b>'
+      +'<span style="font-size:11.5px;color:#5A6270">'+G.length+' โค้ด · '+nRt+' ชุด · '+nAg+' เอเย่นต์ผูกอยู่</span>'
+      +'<button onclick="rtDupCodeFix()" style="margin-left:auto;border:0;background:#0F172A;color:#fff;'
+        +'border-radius:999px;padding:5px 14px;font:700 11px inherit;cursor:pointer;font-family:inherit;'
+        +'white-space:nowrap">แก้โค้ดให้ไม่ซ้ำ</button>'
+    +'</div>'
+    +'<div style="font-size:11px;color:#6B7280;line-height:1.6;margin-top:3px">'
+      +'ระบบคิดราคาด้วย id ราคาจึงไม่ได้ผิดอยู่ตอนนี้ · แต่<b>การนำเข้า Agent จาก Excel จับคู่เรทด้วยโค้ด</b> '
+      +'โค้ดซ้ำ = ผูกผิดชุดแบบเงียบ ๆ และคนที่เลือกเรทจากลิสต์ก็แยกไม่ออก<br>'
+      +'ปุ่มนี้แก้เฉพาะช่องโค้ด · ไม่แตะราคา ไม่แตะ id และไม่ย้ายเอเย่นต์ไปไหน '
+      +'(ตัวที่มีเอเย่นต์ผูกมากที่สุดเก็บโค้ดเดิมไว้ · ชื่อสีเขียว)</div>'
+    + rows
+    + (G.length>6 ? ('<div style="font-size:11px;color:#8A929E;padding-top:6px">· และอีก '+(G.length-6)+' โค้ด</div>') : '')
+    +'</div>';
+}
+function rtDupCodeFix(){
+  if(typeof laGuardEdit==='function' && !laGuardEdit('sales')) return;
+  var G = rtDupCodeScan(); if(!G.length) return;
+  var plan = [];
+  G.forEach(function(g){
+    var keep = _rtDupKeeper(g.list);
+    g.list.forEach(function(r){
+      if(r.id === keep.id) return;
+      /* ตั้งโค้ดใหม่ด้วยตัวสร้างเดิม · มันกันซ้ำกับทุกโค้ดที่มีอยู่ให้แล้ว
+         ต้องเซ็ตลงตัวจริงทีละตัวก่อนคำนวณตัวถัดไป ไม่งั้นสองตัวในกลุ่มเดียวกันจะได้โค้ดใหม่ชนกันเอง */
+      var old = r.code;
+      r.code = _rtAutoCode(r.name || r.id, r.owner || '');
+      plan.push({name:(r.name||r.id), from:old, to:r.code});
+    });
+  });
+  if(!plan.length) return;
+  if(typeof rtPersist==='function') rtPersist();
+  if(typeof rtRenderList==='function') rtRenderList();
+  if(typeof rtDupCodeBanner==='function') rtDupCodeBanner();
+  if(_rtSelected && typeof rtRenderDetail==='function') rtRenderDetail(_rtSelected);
+  try{ console.log('[rtDupCode] renamed ' + plan.length + ' code(s): '
+    + plan.map(function(x){ return x.from + ' -> ' + x.to; }).join(', ')); }catch(_){}
+  if(typeof flShowToast==='function') flShowToast('แก้โค้ดซ้ำแล้ว ' + plan.length + ' ชุด');
+  else alert('Renamed ' + plan.length + ' duplicate rate-type code(s).');
+}
+
 /* ══ §rtExpiry · เรทที่กำลังจะหมดอายุ ═══════════════════════════════════════════
    ACTIVE PERIOD / validTo ไม่ได้กั้นการคิดเงิน (ดู §promoMx) — จงใจให้เป็นแบบนั้น
    ราคามาตรฐานต้องมีเสมอ ไม่งั้นวันหนึ่งจะจองไม่ได้เพราะไม่มีราคา
@@ -33763,6 +33888,7 @@ function renderRateTypes(){
   if(!_rtSelected && (SB_RATE_TYPES||[]).length){
     _rtSelected = SB_RATE_TYPES[0].id;
   }
+  rtDupCodeBanner();             /* §rtDupCode · โค้ดซ้ำทำให้การนำเข้า Agent ผูกเรทผิดชุด */
   rtExpBanner();                 /* §rtAdmin · หน้านี้เอาไว้ทำเรท · แผงเตือนย้ายไปหน้ารวม เหลือบรรทัดเดียวชี้ทาง */
   rtApplyViewMode();
   rtRenderList();

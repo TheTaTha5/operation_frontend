@@ -1,6 +1,6 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§agProgFill`
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtDupCode`
 (a merge from GitHub landed at `6aa8cff`, bringing `§vanAssignScroll` from another session —
 this work was re-tested on top of the merged tree, not on the pre-merge one)
 (push from GitHub Desktop — the shell here has no credentials)
@@ -52,6 +52,37 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — checked "do new rate types overwrite each other?"
+
+**They do not.** Creating three in a row, twice with the same name, leaves every existing rate in
+place: ids come from `LA_UID` and `rtSaveDraft` re-rolls on any collision, and the auto-code appends
+`-2`, `-3` when the base repeats. That path is now held by `test/ui/t_rtdup.mjs`.
+
+**What the check did find, in the live data: five rate types share the code `RT-NANA`.** All five
+were made on 22 Jul 2026 by the same salesperson, back when the code was typed by hand — codes have
+been generated since 23 Jul and no duplicate has appeared after that date. Ids are unique, so nothing
+was lost and nothing is mispriced today: `getRateType()` resolves by id everywhere.
+
+It still matters, because **the agent Excel import matched a rate type by code and took the first
+hit**. `SB_RATE_TYPES` is ordered by whatever Postgres returns, which is not guaranteed, so the same
+file imported on two different days could bind agents to two different rates — silently. The five
+`RT-NANA` rates are ฿1,700 to ฿2,600 for the same seat, and 101 agents hang off them.
+
+Two fixes:
+
+- `§rtImpCode` — the import resolves id → name → code, and each step must match **exactly one** rate.
+  Anything ambiguous binds nothing and shows an amber note on that row of the preview ("Rate X matches
+  3 rates · not bound"), with a count in the header. A value matching nothing is flagged too, instead
+  of being dropped in silence.
+- `§rtDupCode` — a red strip on Rate Types lists every duplicated code with the rates and how many
+  agents each has, and a button renames the duplicates. The rate with the most agents keeps the
+  original code (it is the one already written into import files and contracts); the rest get a fresh
+  auto-code. It touches the code field only — not ids, not prices, not bindings, which the test
+  asserts explicitly.
+
+Proven to fail on three breaks: the import reverted to its old first-hit `find`, the fixer also
+changing ids, and the duplicate scan not recognising a group.
 
 ### 2026-09-18 — picking a Rate Type now fills Programs in Contract
 
