@@ -19259,12 +19259,16 @@ function pckKitchenHtml(border, boats, date, bare){
   var e=ckEsc, cards='';
   border.forEach(function(bid){
     var B=boats[bid]; if(!B) return;
-    var rid=(B.torder||[])[0]||'';
+    /* §mealOvnRt · เรือที่วันนี้มีแต่งานรับกลับ ไม่มีแถวเช็คอิน torder จึงว่าง (§ovnCard เก็บแถวไว้ที่ B.ovn)
+       เดิมตกไปเป็นเส้นทาง '' → หาร้านไม่เจอ → ไม่มียอด ไม่มีปุ่มส่งร้าน
+       ทั้งที่เส้นทางนั้นตั้งร้านไว้แล้ว · ใบรับกลับถือเส้นทางของตัวเองอยู่ อ่านจากที่เดียวกับที่การ์ดโชว์
+       ไม่ไปอ่าน TRIPS ซ้ำอีกทาง — ข้อเท็จจริงเดียวต่อหนึ่งที่ */
+    var OV=pckMealOvnRows(date,bid);
+    var rid=(B.torder||[])[0] || (OV[0] && OV[0].t && OV[0].t.routeId) || '';
     var V=(typeof mvForTrip==='function')?mvForTrip(date,bid,rid):null;
     var raw=(typeof mvTripRaw==='function')?mvTripRaw(date,bid):'';
     /* §mealOvn · ขากลับค้างคืนของลำนี้ · ต่อเข้ากับแถวปกติ แล้วให้ตัวนับตัดสินจากธง __inc
        การ์ดกับยอดที่บันทึกจะได้มาจากชุดเดียวกัน ไม่ใช่คนละชุดเหมือนเดิม */
-    var OV=pckMealOvnRows(date,bid);
     var MR=(B.rows||[]).concat(OV.map(function(x){
       var y={}; Object.keys(x).forEach(function(k){ y[k]=x[k]; }); y.__inc=x.inc; return y; }));
     var C=pckMealCount(MR);
@@ -62134,7 +62138,11 @@ function pjBoatSt(date, boat, op){
   var mj=pjOpenJobs(boat&&boat.id);
   /* §ovnSpan · ลำนี้ติดใบเหมาค้างเกาะอยู่ในวันนี้หรือเปล่า · และวันนี้เป็นวันออกไหม */
   var _ovnH=null; try{ _ovnH=(typeof bkOvnHoldOn==='function')?bkOvnHoldOn(boat&&boat.id,date):null; }catch(_){}
-  var _ovnAny=!!_ovnH, _ovnMid=!!(_ovnH && _ovnH.from!==date);
+  /* §ovnRet · "ระหว่างทาง" คือวันที่เรืออยู่ที่เกาะจริง ๆ คือ หลังวันออก แต่ก่อนวันกลับ
+     วันกลับเรือวิ่งจริง มีคนอยู่บนนั้นจริง และกินข้าวกลางวันกลับมาจริง
+     เดิมนับวันกลับเป็น วันระหว่างทางด้วย ใบงานเรือจึงซ่อนบล็อกครัวทั้งก้อน (ไม่มีที่ระบุร้าน)
+     และขึ้น "⚠ โปรแกรมค้าง" ทั้งที่โปรแกรมนั้นถูก · Daily log กับ Boat Status นับเป็นวันออกอยู่แล้ว */
+  var _ovnAny=!!_ovnH, _ovnMid=!!(_ovnH && _ovnH.from!==date && _ovnH.to!==date);
   var rsn=String((st&&st.reason)||'').toLowerCase();
   // เหตุผลอาจอยู่ที่ log หรือที่ MJ ที่สั่งให้เรือหยุด · ดูทั้งสองที่
   if(!rsn) mj.forEach(function(m){ if(!rsn && m.boatStatusReason) rsn=String(m.boatStatusReason).toLowerCase(); });

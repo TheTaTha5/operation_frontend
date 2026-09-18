@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-17 · branch `lk-inbox` @ `§fcFwd` · **1 commit ahead of origin**
-(everything up to `§fcPier` is pushed and live; only `§fcFwd` is waiting)
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§ovnRet` · **1 commit ahead of origin**
+(everything up to `§fcFwd` is pushed and live; only `§ovnRet` is waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -51,6 +51,31 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — the OVN return day was being treated as a day at anchor
+
+Reported from the floor: the kitchen popup surfaced an overnight pickup so its meal could be set,
+pointed the user at the boat job sheet — and the job sheet had no meal field at all.
+
+One idea was wrong in two places: **an OVN pickup was not counted as "this boat runs a route today".**
+
+| Tag | What was wrong | Measured result |
+|---|---|---|
+| `§ovnRet` | `pjBoatSt` called any day where `hold.from !== date` a mid-span day. An island hold spans the day out **through the day back**, so the return day — when the boat actually sails home loaded — was classed "เหมาลำค้างเกาะ". `going` was false, so the whole `ครัว · ร้านอาหาร` block never rendered, and the card carried a false `⚠ โปรแกรมค้าง` with an `เอาออก` button beside a live trip. | Mid-span is now strictly between `from` and `to`. Oceanus, hold 16→18 Sep: 16 `run` · 17 `ovn` · **18 `run`**. Kitchen block present, false stale warning gone. |
+| `§mealOvnRt` | The kitchen card read its route from `B.torder[0]`, but `§ovnCard` files pickup rows under `B.ovn` and never touches `torder`. A boat whose only job that day is the pickup got route `''` → no venue → no amount → **no send button at all**, under the message "ยังไม่ได้ตั้งร้านให้เส้นทางนี้" — while `r10` had ร้านอาหารต้นไทร set all along. | Falls back to the pickup rows' own `routeId`. Card now shows *Phi Phi Bamboo by Speedboat · ร้านอาหารต้นไทร 210/105*; pressing รวมอาหาร computes **฿2,520** (210 × 12). |
+
+The Daily Log and Boat Status were already right — both gave Oceanus a full row on the 18th
+(PAX 12, fuel, engine hours, water, เบิกของ). Only the boat job sheet and the kitchen card
+disagreed, which is why the number looked recorded and the meal did not.
+
+**Answering the question directly:** yes, the return day must be recordable. The boat is at sea,
+carrying people who eat on the way in. A hold of *N* nights has *N+1* working days, not *N−1*.
+
+`test/ui/t_ovnmeal.mjs` (13 checks, `npm run test:ovnmeal`) pins all of it — the per-day status
+ladder, the route fallback, the ฿ figure, and the §mealOvn rule that the send button stays disabled
+until every pickup is marked. Proven to fail: reverting `§ovnRet` gives `พัง 2`, reverting
+`§mealOvnRt` gives `พัง 5`. Regression suite unchanged: `t_smoke` พัง 2 (environment-only, as
+always), `t_mobile` · `t_fleetcal` · `t_daydetail` all พัง 0.
 
 ### 2026-09-17 — "what came in today", in one place
 

@@ -17,7 +17,8 @@
     "test:mobile": "node test/ui/t_mobile.mjs",
     "test:ui": "node test/ui/t_smoke.mjs && node test/ui/t_mobile.mjs",
     "test:daydetail": "node test/ui/t_daydetail.mjs",
-    "test:fleetcal": "node test/ui/t_fleetcal.mjs"
+    "test:fleetcal": "node test/ui/t_fleetcal.mjs",
+    "test:ovnmeal": "node test/ui/t_ovnmeal.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"
