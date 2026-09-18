@@ -493,7 +493,23 @@ let SB_AGENTS = [
 
 // Load persisted agents (full list overrides seed once the user has added/edited any) · read-modify-write key
 (function(){ try{ const d=JSON.parse(localStorage.getItem(LS_KEY)||'{}'); if(Array.isArray(d.sb_agents)) SB_AGENTS = d.sb_agents; /* accept empty array · cleared list stays cleared */ }catch(e){ console.warn('load sb_agents failed', e); } })();
-function sbAgentsPersist(){ if(typeof window.laCanEditArea==='function' && !window.laCanEditArea('sales')) return; try{ const d=JSON.parse(localStorage.getItem(LS_KEY)||'{}'); d.sb_agents=SB_AGENTS; localStorage.setItem(LS_KEY, JSON.stringify(d)); }catch(e){ console.warn('persist sb_agents failed', e); } }
+/* §rateBind · การผูก Agent→Rate Type ถูกเก็บสองที่
+     sb_agents[].rateTypeId  กับ  sb_agents_rate_bindings (sidecar)
+   ตอนโหลด _rtRestore เอา sidecar เขียนทับเสมอ แต่คนเขียนมีสองคน
+     rtPersist   (หน้า Rate Types) เขียนแต่ sidecar
+     sbAgentsPersist (หน้า Agents)   เขียนแต่ sb_agents
+   ผลคือ แก้เรทจากหน้า Agents แล้วกดเซฟ → โหลดใหม่ sidecar ทับกลับเป็นค่าเก่า
+     เงียบ ๆ ไม่มีอะไรบอก · วัดแล้วเพี้ยนกันอยู่ 32 เอเย่นต์
+   แก้ด้วยการเขียนทั้งสองที่ทุกครั้ง ไม่ใช่การย้ายที่เก็บ
+     กติกาตอนโหลดคงเดิมเป๊ะ (sidecar ชนะ) เอเย่นต์ที่เพี้ยนอยู่แล้วจึงไม่มีราคาขยับ
+     เพียงแต่ผลิตความต่างใหม่ไม่ได้อีก และ export กลับมาอ่านได้ตรง */
+/* ⚠ ลำดับสำคัญ · บล็อก seed ด้านบนเรียก sbAgentsPersist() ตอนโหลดได้
+     และมันอยู่ก่อน _rtRestore ในไฟล์ ถ้าเขียน sidecar ตอนนั้น จะเอาค่าเก่า
+     ใน sb_agents ไปทับ sidecar ที่ใหม่กว่า → ราคาของเอเย่นต์เด้ง ๆ กระโดดกลับไปฤดูก่อน
+     จึงเขียน sidecar ได้ก็ต่อเมื่อ restore ทำงานเสร็จแล้วเท่านั้น · ก่อนหน้านั้นปล่อยคีย์นั้นไว้เฉย ๆ */
+var _LA_RATE_BIND_READY = false;
+function laRateBindings(){ return (SB_AGENTS||[]).map(function(a){ return {id:a.id, rateTypeId:a.rateTypeId||null}; }); }
+function sbAgentsPersist(){ if(typeof window.laCanEditArea==='function' && !window.laCanEditArea('sales')) return; try{ const d=JSON.parse(localStorage.getItem(LS_KEY)||'{}'); d.sb_agents=SB_AGENTS; if(_LA_RATE_BIND_READY) d.sb_agents_rate_bindings=laRateBindings(); localStorage.setItem(LS_KEY, JSON.stringify(d)); }catch(e){ console.warn('persist sb_agents failed', e); } }
 // ── Agent activity log (audit trail) · push {at,by,kind,text} to a.activity ──
 // kind: 'created' | 'rate' | 'credit' | 'profile' | 'programs' | 'company' | 'sales' | 'contract' | 'note' | 'edit'
 function agLog(agentId, kind, text){
@@ -35485,8 +35501,10 @@ function rtPersist(){
     const raw = localStorage.getItem('loveandaman_v2');
     const obj = raw ? JSON.parse(raw) : {};
     obj.sb_rate_types = SB_RATE_TYPES;
-    // Persist agent.rateTypeId changes too (in case deletes detached agents)
-    obj.sb_agents_rate_bindings = (SB_AGENTS||[]).map(a => ({id:a.id, rateTypeId:a.rateTypeId||null}));
+    /* §rateBind · เขียนทั้งสองที่พร้อมกันเสมอ · ตัวเดิมเขียนแต่ sidecar
+       ทำให้ sb_agents ใน export ค้างเป็นค่าเก่า (ตอนพบครั้งแรก เพี้ยนอยู่ 32 เอเย่นต์) */
+    obj.sb_agents_rate_bindings = laRateBindings();
+    obj.sb_agents = SB_AGENTS;
     localStorage.setItem('loveandaman_v2', JSON.stringify(obj));
   } catch(e){ console.warn('[rtPersist] failed:', e); }
 }
@@ -35542,6 +35560,8 @@ function rtPersist(){
       obj.sb_agents_rate_bindings.forEach(b => { map[b.id] = b.rateTypeId; });
       (SB_AGENTS||[]).forEach(a => { if(map.hasOwnProperty(a.id)) a.rateTypeId = map[a.id]; });
     }
+    /* §rateBind · ตั้งแต่บรรทัดนี้ไป SB_AGENTS ถือค่าที่ระบบใช้จริงแล้ว · เขียน sidecar ได้ */
+    _LA_RATE_BIND_READY = true;
   } catch(e){ console.warn('[rtRestore] failed:', e); }
 })();
 

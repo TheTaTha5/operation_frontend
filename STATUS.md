@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtExpiry` · **1 commit ahead of origin**
-(everything up to `§ovnRet` is pushed and live; only `§rtExpiry` is waiting)
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§rateBind` · **1 commit ahead of origin**
+(everything up to `§rtExpiry` is pushed and live; only `§rateBind` is waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -51,6 +51,43 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — changing an agent's Rate Type from the Agents page was silently undone
+
+Found while starting the season-schedule work, and it had to land first, because the season list
+would have been eaten by the same mechanism.
+
+The Agent→Rate Type binding is stored **twice**: `sb_agents[].rateTypeId` and a sidecar
+`sb_agents_rate_bindings`. On load `_rtRestore` lets the sidecar overwrite the agent record. But the
+two writers each wrote only one store — `rtPersist` (Rate Types page) the sidecar, `sbAgentsPersist`
+(Agents page) the agent record.
+
+So: change an agent's rate on the **Agents** page, save, reload — **the sidecar puts the old rate
+back**, with no error and nothing on screen. Reproduced in the harness before fixing: set SAYAMA to
+`RT - Main 26-27 TH-WW`, save, reload → back to `Special RATE Sayama LOW 2026`. Changes made on the
+**Rate Types** page stuck, which is why the two stores had drifted for 32 agents in the same
+direction and the effective prices still happened to be the intended ones.
+
+| Tag | What was wrong | Measured result |
+|---|---|---|
+| `§rateBind` | Two stores, two writers, one store each. A rate change from the Agents page never reached the store that wins at load. | Both writers now write both stores. The same reproduction now keeps the new rate across reload. |
+| `§rateBind` (guard) | `sbAgentsPersist()` is also called by seed blocks that run **before** `_rtRestore` in file order. Writing the sidecar there would push the stale `sb_agents` values over the newer sidecar — silently re-pricing every drifted agent. | `_LA_RATE_BIND_READY` opens only at the end of `_rtRestore`; before that the sidecar is left untouched. |
+
+**The sidecar still wins at load, deliberately.** It has been there since the initial commit with no
+recorded rationale, so it was kept rather than removed. That choice is what makes this safe: every
+one of the 32 drifted agents keeps the exact rate the system was already using. **No price moves.**
+Asserted in the test, not assumed.
+
+Side effect worth having: `sb_agents[].rateTypeId` in an export is now true. Until today anything
+reading it — a report, a script, a BI pull — got the wrong rate for those 32 agents. It got this
+session's own first set of numbers wrong before the harness caught the disagreement.
+
+`test/ui/t_ratebind.mjs` (7 checks, `npm run test:ratebind`) reloads the page twice and pins:
+the Agents-page change survives, the Rate Types-page change lands in both stores, the guard refuses
+to write the sidecar before the restore, and — the one that matters most — no already-drifted agent's
+effective rate moves. Proven to fail: revert either writer → `พัง 1` each; remove the guard → `พัง 1`.
+Suite green: `t_smoke` พัง 2 (environment-only), `t_mobile` · `t_fleetcal` · `t_daydetail` ·
+`t_ovnmeal` · `t_ratexp` all พัง 0.
 
 ### 2026-09-18 — 172 agents are riding a rate that expires in 26 days, and nothing says so
 
