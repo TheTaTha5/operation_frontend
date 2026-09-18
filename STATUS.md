@@ -1,6 +1,6 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§agSheet`
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§agHd`
 (a merge from GitHub landed at `6aa8cff`, bringing `§vanAssignScroll` from another session —
 this work was re-tested on top of the merged tree, not on the pre-merge one)
 (push from GitHub Desktop — the shell here has no credentials)
@@ -52,6 +52,52 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — the Agent List page, rebuilt around what needs doing
+
+The page opened with four white KPI tiles: agent count, top market, credit-agent count, total credit
+limit. Nothing on that row leads to an action. Meanwhile the things that do — a contract about to
+lapse, an agent over their credit limit, a rate that expires with nothing set to take over, a route
+the bound rate cannot price — were scattered across four separate banners and one small red dot on a
+tab, and the tab row itself sat at the very bottom of the panel where nobody scrolls.
+
+**The header is now the Dashboard's own bar** (`.dv-hd`), reused so the two pages people switch
+between all day have the same furniture in the same places. The date block's slot holds the agent
+count instead:
+
+| | before | after |
+|---|---|---|
+| Header | 4 white KPI tiles + page title row, ~150px | one navy bar, **45px** |
+| What it says | agent count · top market · credit agents · credit limit | **799 Agents / 305 selling now** · Credit 154 · ฿19.25M · **⚠ Needs action 166** |
+| Buttons | page-actions row below the title | Card · Table · Excel form · Import · + New Agent, on the bar |
+| Needs-action chip | — | opens a popover itemising it, same shape as the Dashboard's |
+
+The red count deliberately excludes the 776 contracts ending 30 Sep: they end together on the annual
+cycle, so folding them in would make the number 783 of 799 and mean nothing. They are listed at the
+foot of the popover in grey instead.
+
+**In the agent panel, the name now comes first and the tabs sit right under it.** The contract-version
+pills that used to separate them moved into the Commercial block. The panel is five numbered bands:
+
+1. **Needs action** — the four old banners merged into one strip, sorted by urgency, every row with a
+   button that goes to the fix. Green single line when there is nothing. Built by `agAlerts()`, which
+   is also what the strip counts, so the count and the rows can never disagree.
+2. **Commercial** — contract, credit (with the utilisation bar), booking channel.
+3. **Rate used for pricing** — bound rate · whether it is in its own window today · whether the
+   contract names the same one · season schedule. Read from the bound rate, never the contract's.
+4. **Programs sold** — unchanged table, now under its own band.
+5. **Company & Contact** — company, sales owner, signatory, contract template, notes.
+
+**Phone** (`§agPhone`): the 800-name list is collapsed behind a *Browse* button so the agent's data is
+what opens; picking an agent collapses it again and scrolls to the name. The tab row scrolls
+horizontally instead of wrapping to three lines; sheet rows put the label above the value; program
+rows become one card per row. Checked at 375 / 390 / 430 — no horizontal overflow.
+
+`test/ui/t_aghd.mjs` (18 checks) counts the agents itself from the raw data rather than calling the
+page's own counter, so a wrong count is caught rather than agreed with. Proven to fail on eight
+deliberate breaks: count off by one, selling-count doubled, a popover row's number shifted, tabs moved
+back to the bottom, alert rows stripped of their buttons, the old contract banner restored, the phone
+list left expanded, and the page title put back to `position:absolute` where it overlapped the chips.
 
 ### 2026-09-18 — the agent Information tab, rebuilt as a sheet
 

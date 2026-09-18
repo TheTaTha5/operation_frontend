@@ -32842,11 +32842,11 @@ function agSetView(v){
   const tbl  = document.getElementById('ag-table-wrap');
   if(wrap) wrap.style.display = (v==='table') ? 'none' : '';
   if(tbl)  tbl.style.display  = (v==='table') ? 'block' : 'none';
-  const on='background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.09);border-radius:7px;padding:5px 11px;font-size:12px;font-weight:600;border:0';
-  const off='background:transparent;border-radius:7px;padding:5px 11px;font-size:12px;font-weight:500;color:#8b9a94;border:0';
+  /* §agHd · ปุ่มสลับมุมมองอยู่บนแถบกรมท่าแล้ว · สถานะมาจากคลาส .on ที่ renderAgKPI วาดให้
+     เดิมยัด cssText สีอ่อนทับตรงนี้ ซึ่งจะกลายเป็นปุ่มขาวบนพื้นกรมท่า อ่านไม่ออก */
   const bc=document.getElementById('agv-card'), bt=document.getElementById('agv-table');
-  if(bc) bc.style.cssText = (v==='card') ? on : off;
-  if(bt) bt.style.cssText = (v==='table') ? on : off;
+  if(bc) bc.classList.toggle('on', v!=='table');
+  if(bt) bt.classList.toggle('on', v==='table');
   renderAgents();
 }
 function agTblSetGap(g){ _agGap=g; _agSel.clear(); _agCell=null; agRenderTable(); }
@@ -35953,28 +35953,110 @@ function agRenderFilters(){
   }
 }
 
+/* ══ §agHd · แถบหัวหน้า Agent List ════════════════════════════════════════════
+   ยกแถบของหน้า Dashboard (.dv-hd) มาทั้งชุด · ที่ของ "กล่องวันที่" = จำนวนเอเย่นต์
+   ของเดิมเป็นการ์ดขาวสี่ใบ บอก Top Market กับ Credit Limit — ตัวเลขที่ไม่มีใครต้องทำอะไรต่อ
+   ชุดใหม่บอกเฉพาะสิ่งที่พาไปทำงานได้: มีกี่เจ้า ขายจริงกี่เจ้า และมีกี่เจ้าที่ราคาเพี้ยนอยู่
+
+   อ่านที่เดียว ใช้สองที่ · agHdScan() เป็นตัวนับเดียวของทั้งหน้า
+   ป๊อป "Needs action" กับจุดเตือนในแผงของเอเย่นต์แต่ละรายจึงพูดเลขชุดเดียวกันเสมอ
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* เรทที่ใช้จริงของเอเย่นต์รายหนึ่ง · a.rateTypeId ถูก sidecar sb_agents_rate_bindings เขียนทับตอนโหลดแล้ว
+   ฟังก์ชันนี้จึงอ่านตัวเดียวพอ — เขียนเป็นฟังก์ชันไว้เพื่อให้ที่อื่นเรียกใช้คำนิยามเดียวกัน */
+function agHdRateOf(a){
+  if(!a || !a.rateTypeId) return null;
+  return (typeof getRateType==='function') ? getRateType(a.rateTypeId) : null;
+}
+/* เรื่องที่กระทบ "ราคา" ของเอเย่นต์รายหนึ่ง · คืนเป็น key เพื่อให้นับรวมและวาดแถวได้จากที่เดียว
+   นับเฉพาะเจ้าที่ขายโปรแกรมอยู่จริง — เจ้าที่ยังไม่มีโปรแกรมเลยไม่มีราคาให้ผิด */
+function agHdIssues(a){
+  const out = {};
+  if(!a || !(a.programs||[]).length) return out;
+  const rt = agHdRateOf(a);
+  if(!rt){ out.norate = 1; return out; }
+  const to = String(rt.validTo||'');
+  if(to && typeof rtExpDaysTo==='function'){
+    const d = rtExpDaysTo(to);
+    /* ตั้งฤดูถัดไปรับไว้แล้ว = ตอบคำถามแล้ว ไม่ต้องนับ · กติกาเดียวกับ rtExpForAgent */
+    const answered = (typeof laSeasonAt==='function' && typeof laDayAfter==='function')
+      ? !!laSeasonAt(a, laDayAfter(to)) : false;
+    if(d!==null && d<=60 && !answered) out.exp = 1;
+  }
+  const have = rt.seatRates||{};
+  if((a.programs||[]).some(p=>p && !have[p])) out.orph = 1;
+  const nx = (typeof rtExpNextOf==='function') ? rtExpNextOf(a.id) : '';
+  if(nx && nx!==a.rateTypeId) out.drift = 1;
+  return out;
+}
+function agHdScan(){
+  const ags = (typeof laScopeAgents==='function') ? laScopeAgents(SB_AGENTS) : SB_AGENTS;
+  const s = {total:ags.length, selling:0, credit:0, limit:0, ctSoon:0,
+             exp:0, drift:0, orph:0, norate:0, need:0};
+  ags.forEach(a=>{
+    if(a.payType==='invoice'){ s.credit++; s.limit += (a.creditLimit||0); }
+    const ce = (typeof ctDaysUntilExpiry==='function') ? ctDaysUntilExpiry(a) : null;
+    if(ce!==null && ce!==undefined && ce<=30) s.ctSoon++;
+    if(!(a.programs||[]).length) return;
+    s.selling++;
+    const iss = agHdIssues(a);
+    const keys = Object.keys(iss);
+    keys.forEach(k=>{ s[k]++; });
+    if(keys.length) s.need++;
+  });
+  return s;
+}
 function renderAgKPI(){
-  const _ags = (typeof laScopeAgents==='function') ? laScopeAgents(SB_AGENTS) : SB_AGENTS;   /* §user→sales · KPI ตามขอบเขต */
-  const total = _ags.length;
-  const byMkt = {};
-  _ags.forEach(a=>{ byMkt[a.market]=(byMkt[a.market]||0)+1; });
-  const topMktEntry = Object.entries(byMkt).sort((a,b)=>b[1]-a[1])[0];
-  const topMktName = topMktEntry ? (sbGetMarket(topMktEntry[0])?.name.split(' ')[0]||'—') : '—';
-  const topMktCount = topMktEntry ? topMktEntry[1] : 0;
-  const credit = _ags.filter(a=>a.payType==='invoice').length;
-  const totalCreditLimit = _ags.reduce((s,a)=>s+(a.creditLimit||0),0);
-  // Daily report subline
-  const today = new Date();
-  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-  const dailySub = `${dayNames[today.getDay()]} · ${today.getDate()} ${thMonths[today.getMonth()]} ${today.getFullYear()+543} · ${SB_MARKETS.length} markets · ${SB_SALES.length} sales people`;
-  const html = `
-    <div class="sb-kpi"><div class="sb-kpi-lbl">Agent Directory</div><div class="sb-kpi-val">${total}</div><div class="sb-kpi-sub">${dailySub}</div></div>
-    <div class="sb-kpi k-blue"><div class="sb-kpi-lbl">Top Market</div><div class="sb-kpi-val">${topMktName}</div><div class="sb-kpi-sub">${topMktCount} of ${total} agents</div></div>
-    <div class="sb-kpi k-green"><div class="sb-kpi-lbl">Credit Agents</div><div class="sb-kpi-val">${credit}</div><div class="sb-kpi-sub">${total-credit} pre-paid</div></div>
-    <div class="sb-kpi k-amber"><div class="sb-kpi-lbl">Credit Limit</div><div class="sb-kpi-val">฿${sbFmtTHB(totalCreditLimit/1000)}K</div><div class="sb-kpi-sub">THB exposure</div></div>
-  `;
-  document.getElementById('ag-kpi').innerHTML = html;
+  const host = document.getElementById('ag-kpi'); if(!host) return;
+  const s = agHdScan();
+  const e = t => String(t==null?'':t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const money = n => n>=1000000 ? '฿'+(n/1000000).toFixed(2)+'M' : '฿'+sbFmtTHB(n/1000)+'K';
+  const row = (t, sub, n) => `<div class="ag-hd-pr"><span class="t"><b>${e(t)}</b><i>${e(sub)}</i></span><span class="n">${n}</span></div>`;
+  /* ป๊อปแจงรายการ · สัญญาที่หมดตามรอบปีอยู่ท้ายสุดแบบสีจาง
+     ถ้าเอามารวมในเลขแดง เลขจะขึ้นเกือบเท่าจำนวนเอเย่นต์ทั้งหมด แล้วจะไม่มีความหมาย */
+  const pop = `<div class="ag-hd-pop" id="ag-hd-pop">
+      <div class="ph">Pricing issues · among the ${s.selling} agents selling</div>
+      ${row('Rate expiring','within 60 days · no next season set', s.exp)}
+      ${row('Contract ≠ bound rate','document and charged price are different sets', s.drift)}
+      ${row('Route with no price','sold route the rate cannot price → Save blocked', s.orph)}
+      ${row('No rate bound','selling programs with no Rate Type at all', s.norate)}
+      <div class="ag-hd-pr dim"><span class="t"><b>${s.ctSoon} contracts end within 30 days</b><i>annual cycle — kept out of the red count</i></span></div>
+    </div>`;
+  host.innerHTML = `
+    <div class="ag-hd-top">
+      <span class="ag-hd-n">${s.total}</span>
+      <span class="ag-hd-g"><b>Agents</b><i>${s.selling} selling now</i></span>
+      <span class="ag-hd-brand">AGENT DIRECTORY</span>
+      <span class="ag-hd-kpi">
+        <span class="ag-chip" title="เอเย่นต์ที่จ่ายแบบเครดิต · วงเงินรวมทั้งหมด">Credit <b>${s.credit}</b> · <b>${money(s.limit)}</b></span>
+        <span class="ag-chip warn" onclick="agHdPopToggle(event)" title="เรื่องที่ทำให้ราคาเพี้ยน · กดเพื่อดูรายการ">&#9888; Needs action <b>${s.need}</b> &rsaquo;</span>
+        <span class="ag-seg">
+          <b id="agv-card"  class="${_agView==='table'?'':'on'}" onclick="agSetView('card')">Card</b>
+          <b id="agv-table" class="${_agView==='table'?'on':''}" onclick="agSetView('table')">Table</b>
+        </span>
+        <button class="ag-hd-btn" onclick="agImportTemplate()" title="ดาวน์โหลดฟอร์ม Excel เปล่า · กรอกแล้วเอากลับมานำเข้า">Excel form</button>
+        <button class="ag-hd-btn" onclick="agImportPick()" title="นำเข้า Agent จากไฟล์ Excel · จับคู่ของเดิมให้อัตโนมัติ (อัปเดต ไม่สร้างซ้ำ)">Import</button>
+        <button class="ag-hd-add" onclick="agNew()">+ New Agent</button>
+      </span>
+      ${pop}
+    </div>`;
+}
+/* ป๊อปปิดเมื่อกดที่อื่น · ผูกครั้งเดียวพอ ไม่ผูกซ้ำทุกครั้งที่วาดแถบใหม่ */
+function agHdPopToggle(ev){
+  if(ev) ev.stopPropagation();
+  const p = document.getElementById('ag-hd-pop'); if(!p) return;
+  p.classList.toggle('on');
+  if(p.classList.contains('on') && !window._agHdPopBound){
+    window._agHdPopBound = true;
+    document.addEventListener('click', function(){
+      const q = document.getElementById('ag-hd-pop'); if(q) q.classList.remove('on');
+    });
+  }
+}
+/* §agPhone · ลิสต์เอเย่นต์บนจอโทรศัพท์ · ยุบ/กาง · จอใหญ่ไม่เคยเห็นปุ่มนี้ */
+function agSideToggle(){
+  const side = document.querySelector('#view-agents .sb-side'); if(!side) return;
+  const on = side.classList.toggle('open');
+  const b = document.getElementById('ag-side-tgl'); if(b) b.textContent = on ? 'Hide' : 'Browse';
 }
 
 // Required fields for a "complete" agent · used for the incomplete-data warning
@@ -36133,6 +36215,15 @@ function agSelect(aId){
   _agSelected = aId;
   agRenderList();
   agRenderDetail(aId);
+  /* §agPhone · เลือกเจ้าแล้วยุบลิสต์เอง แล้วเลื่อนไปที่ชื่อ · ไม่งั้นต้องปัดผ่านรายชื่อลงไปหาเอง */
+  try{
+    if(window.innerWidth<=900){
+      const side=document.querySelector('#view-agents .sb-side');
+      if(side && side.classList.contains('open')) agSideToggle();
+      const main=document.getElementById('ag-main');
+      if(main) main.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+  }catch(e){ console.warn('agSelect phone collapse failed', e); }
 }
 
 // ══════════ AGENT EDIT MODAL ══════════
@@ -36897,86 +36988,128 @@ function agEditSave(){
   agRenderDetail(a.id);
 }
 
-function agRenderDetail(aId){
-  const a = sbGetAgent(aId); if(!a) return;
-  /* §user→sales · กันเปิดเอเยนต์นอกขอบเขตผ่าน id ตรงๆ (เช่น auto-select ตัวแรกที่ไม่ใช่ของเซลล์คนนี้) */
-  if(typeof laAgentInScope==='function' && !laAgentInScope(a)){
-    const host0 = document.getElementById('ag-main');
-    if(host0) host0.innerHTML = '<div style="padding:40px;text-align:center;color:#9b9590;font-size:12.5px">เอเยนต์รายนี้ไม่ได้อยู่ในความดูแลของคุณ</div>';
-    return;
-  }
-  const mkt = sbGetMarket(a.market);
-  const pay = sbGetPayment(a.payType);
-  const host = document.getElementById('ag-main');
-  const daysLeft = ctDaysUntilExpiry(a);
-  const isExpired = ctIsExpired(a);
-  const isExpiring = ctIsExpiringSoon(a);
-  let bannerHtml = '';
-  if(isExpired){
-    bannerHtml = `
-      <div class="ct-banner warn">
-        <div class="ct-banner-l">
-          <div class="ct-banner-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          </div>
-          <div class="ct-banner-text">
-            <div class="ct-banner-ttl">สัญญาหมดอายุแล้ว — เกินกำหนด ${Math.abs(daysLeft)} วัน</div>
-            <div class="ct-banner-sub">Contract ${a.contractVersion} หมดวันที่ ${ctFmtDate(a.contractEnd)} · booking ใหม่ควรหยุดจนกว่าจะต่อสัญญา</div>
-          </div>
-        </div>
-        <button class="ct-btn-renew warn" onclick="ctOpenRenewal('${a.id}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-          ต่อสัญญาด่วน
-        </button>
-      </div>
-    `;
-  } else if(isExpiring){
-    bannerHtml = `
-      <div class="ct-banner">
-        <div class="ct-banner-l">
-          <div class="ct-banner-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </div>
-          <div class="ct-banner-text">
-            <div class="ct-banner-ttl">สัญญาใกล้หมด — เหลือ ${daysLeft} วัน</div>
-            <div class="ct-banner-sub">Contract ${a.contractVersion} หมดวันที่ ${ctFmtDate(a.contractEnd)} · ควรต่อก่อนหมดเพื่อราคาต่อเนื่อง</div>
-          </div>
-        </div>
-        <button class="ct-btn-renew" onclick="ctOpenRenewal('${a.id}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-          ต่อสัญญา
-        </button>
-      </div>
-    `;
-  }
+/* ══ §agAlert · เรื่องที่ต้องจัดการของเอเย่นต์รายนี้ ══════════════════════════
+   ของเดิมกระจายอยู่สี่ที่ · แบนเนอร์สัญญาบนสุด · กล่องเครดิต · กล่องข้อมูลไม่ครบ
+   และจุดแดงเล็ก ๆ บนแท็บ Rate Type ที่ต้องกดเข้าไปจึงจะรู้ว่าเรื่องอะไร
+   สี่ที่นั้นไม่เคยเรียงตามความด่วน · เครดิตเกินวงเงินอยู่ล่างกว่าสัญญาที่ยังเหลืออีกเดือน
 
-  // Incomplete-data notice (per agent) · appended to the banner area
-  const _incMiss = (typeof agIncompleteFields==='function') ? agIncompleteFields(a) : [];
-  if(_incMiss.length){
-    bannerHtml += `<div style="display:flex;align-items:center;gap:11px;background:#FBF0DD;border:1px solid #EAD9B0;border-radius:10px;padding:10px 14px;margin-bottom:10px">
-      <span style="color:#A05A1A;font-size:17px;line-height:1">⚠</span>
-      <div style="flex:1"><div style="font-size:12.5px;font-weight:600;color:#7A4A00">ข้อมูล Agent ยังไม่ครบ · ${_incMiss.length} รายการ</div>
-      <div style="font-size:11px;color:#A05A1A;margin-top:1px">ขาด: ${_incMiss.join(' · ')}</div></div>
-    </div>`;
+   รวมมาที่เดียว เรียงตามความด่วน และทุกแถวมีปุ่มพาไปแก้
+   คืนเป็น array เพื่อให้ "จำนวนเรื่อง" กับ "ตัวแถว" มาจากการนับครั้งเดียวกัน
+   ═══════════════════════════════════════════════════════════════════════════ */
+function agAlerts(a){
+  const out = [];
+  if(!a) return out;
+  const E = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const money = n => '฿'+sbFmtTHB(n||0);
+  /* 1 · เครดิตเกินวงเงิน — เรื่องเงินสด ด่วนที่สุด ใบจองใหม่ไม่ควรออกจนกว่าจะเคลียร์ */
+  const cs = (typeof agCreditState==='function') ? agCreditState(a.id) : null;
+  if(cs && cs.mode==='invoice' && cs.limit>0){
+    if(cs.available<0){
+      out.push({tone:'red', t:'Credit over limit',
+        d:'Used <b>'+money(cs.used)+'</b> of a '+money(cs.limit)+' limit · over by <b>'+money(-cs.available)+'</b> ('+cs.pct+'%)',
+        go:'View statement', on:"acctStatementOpen('"+a.id+"')"});
+    } else if(cs.pct>=80){
+      out.push({tone:'amber', t:'Credit near limit', day:cs.pct+'%',
+        d:'Used <b>'+money(cs.used)+'</b> of '+money(cs.limit)+' · <b>'+money(cs.available)+'</b> still available',
+        go:'View statement', on:"acctStatementOpen('"+a.id+"')"});
+    }
   }
-
-  // Credit summary (credit-mode agents) · used drawn at confirm, restored at payment
-  const _cs = (typeof agCreditState==='function') ? agCreditState(a.id) : null;
-  if(_cs && _cs.mode==='invoice' && _cs.limit>0){
-    const over=_cs.available<0, warn=_cs.pct>=80;
-    const barCol = over?'#A32D2D':(warn?'#A05A1A':'#185FA5');
-    bannerHtml += `<div style="background:#fff;border:0.5px solid var(--fd-line-soft);border-radius:10px;padding:11px 14px;margin-bottom:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
-        <span style="font-size:11px;font-weight:600;color:var(--fd-ink-soft);text-transform:uppercase;letter-spacing:.05em">Credit used</span>
-        <span style="font-size:11.5px;font-variant-numeric:tabular-nums;color:${barCol};font-weight:600">${acctFmt(_cs.used)} / ${acctFmt(_cs.limit)}${over?' · OVER':(warn?' · near limit':'')}</span>
-      </div>
-      <div style="height:6px;border-radius:3px;background:#eef0f1;overflow:hidden"><div style="width:${Math.min(100,Math.max(0,_cs.pct))}%;height:100%;background:${barCol}"></div></div>
-      <div style="font-size:10px;color:var(--fd-ink-soft);margin-top:5px">เหลือใช้ได้ <strong style="color:${over?'#A32D2D':'#0F6E56'}">${acctFmt(_cs.available)}</strong> · <span onclick="acctStatementOpen('${a.id}')" style="cursor:pointer;color:#185FA5;text-decoration:underline">ดู statement</span></div>
-    </div>`;
+  /* 2 · สัญญา — หมดแล้วหรือใกล้หมด · ใช้เกณฑ์เดียวกับที่หน้าอื่นใช้ (ctIsExpired / ctIsExpiringSoon) */
+  const dl = (typeof ctDaysUntilExpiry==='function') ? ctDaysUntilExpiry(a) : null;
+  const _fd = s => (typeof ctFmtDate==='function') ? ctFmtDate(s) : s;
+  if(typeof ctIsExpired==='function' && ctIsExpired(a)){
+    out.push({tone:'red', t:'Contract expired', day:Math.abs(dl)+' days ago',
+      d:'Contract '+E(a.contractVersion||'')+' ended <b>'+E(_fd(a.contractEnd))+'</b> · new bookings should stop until it is renewed',
+      go:'Renew now', on:"ctOpenRenewal('"+a.id+"')"});
+  } else if(typeof ctIsExpiringSoon==='function' && ctIsExpiringSoon(a)){
+    out.push({tone:'red', t:'Contract expiring', day:dl+' days',
+      d:'Contract '+E(a.contractVersion||'')+' ends <b>'+E(_fd(a.contractEnd))+'</b> · renew before it lapses to keep pricing continuous',
+      go:'Renew', on:"ctOpenRenewal('"+a.id+"')"});
   }
+  /* 3 · โปรแกรมที่เรทไม่มีราคาให้ — ของจริงคือหน้าจองกด Save ไม่ได้ (noRate) จึงต้องอยู่เหนือเรื่องเรทหมดอายุ */
+  const rt = (typeof agHdRateOf==='function') ? agHdRateOf(a) : null;
+  if(!rt && (a.programs||[]).length){
+    out.push({tone:'red', t:'No rate bound',
+      d:'This agent sells <b>'+(a.programs||[]).length+' routes</b> but has no Rate Type at all · nothing can be priced',
+      go:'Pick a rate', on:"agEditOpen('ratetype','"+a.id+"')"});
+  }
+  if(rt){
+    const have = rt.seatRates||{};
+    const orph = (a.programs||[]).filter(p=>p && !have[p]);
+    if(orph.length){
+      const names = orph.map(p=>{ const r=(typeof getRoute==='function')?getRoute(p):null; return E((r&&r.name)||p); });
+      out.push({tone:'amber', t:'Route with no price',
+        d:'<b>'+names.join(' · ')+'</b> · the bound rate has no price for '+(orph.length>1?'these routes':'this route')+' → Save is blocked (noRate)',
+        go:'Open Pricing Matrix', on:"agSwitchTab('prices','"+a.id+"')"});
+    }
+    /* 4 · เรทใกล้หมด/หมดแล้ว และยังไม่ได้ตั้งฤดูรับ · rtExpForAgent ตอบว่า "ยังไม่ได้ตอบคำถามนี้" */
+    const X = (typeof rtExpForAgent==='function') ? rtExpForAgent(a) : null;
+    if(X){
+      out.push({tone:'amber', t:X.days<0?'Rate expired':'Rate expiring',
+        day:(X.days<0?Math.abs(X.days)+' days ago':'in '+X.days+' days'),
+        d:'Bound rate <b>'+E(rt.code||rt.name||'')+'</b> ends '+E(_rtFmtDate(X.to)||X.to)+' · no season schedule takes over after that, so the old prices keep being charged silently',
+        go:'Set season schedule', on:"agSwitchTab('ratemgmt','"+a.id+"')"});
+    }
+    /* 5 · เรทยังไม่เริ่ม · validFrom ไม่ใช่ประตูคิดเงิน (ดู §promoMx) ระบบจึงคิดราคาชุดนี้ให้อยู่เงียบ ๆ */
+    const vf = String(rt.validFrom||'');
+    if(vf && typeof rtExpDaysTo==='function'){
+      const dvf = rtExpDaysTo(vf);
+      if(dvf!==null && dvf>0){
+        out.push({tone:'blue', t:'Rate not started', day:'in '+dvf+' days',
+          d:'Bound rate <b>'+E(rt.code||rt.name||'')+'</b> starts '+E(_rtFmtDate(vf)||vf)+' · travel dates before that have no season covering them, and the system prices them from this set anyway',
+          go:'Set season schedule', on:"agSwitchTab('ratemgmt','"+a.id+"')"});
+      }
+    }
+  }
+  /* 6 · สัญญาระบุเรทคนละตัวกับที่ผูกจริง · เอกสารที่พิมพ์ออกไปจะอ้างราคาคนละชุดกับที่ระบบคิด (ดู §ctRateSync) */
+  const nx = (typeof rtExpNextOf==='function') ? rtExpNextOf(a.id) : '';
+  if(nx && a.rateTypeId && nx!==a.rateTypeId){
+    const nrt = (typeof getRateType==='function') ? getRateType(nx) : null;
+    out.push({tone:'blue', t:'Contract ≠ bound rate',
+      d:'The contract names <b>'+E((nrt&&(nrt.name||nrt.code))||nx)+'</b> but the bound rate is <b>'+E((rt&&(rt.name||rt.code))||a.rateTypeId)+'</b> · contract documents will quote the other price set',
+      go:'Sync to bound rate', on:"agAlertSyncRate('"+a.id+"')"});
+  }
+  /* 7 · ข้อมูลโปรไฟล์ไม่ครบ · ท้ายสุด ไม่ได้ทำให้จองไม่ได้ แต่ทำให้ติดต่อกลับไม่ได้ */
+  const miss = (typeof agIncompleteFields==='function') ? agIncompleteFields(a) : [];
+  if(miss.length){
+    out.push({tone:'amber', t:'Incomplete profile', day:miss.length+' items',
+      d:'Missing <b>'+E(miss.join(' · '))+'</b>',
+      go:'Edit profile', on:"agEditOpen('profile','"+a.id+"')"});
+  }
+  return out;
+}
+/* ปุ่ม Sync · เขียนเรทที่ผูกจริงลงใบสัญญา MAIN ที่ยังไม่หมดอายุ (ใบเก่าเก็บของเดิมไว้ · ดู _ctSyncMainRate) */
+function agAlertSyncRate(agentId){
+  const a = (typeof sbGetAgent==='function') ? sbGetAgent(agentId) : null; if(!a) return;
+  const n = (typeof _ctSyncMainRate==='function') ? _ctSyncMainRate(agentId, a.rateTypeId, 'sync from agent page') : 0;
+  alert(n>0 ? ('Synced '+n+' main contract(s) to the bound rate.') : 'Nothing to sync.');
+  agRenderDetail(agentId);
+}
+var AG_AL_TONE = {
+  red:  {bd:'#C0392B', bg:'#FCEBEB', fg:'#A32D2D'},
+  amber:{bd:'#D48A14', bg:'#FDF3E4', fg:'#8A5410'},
+  blue: {bd:'#185FA5', bg:'#EDF3FB', fg:'#17507F'}
+};
+function agAlertsHTML(a){
+  const A = agAlerts(a);
+  if(!A.length) return '<div class="ag-ok">&#10003; Nothing needs action for this agent</div>';
+  return '<div class="ag-als">' + A.map(function(x){
+    const T = AG_AL_TONE[x.tone] || AG_AL_TONE.blue;
+    return '<div class="ag-al" style="border-left-color:'+T.bd+';background:'+T.bg+';color:'+T.fg+'">'
+      + '<span class="t">'+x.t+(x.day?'<span class="day">'+x.day+'</span>':'')+'</span>'
+      + '<span class="d">'+x.d+'</span>'
+      + (x.go?'<button class="go" onclick="'+x.on+'">'+x.go+' &rarr;</button>':'')
+      + '</div>';
+  }).join('') + '</div>';
+}
 
-  const totalContracts = 1 + (a.contractHistory||[]).length;
-  const historyHtml = `
+/* ══ §agHist · ชิปประวัติสัญญา · ย้ายจากบนหัวมาอยู่ในบล็อก Commercial ของแท็บ Information
+   แถวนี้เคยคั่นอยู่ระหว่างชื่อเอเย่นต์กับแถวแท็บ ทำให้แท็บถูกดันลงไปอีกชั้น
+   ของที่ต้องเห็นก่อนคือ "มีอะไรให้ดูบ้าง" (แท็บ) ไม่ใช่ทะเบียนใบสัญญา
+   ═══════════════════════════════════════════════════════════════════════════ */
+function agContractPillsHTML(a){
+  const n = 1 + (a.contractHistory||[]).length;
+  return `
     <div class="ct-history">
       <span class="ct-history-lbl">Contracts:</span>
       <span class="ct-history-pill active" onclick="ctViewContract('${a.id}','active')">
@@ -36990,9 +37123,25 @@ function agRenderDetail(aId){
           <span class="ct-archived-icon">📦</span>
         </span>
       `).join('')}
-      <span class="ct-history-total">${totalContracts} contract${totalContracts===1?'':'s'} · all kept</span>
-    </div>
-  `;
+      <span class="ct-history-total">${n} contract${n===1?'':'s'} · all kept</span>
+    </div>`;
+}
+
+function agRenderDetail(aId){
+  const a = sbGetAgent(aId); if(!a) return;
+  /* §user→sales · กันเปิดเอเยนต์นอกขอบเขตผ่าน id ตรงๆ (เช่น auto-select ตัวแรกที่ไม่ใช่ของเซลล์คนนี้) */
+  if(typeof laAgentInScope==='function' && !laAgentInScope(a)){
+    const host0 = document.getElementById('ag-main');
+    if(host0) host0.innerHTML = '<div style="padding:40px;text-align:center;color:#9b9590;font-size:12.5px">เอเยนต์รายนี้ไม่ได้อยู่ในความดูแลของคุณ</div>';
+    return;
+  }
+  const mkt = sbGetMarket(a.market);
+  const pay = sbGetPayment(a.payType);
+  const host = document.getElementById('ag-main');
+  /* §agAlert · แบนเนอร์สี่ชุดที่เคยกองอยู่ตรงนี้ (สัญญา · เครดิต · ข้อมูลไม่ครบ · จุดแดงบนแท็บ)
+     ย้ายไปรวมเป็นแถบเดียวในบล็อก 1 ของแท็บ Information · เรียงตามความด่วนแล้วที่นั่น
+     ตรงนี้จึงไม่เหลือแบนเนอร์ · ชื่อเอเย่นต์ได้ขึ้นเป็นบรรทัดแรกจริง ๆ */
+  const bannerHtml = '';
 
   host.innerHTML = `
     ${bannerHtml}
@@ -37032,7 +37181,6 @@ function agRenderDetail(aId){
           style="background:#FCEBEB;color:#A32D2D;border:1px solid #E4A0A0;font-family:inherit;font-size:11.5px;font-weight:700;padding:7px 15px;border-radius:18px;cursor:pointer;display:inline-flex;align-items:center;gap:5px">🗑 ลบ Agent</button>`:''}
       </div>
     </div>
-    ${historyHtml}
     <div class="sb-tabs">
       <div class="sb-tab on" data-tab="info" onclick="agSwitchTab('info','${a.id}')">Information</div>
       <div class="sb-tab" data-tab="prices" onclick="agSwitchTab('prices','${a.id}')">Pricing Matrix</div>
@@ -37689,30 +37837,187 @@ function agTabInfo(a){
   const creditUsed = (a.creditLimit||0) - (a.creditBalance||0);
   const utilPct = a.creditLimit ? Math.round(creditUsed/a.creditLimit*100) : 0;
 
+  /* ── เครื่องมือวาดของบล็อกนี้ ─────────────────────────────────────────────
+     band()  หัวข้อมีเลขกำกับ · rowS() แถว Sheet หนึ่งบรรทัด (ป้ายเล็ก/ค่าใหญ่)
+     esc/escapeHTML ไม่ใช่ตัวแปร global จึงประกาศเองตรงนี้ (§escLocal) */
+  const E = t => String(t==null?'':t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const band = (no, ttl, note, act, cls) => {
+    const acts = !act ? [] : (Array.isArray(act) ? act : [act]);
+    return `<div class="ag-band ${cls||''}"><span class="no">${no}</span><span class="ttl">${E(ttl)}</span>`
+      + (note ? `<span class="note">${note}</span>` : '<span class="note"></span>')
+      + acts.map(x=>`<button class="act" style="margin-left:7px" onclick="${x.on}">${E(x.txt)}</button>`).join('')
+      + `</div>`;
+  };
+  const rowS = (k, v, cls) =>
+    `<div class="r"><span class="k">${E(k)}</span><span class="v ${cls||''}">${v||'<span style="color:var(--fd-ink-faint)">—</span>'}</span></div>`;
+
+  /* ── บล็อก 1 · เรื่องที่ต้องจัดการ ── */
+  const _AL = (typeof agAlerts==='function') ? agAlerts(a) : [];
+  const sect1 = band(1, 'Needs action',
+      _AL.length ? (_AL.length + ' item' + (_AL.length===1?'':'s') + ' · most urgent first') : 'nothing outstanding',
+      null, _AL.length ? 'alert' : 'clear')
+    + ((typeof agAlertsHTML==='function') ? agAlertsHTML(a) : '');
+
+  /* ── บล็อก 2 · เงื่อนไขการค้า · สัญญา เครดิต ช่องทางจอง ── */
+  const _cs = (typeof agCreditState==='function') ? agCreditState(a.id) : null;
+  let creditRows = '';
+  if(_cs && _cs.mode==='invoice' && _cs.limit>0){
+    const over=_cs.available<0, near=_cs.pct>=80;
+    const col = over?'#A32D2D':(near?'#8A5410':'#0F6E56');
+    creditRows = rowS('Credit limit', `<span class="mono">${acctFmt(_cs.limit)}</span> · ${a.creditDays||0} days`)
+      + rowS('Used', `<span class="mono" style="color:${col}">${acctFmt(_cs.used)} · ${_cs.pct}%</span>`
+        + `<span class="ag-bar"><i style="width:${Math.min(100,Math.max(0,_cs.pct))}%;background:${col}"></i></span>`
+        + `<span class="sub">${over ? ('over by <strong style="color:#A32D2D">'+acctFmt(-_cs.available)+'</strong> · new bookings should wait for a clearing')
+                                    : (acctFmt(_cs.available)+' still available')}`
+        + ` · <span onclick="acctStatementOpen('${a.id}')" style="cursor:pointer;color:#185FA5;text-decoration:underline">statement</span></span>`);
+  } else {
+    creditRows = rowS('Credit limit', `<span style="color:var(--fd-ink-soft);font-weight:400">none · paid before travel</span>`);
+  }
+  const _ctDays = (typeof ctDaysUntilExpiry==='function') ? ctDaysUntilExpiry(a) : null;
+  const sect2 = band(2, 'Commercial', 'contract · credit · payment',
+      [{txt:'Payment', on:`agEditOpen('profile','${a.id}')`},
+       {txt:'Booking channel', on:`agEditOpen('booking','${a.id}')`}])
+    + ((typeof agContractPillsHTML==='function') ? agContractPillsHTML(a) : '')
+    + `<div class="ag-sh">`
+      + rowS('Payment', `${E(pay?.name||'—')}${a.payType==='invoice'?` · ${a.creditDays}d`:''}${a.vatMode&&a.vatMode!=='none'?` · VAT ${a.vatMode==='include'?'incl':'excl'}`:''}`)
+      + rowS('Current contract', `${E(a.contractVersion||'—')} <span class="mono" style="font-size:11.5px;color:var(--fd-ink-mid)">${fmtD(a.contractStart)} → ${fmtD(a.contractEnd)}</span>`
+          + (_ctDays===null||_ctDays===undefined ? '' : `<span class="sub">${_ctDays<0?('expired '+Math.abs(_ctDays)+' days ago'):(_ctDays+' days left')} · every version is kept</span>`))
+      + creditRows
+      + rowS('Booking channel', `${E(bc.method||'—')}${bc.cutoff?` · ${E(bc.cutoff)}`:''}`
+          + `<span class="sub">${E(bc.cancelPolicy||'no cancellation policy set')}${bc.email?(' · '+E(bc.email)):''}</span>`)
+    + `</div>`;
+
+  /* ── บล็อก 3 · เรทที่ใช้คิดราคา ─────────────────────────────────────────
+     สี่บรรทัดนี้ตอบคำถามที่คนถามจริงเวลาเปิดหน้านี้:
+     ผูกเรทไหนอยู่ · วันนี้เรทนั้นอยู่ในช่วงของตัวเองหรือเปล่า ·
+     ใบสัญญาระบุตัวเดียวกันไหม · แล้วพ้นวันหมดไปใช้อะไรต่อ */
+  const _rtNow = (typeof agHdRateOf==='function') ? agHdRateOf(a) : null;
+  const _conRtId = (typeof rtExpNextOf==='function') ? rtExpNextOf(a.id) : '';
+  const _conRt = (_conRtId && typeof getRateType==='function') ? getRateType(_conRtId) : null;
+  const _seasons = (typeof laSeasonsOf==='function') ? laSeasonsOf(a) : [];
+  let rateRows = '';
+  if(!_rtNow){
+    rateRows = rowS('Bound rate', `<span style="color:#A32D2D">no rate type assigned</span>`
+      + `<span class="sub">every price on this agent comes from a rate type · without one, booking Save is blocked</span>`);
+  } else {
+    const vf = String(_rtNow.validFrom||''), vt = String(_rtNow.validTo||'');
+    const dvf = (vf && typeof rtExpDaysTo==='function') ? rtExpDaysTo(vf) : null;
+    const dvt = (vt && typeof rtExpDaysTo==='function') ? rtExpDaysTo(vt) : null;
+    let today = `<span style="color:#0F6E56">within its normal window</span>`;
+    if(dvf!==null && dvf>0){
+      today = `<span style="color:#8A5410">not in its own window yet · starts in ${dvf} days</span>`
+        + `<span class="sub">the system still prices from this set (validFrom is not a payment gate · see §promoMx) — but nobody has confirmed it is right</span>`;
+    } else if(dvt!==null && dvt<0){
+      today = `<span style="color:#A32D2D">expired ${Math.abs(dvt)} days ago</span>`
+        + `<span class="sub">prices are still being charged from this set · a season schedule is what replaces it</span>`;
+    } else if(dvt!==null && dvt<=60){
+      today = `<span style="color:#8A5410">in window · ends in ${dvt} days</span>`;
+    }
+    rateRows = rowS('Bound rate', `<span style="color:${_rtNow.color||'#16265C'}">${E(_rtNow.name||'')}</span> `
+        + `<span class="mono" style="font-size:10px;font-weight:700;background:${(_rtNow.color||'#16265C')}18;color:${_rtNow.color||'#16265C'};padding:2px 7px;border-radius:7px">${E(_rtNow.code||'')}</span>`
+        + `<span class="sub">active ${E(_rtFmtDate(vf)||vf||'—')} → ${E(_rtFmtDate(vt)||vt||'no end date')}</span>`)
+      + rowS('In effect today', today)
+      + rowS('Named in contract', _conRt
+          ? (_conRtId===a.rateTypeId
+              ? `<span style="color:#0F6E56">${E(_conRt.name||_conRt.code||'')} · matches</span>`
+              : `<span style="color:#A32D2D">${E(_conRt.name||_conRt.code||'')}</span><span class="sub">different from the bound rate · contract documents will print this price set · <span onclick="agAlertSyncRate('${a.id}')" style="cursor:pointer;color:#185FA5;text-decoration:underline">sync</span></span>`)
+          : `<span style="color:var(--fd-ink-soft);font-weight:400">not named on any contract</span>`)
+      + rowS('Season schedule', _seasons.length
+          ? `${_seasons.length} period${_seasons.length===1?'':'s'} set`
+            + `<span class="sub">${_seasons.map(x=>E((_rtFmtDate(x.from)||x.from)+' → '+(x.to?(_rtFmtDate(x.to)||x.to):'open'))).join(' · ')}</span>`
+          : `<span style="color:var(--fd-ink-soft);font-weight:400">not set yet</span>`
+            + `<span class="sub">set it in the Rate Type tab · can be set ahead of time, prices before the split date do not move</span>`);
+  }
+  const sect3 = band(3, 'Rate used for pricing', 'read from the bound rate, not the one in the contract',
+      {txt:_rtNow?'Change':'Pick', on:`agEditOpen('ratetype','${a.id}')`})
+    + `<div class="ag-sh">${rateRows}</div>`;
+
+  /* ── บล็อก 4 · โปรแกรมที่ขาย ── */
+  const sect4 = band(4, 'Programs sold',
+      `${periods.length} route${periods.length===1?'':'s'} · booking window · travel window`,
+      {txt:'Edit programs', on:`agEditOpen('programs','${a.id}')`});
+
+  /* ── บล็อก 5 · บริษัทและผู้ติดต่อ · ของที่ไปโผล่บนเอกสารสัญญา ── */
+  const sect5 = band(5, 'Company & Contact', 'printed onto contract documents',
+      [{txt:'Company', on:`agEditOpen('company','${a.id}')`},
+       {txt:'Signatory', on:`agEditOpen('signatory','${a.id}')`},
+       {txt:'Notes', on:`agEditOpen('notes','${a.id}')`}]);
+  const subHd = (t, d) => `<div style="display:flex;align-items:baseline;gap:8px;margin:12px 0 2px">`
+    + `<span style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#16265C">${E(t)}</span>`
+    + `<span style="font-size:10px;color:var(--fd-ink-soft)">${E(d||'')}</span></div>`;
+
   return `
-    <!-- Section: Sales Person card (highlighted) -->
-    <div class="agi-sect">
-      <div class="agi-sales-card">
-        <div class="agi-sales-av" style="background:${sales?.color||'#999'}">${sales?.code||'—'}</div>
-        <div class="agi-sales-info">
-          <div class="agi-sales-lbl">Sales Person (ผู้ดูแล · Signatory)</div>
-          <div class="agi-sales-name">${sales?.name||'— ยังไม่กำหนด —'}${sales?.fullName?` <span style="font-size:11px;font-weight:500;color:var(--ink-mid);margin-left:6px">· ${sales.fullName}</span>`:''}</div>
-          <div class="agi-sales-meta">${sales?.designation||''}${sales?.email?` · ${sales.email}`:''}${sales?.tel?` · ${sales.tel}`:''}</div>
-        </div>
-        <button class="agi-icon-btn" onclick="agEditOpen('sales','${a.id}')" title="เปลี่ยน Sales Person"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
-      </div>
+    ${sect1}
+    ${sect2}
+    ${sect3}
+    <div style="margin-top:9px">
+    ${(function(){
+      const rt = a.rateTypeId ? (typeof getRateType==='function' ? getRateType(a.rateTypeId) : null) : null;
+      const isInactive = rt && rt.active===false;
+      const tint = rt ? (rt.color + '14') : '#fafaf8';
+      const fmt = n => (n||0).toLocaleString();
+      const ROUTES_ARR = (typeof ROUTES!=='undefined' && ROUTES) || [];
+      const rName = id => (ROUTES_ARR.find(r=>r.id===id)||{}).name || id;
+      let bodyHtml = '';
+      if(!rt){
+        bodyHtml = `<div style="background:#FCEBEB;border:1px solid rgba(163,45,45,.2);border-radius:10px;padding:14px 16px">
+          <div style="display:flex;align-items:center;gap:8px;color:#A32D2D;font-size:12px;font-weight:600">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            No rate type assigned
+          </div>
+          <div style="font-size:11px;color:#A32D2D;margin-top:4px;opacity:.85">Agent นี้ยังไม่มีราคา default — กดแก้ไขเพื่อเลือก rate type</div>
+        </div>`;
+      } else {
+        const nRoutes = (rt.routes||[]).length;
+        const hasCharter = Object.keys(rt.charterRates||{}).length > 0;
+        const nAddOns = Object.keys(rt.addOns||{}).length;
+        const validHint = (rt.validFrom||rt.validTo) ? `valid until ${_rtFmtDate(rt.validTo)||'—'}` : 'always valid';
+        // Build 3 preview cards (same logic as agEditBuildRTPreview)
+        const firstRoute = (rt.routes||[])[0];
+        let seatPreview='—', seatLbl='No seat rate';
+        if(firstRoute && rt.seatRates && rt.seatRates[firstRoute]){
+          const z = rt.seatRates[firstRoute].PK || rt.seatRates[firstRoute].NoTransfer || {};
+          if(z['adult-thai'] || z['adult-fr']){
+            seatPreview = `${fmt(z['adult-thai'])} / ${fmt(z['adult-fr'])}`;
+            seatLbl = `${rName(firstRoute)} · PK · Adult TH/FR`;
+          }
+        }
+        const charterEntries = [];
+        Object.keys(rt.charterRates||{}).forEach(rId => Object.keys(rt.charterRates[rId]).forEach(bt => charterEntries.push({rId, bt, ch:rt.charterRates[rId][bt]})));
+        let charterPreview='—', charterLbl='No charter';
+        if(charterEntries.length){
+          const c = charterEntries[0];
+          charterPreview = fmt(c.ch.starterPrice);
+          charterLbl = `${rName(c.rId)} · ${c.bt} · starter / ${c.ch.starterIncludes||4} pax · +${fmt(c.ch.extraPerPax)} ea`;
+        }
+        const _ap = (typeof _rtAddonPreview==='function')?_rtAddonPreview(rt):{preview:'—',lbl:'No add-on'};
+        let addOnPreview = _ap.preview, addOnLbl = _ap.lbl;
+        bodyHtml = `
+          <div style="background:${isInactive?'#FFF5EB':tint};border:1px solid ${isInactive?'#F0997B':rt.color+'33'};border-radius:10px;padding:12px 14px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="background:#fff;color:${rt.color};font-size:10px;font-weight:700;padding:3px 9px;border-radius:7px;font-variant-numeric:tabular-nums;letter-spacing:.02em">${rt.code||''}</span>
+                <span style="font-size:13px;font-weight:600;color:${isInactive?'#854F0B':rt.color}">${rt.name||''}</span>
+                <span style="background:${isInactive?'#F1EFE8':'#E1F5EE'};color:${isInactive?'#5F5E5A':'#0F6E56'};font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em">${isInactive?'Inactive':'Active'}</span>
+              </div>
+              <div style="font-size:10.5px;color:${isInactive?'#854F0B':rt.color};font-weight:500">${nRoutes} routes${hasCharter?' · charter':''}${nAddOns>0?' · '+nAddOns+' add-on'+(nAddOns>1?'s':''):''} · ${validHint}</div>
+            </div>
+            ${isInactive?'<div style="font-size:10.5px;color:#854F0B;margin-top:6px;font-weight:600">⚠ Rate Type นี้ถูก Deactivate — แนะนำให้เปลี่ยน หรือ activate ในหน้า Rate Types</div>':''}
+          </div>
+          <div class="agi-grid agi-grid-3">
+            <div class="agi-info-card"><div class="agi-info-lbl">Seat (sample)</div><div class="agi-info-val mono big" style="color:${rt.color}">${seatPreview}</div><div class="agi-info-sub">${seatLbl}</div></div>
+            <div class="agi-info-card"><div class="agi-info-lbl">Charter (sample)</div><div class="agi-info-val mono big" style="color:${rt.color}">${charterPreview}</div><div class="agi-info-sub">${charterLbl}</div></div>
+            <div class="agi-info-card"><div class="agi-info-lbl">Add-on (sample)</div><div class="agi-info-val mono big" style="color:${rt.color}">${addOnPreview}</div><div class="agi-info-sub">${addOnLbl}</div></div>
+          </div>
+        `;
+      }
+      /* §agHd · หัวข้อกับปุ่มเปลี่ยนเรทอยู่บนแถบหัวข้อของบล็อกนี้แล้ว · เหลือแค่ตัวอย่างราคา */
+      return bodyHtml;
+
+    })()}
+
     </div>
-
-    <!-- Section: Programs in Contract -->
-    <div class="agi-sect">
-      <div class="agi-sect-hd">
-        <div>
-          <div class="agi-sect-ttl">Programs in Contract <span class="agi-sect-cnt">${periods.length} programs</span></div>
-          <div class="agi-sect-desc">โปรแกรมในสัญญา · ระบุ Booking Period และ Travel Period แต่ละเส้นทาง</div>
-        </div>
-        <button class="agi-sect-act" onclick="agEditOpen('programs','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>แก้ไขทั้งหมด</button>
-      </div>
-
+    ${sect4}
       ${(function(){
         // ─── Rate Type coverage banner (Info tab) ───
         const rtInfo = (a.rateTypeId && typeof getRateType==='function') ? getRateType(a.rateTypeId) : null;
@@ -37812,17 +38117,17 @@ function agTabInfo(a){
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span><strong>Booking Period</strong> = ช่วงรับจอง (จองเข้ามาในช่วงนี้) · <strong>Travel Period</strong> = ช่วงเดินทางจริง</span>
       </div>
-    </div>
 
-    <!-- Section: Company Information (now includes Market/Sub) -->
-    <div class="agi-sect">
-      <div class="agi-sect-hd">
-        <div>
-          <div class="agi-sect-ttl">Company Information</div>
-          <div class="agi-sect-desc">ข้อมูลบริษัทคู่สัญญา · Market · Address · ใช้ใน Contract Export</div>
-        </div>
-        <button class="agi-sect-act" onclick="agEditOpen('company','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>แก้ไข</button>
+    ${sect5}
+    <div class="agi-sales-card" style="margin-top:2px">
+      <div class="agi-sales-av" style="background:${sales?.color||'#999'}">${sales?.code||'—'}</div>
+      <div class="agi-sales-info">
+        <div class="agi-sales-lbl">Sales owner</div>
+        <div class="agi-sales-name">${sales?.name||'— ยังไม่กำหนด —'}${sales?.fullName?` <span style="font-size:11px;font-weight:500;color:var(--ink-mid);margin-left:6px">· ${sales.fullName}</span>`:''}</div>
+        <div class="agi-sales-meta">${sales?.designation||''}${sales?.email?` · ${sales.email}`:''}${sales?.tel?` · ${sales.tel}`:''}</div>
       </div>
+      <button class="agi-icon-btn" onclick="agEditOpen('sales','${a.id}')" title="เปลี่ยน Sales Person"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+    </div>
       <div class="agi-grid agi-grid-3">
         <div class="agi-info-card"><div class="agi-info-lbl">Company Name (ชื่อในระบบ)</div><div class="agi-info-val">${a.name}</div></div>
         <div class="agi-info-card"><div class="agi-info-lbl">Company Legal Name (ในสัญญา)</div><div class="agi-info-val">${ci.legalName||a.name}</div></div>
@@ -37836,111 +38141,23 @@ function agTabInfo(a){
         <div class="agi-info-card"><div class="agi-info-lbl">Website</div><div class="agi-info-val mono" style="font-size:12px">${ci.website?`<a href="https://${ci.website}" target="_blank" style="color:var(--fd-coral-deep);text-decoration:none">${ci.website}</a>`:'—'}</div></div>
         <div class="agi-info-card span2"><div class="agi-info-lbl">Email</div><div class="agi-info-val mono" style="font-size:12px">${a.email||'—'}</div></div>
       </div>
-    </div>
 
-    <!-- Section: Payment Details (renamed from Agent Profile) -->
-    <div class="agi-sect">
-      <div class="agi-sect-hd">
-        <div>
-          <div class="agi-sect-ttl">Payment Details</div>
-          <div class="agi-sect-desc">ประเภทการชำระเงิน · เครดิต · วงเงิน</div>
-        </div>
-        <button class="agi-sect-act" onclick="agEditOpen('profile','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>แก้ไข</button>
+    ${subHd('Agent signatory','ผู้เซ็นฝั่ง Agent · ใช้ในหน้าลายเซ็นตอน export')}
+      <div class="agi-sig-card ${sig.signedDate?'signed':'pending'}">
+        <div class="agi-sig-role">Signed for ${ci.legalName||a.name}</div>
+        <div class="agi-sig-name">${sig.name||'— ยังไม่ระบุ —'}</div>
+        <div class="agi-sig-pos">${sig.designation||'Authorized Signatory'}</div>
+        <div class="agi-sig-meta">${sig.signedDate?`📅 ${fmtD(sig.signedDate)}`:'📅 ยังไม่เซ็น'} ${sig.tel?` · 📞 ${sig.tel}`:''}</div>
       </div>
-      <div class="agi-grid agi-grid-3">
-        <div class="agi-info-card coral"><div class="agi-info-lbl">Payment Type</div><div class="agi-info-val">${pay?.name||'—'}${a.payType==='invoice'?` · ${a.creditDays}d`:''}${a.vatMode&&a.vatMode!=='none'?` · VAT ${a.vatMode==='include'?'incl':'excl'}`:''}</div></div>
-        <div class="agi-info-card"><div class="agi-info-lbl">Credit Limit</div><div class="agi-info-val mono big">฿${sbFmtTHB((a.creditLimit||0)/1000)}K</div></div>
-        <div class="agi-info-card"><div class="agi-info-lbl">Credit Balance</div><div class="agi-info-val mono big" style="color:#0F6E56">฿${sbFmtTHB((a.creditBalance||0)/1000)}K</div><div class="agi-info-sub">used ฿${sbFmtTHB(creditUsed/1000)}K · ${utilPct}% utilization</div></div>
-      </div>
-    </div>
 
-    <!-- Section: Rate Type (Pricing Package) -->
-    ${(function(){
-      const rt = a.rateTypeId ? (typeof getRateType==='function' ? getRateType(a.rateTypeId) : null) : null;
-      const isInactive = rt && rt.active===false;
-      const tint = rt ? (rt.color + '14') : '#fafaf8';
-      const fmt = n => (n||0).toLocaleString();
-      const ROUTES_ARR = (typeof ROUTES!=='undefined' && ROUTES) || [];
-      const rName = id => (ROUTES_ARR.find(r=>r.id===id)||{}).name || id;
-      let bodyHtml = '';
-      if(!rt){
-        bodyHtml = `<div style="background:#FCEBEB;border:1px solid rgba(163,45,45,.2);border-radius:10px;padding:14px 16px">
-          <div style="display:flex;align-items:center;gap:8px;color:#A32D2D;font-size:12px;font-weight:600">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-            No rate type assigned
-          </div>
-          <div style="font-size:11px;color:#A32D2D;margin-top:4px;opacity:.85">Agent นี้ยังไม่มีราคา default — กดแก้ไขเพื่อเลือก rate type</div>
-        </div>`;
-      } else {
-        const nRoutes = (rt.routes||[]).length;
-        const hasCharter = Object.keys(rt.charterRates||{}).length > 0;
-        const nAddOns = Object.keys(rt.addOns||{}).length;
-        const validHint = (rt.validFrom||rt.validTo) ? `valid until ${_rtFmtDate(rt.validTo)||'—'}` : 'always valid';
-        // Build 3 preview cards (same logic as agEditBuildRTPreview)
-        const firstRoute = (rt.routes||[])[0];
-        let seatPreview='—', seatLbl='No seat rate';
-        if(firstRoute && rt.seatRates && rt.seatRates[firstRoute]){
-          const z = rt.seatRates[firstRoute].PK || rt.seatRates[firstRoute].NoTransfer || {};
-          if(z['adult-thai'] || z['adult-fr']){
-            seatPreview = `${fmt(z['adult-thai'])} / ${fmt(z['adult-fr'])}`;
-            seatLbl = `${rName(firstRoute)} · PK · Adult TH/FR`;
-          }
-        }
-        const charterEntries = [];
-        Object.keys(rt.charterRates||{}).forEach(rId => Object.keys(rt.charterRates[rId]).forEach(bt => charterEntries.push({rId, bt, ch:rt.charterRates[rId][bt]})));
-        let charterPreview='—', charterLbl='No charter';
-        if(charterEntries.length){
-          const c = charterEntries[0];
-          charterPreview = fmt(c.ch.starterPrice);
-          charterLbl = `${rName(c.rId)} · ${c.bt} · starter / ${c.ch.starterIncludes||4} pax · +${fmt(c.ch.extraPerPax)} ea`;
-        }
-        const _ap = (typeof _rtAddonPreview==='function')?_rtAddonPreview(rt):{preview:'—',lbl:'No add-on'};
-        let addOnPreview = _ap.preview, addOnLbl = _ap.lbl;
-        bodyHtml = `
-          <div style="background:${isInactive?'#FFF5EB':tint};border:1px solid ${isInactive?'#F0997B':rt.color+'33'};border-radius:10px;padding:12px 14px;margin-bottom:10px">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="background:#fff;color:${rt.color};font-size:10px;font-weight:700;padding:3px 9px;border-radius:7px;font-variant-numeric:tabular-nums;letter-spacing:.02em">${rt.code||''}</span>
-                <span style="font-size:13px;font-weight:600;color:${isInactive?'#854F0B':rt.color}">${rt.name||''}</span>
-                <span style="background:${isInactive?'#F1EFE8':'#E1F5EE'};color:${isInactive?'#5F5E5A':'#0F6E56'};font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em">${isInactive?'Inactive':'Active'}</span>
-              </div>
-              <div style="font-size:10.5px;color:${isInactive?'#854F0B':rt.color};font-weight:500">${nRoutes} routes${hasCharter?' · charter':''}${nAddOns>0?' · '+nAddOns+' add-on'+(nAddOns>1?'s':''):''} · ${validHint}</div>
-            </div>
-            ${isInactive?'<div style="font-size:10.5px;color:#854F0B;margin-top:6px;font-weight:600">⚠ Rate Type นี้ถูก Deactivate — แนะนำให้เปลี่ยน หรือ activate ในหน้า Rate Types</div>':''}
-          </div>
-          <div class="agi-grid agi-grid-3">
-            <div class="agi-info-card"><div class="agi-info-lbl">Seat (sample)</div><div class="agi-info-val mono big" style="color:${rt.color}">${seatPreview}</div><div class="agi-info-sub">${seatLbl}</div></div>
-            <div class="agi-info-card"><div class="agi-info-lbl">Charter (sample)</div><div class="agi-info-val mono big" style="color:${rt.color}">${charterPreview}</div><div class="agi-info-sub">${charterLbl}</div></div>
-            <div class="agi-info-card"><div class="agi-info-lbl">Add-on (sample)</div><div class="agi-info-val mono big" style="color:${rt.color}">${addOnPreview}</div><div class="agi-info-sub">${addOnLbl}</div></div>
-          </div>
-        `;
-      }
-      return `<div class="agi-sect">
-        <div class="agi-sect-hd">
-          <div>
-            <div class="agi-sect-ttl">Rate Type · Pricing Package</div>
-            <div class="agi-sect-desc">ราคาทั้งหมดดึงจาก rate type นี้ · seat / charter / add-ons</div>
-          </div>
-          <button class="agi-sect-act" onclick="agEditOpen('ratetype','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>${rt?'เปลี่ยน':'เลือก'}</button>
-        </div>
-        ${bodyHtml}
-      </div>`;
-    })()}
-
-    <!-- Section: Contract Template · §template (2026-07-14) -->
+    ${subHd('Contract template','ข้อความในสัญญา · ราคายังมาจาก Rate Type')
+      .replace('</div>', `<button class="act" style="margin-left:auto;font-family:inherit;font-size:10px;font-weight:700;color:#16265C;background:#fff;border:1px solid #D7DEEB;border-radius:999px;padding:3px 11px;cursor:pointer" onclick="agEditOpen('contracttmpl','${a.id}')">Change</button></div>`)}
     ${(()=>{
       const _t  = (typeof ctTmplForAgent==='function') ? ctTmplForAgent(a) : null;
       const _bound = !!a.contractTemplateId;
       const _e = s => String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
       const _nSec = _t && _t.sections ? Object.keys(_t.sections).filter(k=>_t.sections[k]).length : 0;
-      return `<div class="agi-sect">
-        <div class="agi-sect-hd">
-          <div>
-            <div class="agi-sect-ttl">Contract Template</div>
-            <div class="agi-sect-desc">ข้อความในสัญญา (ข้อยกเลิก · ข้อจำกัดสุขภาพ · ข้อกฎหมาย) ดึงจาก template นี้ · ราคายังมาจาก Rate Type</div>
-          </div>
-          <button class="agi-sect-act" onclick="agEditOpen('contracttmpl','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>เปลี่ยน</button>
-        </div>
+      return `<div>
         ${_t ? `<div style="display:flex;align-items:center;gap:11px;background:#F7FAF8;border:1px solid #DCE8E2;border-radius:9px;padding:11px 14px">
             <span style="font-size:9.5px;font-weight:700;background:#fff;border:1px solid #cfd8d3;color:#0F6E56;border-radius:6px;padding:3px 9px;font-variant-numeric:tabular-nums;flex:none">${_e(_t.code||_t.id)}</span>
             <span style="flex:1;min-width:0">
@@ -37953,50 +38170,8 @@ function agTabInfo(a){
       </div>`;
     })()}
 
-    <!-- Section: Agent Signatory -->
-    <div class="agi-sect">
-      <div class="agi-sect-hd">
-        <div>
-          <div class="agi-sect-ttl">Agent Signatory</div>
-          <div class="agi-sect-desc">ผู้เซ็นสัญญาฝั่ง Agent · ใช้ใน Signature Page ตอน Export (ฝั่ง Love Andaman ดึงจาก Sales Person)</div>
-        </div>
-        <button class="agi-sect-act" onclick="agEditOpen('signatory','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>แก้ไข</button>
-      </div>
-      <div class="agi-sig-card ${sig.signedDate?'signed':'pending'}">
-        <div class="agi-sig-role">Signed for ${ci.legalName||a.name}</div>
-        <div class="agi-sig-name">${sig.name||'— ยังไม่ระบุ —'}</div>
-        <div class="agi-sig-pos">${sig.designation||'Authorized Signatory'}</div>
-        <div class="agi-sig-meta">${sig.signedDate?`📅 ${fmtD(sig.signedDate)}`:'📅 ยังไม่เซ็น'} ${sig.tel?` · 📞 ${sig.tel}`:''}</div>
-      </div>
-    </div>
 
-    <!-- Section: Booking Channel -->
-    <div class="agi-sect">
-      <div class="agi-sect-hd">
-        <div>
-          <div class="agi-sect-ttl">Booking Channel</div>
-          <div class="agi-sect-desc">วิธีจองเข้ามา · cutoff time · cancellation policy</div>
-        </div>
-        <button class="agi-sect-act" onclick="agEditOpen('booking','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>แก้ไข</button>
-      </div>
-      <div class="agi-grid agi-grid-3">
-        <div class="agi-info-card"><div class="agi-info-lbl">Booking Method</div><div class="agi-info-val">${bc.method||'—'}</div></div>
-        <div class="agi-info-card"><div class="agi-info-lbl">Cutoff Time</div><div class="agi-info-val mono">${bc.cutoff||'—'}</div></div>
-        <div class="agi-info-card"><div class="agi-info-lbl">Cancellation Policy</div><div class="agi-info-val" style="font-size:12px">${bc.cancelPolicy||'—'}</div></div>
-        <div class="agi-info-card span2"><div class="agi-info-lbl">Booking Email</div><div class="agi-info-val mono" style="font-size:12px">${bc.email||'—'}</div></div>
-        <div class="agi-info-card"><div class="agi-info-lbl">Booking Phone</div><div class="agi-info-val mono">${bc.phone||'—'}</div></div>
-      </div>
-    </div>
-
-    <!-- Section: Internal Notes -->
-    <div class="agi-sect">
-      <div class="agi-sect-hd">
-        <div>
-          <div class="agi-sect-ttl">Internal Notes</div>
-          <div class="agi-sect-desc">โน้ตภายในของทีม · ไม่แสดงในสัญญา</div>
-        </div>
-        <button class="agi-sect-act" onclick="agEditOpen('notes','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>${a.note?'แก้ไข':'เพิ่มโน้ต'}</button>
-      </div>
+    ${subHd('Internal notes','โน้ตภายในของทีม · ไม่แสดงในสัญญา')}
       ${a.note ? `
         <div class="agi-info-card">
           <div class="agi-info-val multi" style="font-weight:400;color:var(--fd-ink-mid);font-size:12px;line-height:1.6">${a.note.replace(/\\n/g,'<br>').replace(/(•|·)/g,'•')}</div>
@@ -38006,7 +38181,7 @@ function agTabInfo(a){
           ยังไม่มีโน้ต · กดปุ่ม "เพิ่มโน้ต" เพื่อบันทึก
         </div>
       `}
-    </div>
+
   `;
 }
 

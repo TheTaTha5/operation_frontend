@@ -2964,3 +2964,159 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
   #view-agents .agi-prog-sum-divider{display:none}
   #view-agents .agi-prog-sum-item{flex:1 1 100%}
 }
+
+/* ══ §agHd · แถบหัวหน้า Agent List + แผงของเอเย่นต์รายคน ═══════════════════════
+   แถบหัวยกมาจากหน้า Dashboard (.dv-hd) ทั้งชุด — สีเดียวกัน ทรงเดียวกัน ที่เดียวกัน
+   ต่างกันแค่ของที่อยู่ซ้ายสุด: Dashboard เป็นวันที่ หน้านี้เป็นจำนวนเอเย่นต์
+
+   ทำไมต้องเป็นแถบเดียวกัน · คนทำงานสลับสองหน้านี้ทั้งวัน ถ้าหัวคนละแบบ
+   ต้องมองหาปุ่มใหม่ทุกครั้งที่สลับ · เหมือนกันแล้วมือจำที่ได้เอง
+   ═══════════════════════════════════════════════════════════════════════════ */
+#view-agents .ag-hd{position:relative;padding:6px 96px 9px 8px;border-radius:14px;margin-bottom:11px;
+  background:linear-gradient(160deg, rgba(22,38,92,.96), rgba(12,24,62,.94));
+  box-shadow:0 8px 26px rgba(2,10,30,.34), inset 0 1px 0 rgba(255,255,255,.18)}
+#view-agents .ag-hd-top{position:relative;display:flex;align-items:center;gap:13px}
+/* เลขใหญ่ mono · ตรึงความกว้างขั้นต่ำเหมือน .dv-dnum เพื่อไม่ให้ของข้าง ๆ ขยับตามจำนวนหลัก */
+#view-agents .ag-hd-n{font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1;color:#fff;
+  font-family:'DM Mono',ui-monospace,monospace;display:inline-block;min-width:52px;text-align:center}
+#view-agents .ag-hd-g{display:inline-block;min-width:108px}
+#view-agents .ag-hd-g b{display:block;font-size:14px;font-weight:800;line-height:1.05;color:#fff}
+#view-agents .ag-hd-g i{display:block;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.13em;
+  color:#A8BAD8;text-transform:uppercase}
+/* ชื่อหน้ากลางแถบ · หน้าตาเหมือน .dv-brand ของ Dashboard แต่ "ไม่" ใช้ absolute
+   ของ Dashboard วางแบบ absolute แล้วต้องมีกฎซ่อนที่ 1600 กันทับชิป — วัดเอาไว้ตายตัว
+   หน้านี้มีปุ่มงานมากกว่านั้น (Card · Table · Excel form · Import · New Agent)
+   ความกว้างฝั่งขวาจึงเปลี่ยนตามสิทธิ์ผู้ใช้ด้วย · ตัวเลขตายตัวเชื่อไม่ได้
+   ให้มันอยู่ในแถวจริง ๆ แล้วดันด้วย margin auto สองข้าง · ชนไม่ได้โดยโครงสร้าง */
+#view-agents .ag-hd-brand{flex:0 0 auto;margin:0 auto;font-size:16px;
+  font-weight:800;letter-spacing:.30em;padding-left:.30em;color:#fff;white-space:nowrap;
+  pointer-events:none}
+/* จอแคบ ตัวเลขสำคัญกว่าของประดับ · ซ่อนชื่อหน้าไปเลย ไม่ต้องแย่งที่กัน
+   (ตัวเลข 1700 มาจากการวัด: ต่ำกว่านี้ปุ่ม + New Agent จะถูกดันลงบรรทัดสอง) */
+@media (max-width:1699px){ #view-agents .ag-hd-brand{display:none} }
+#view-agents .ag-hd-kpi{display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  justify-content:flex-end}
+#view-agents .ag-chip{font-size:11px;font-weight:600;color:#D6E2F5;background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.20);border-radius:999px;padding:4px 11px;white-space:nowrap}
+#view-agents .ag-chip b{font-family:'DM Mono',ui-monospace,monospace;font-weight:800;color:#fff;font-size:12.5px}
+#view-agents .ag-chip.warn{background:rgba(232,74,63,.24);border-color:rgba(255,150,140,.42);
+  color:#FFC9C3;cursor:pointer}
+#view-agents .ag-chip.warn b{color:#FFD9D4}
+#view-agents .ag-seg{display:inline-flex;gap:5px}
+#view-agents .ag-seg b{font-size:10.5px;font-weight:700;color:#C9D6EC;background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.26);border-radius:999px;padding:5px 12px;cursor:pointer;white-space:nowrap}
+#view-agents .ag-seg b.on{background:#fff;color:#16265C;border-color:#fff;box-shadow:0 2px 10px rgba(2,10,30,.30)}
+#view-agents .ag-hd-btn{font-family:inherit;font-size:10.5px;font-weight:700;color:#D6E2F5;
+  background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:999px;
+  padding:5px 12px;cursor:pointer;white-space:nowrap}
+#view-agents .ag-hd-btn:hover{background:rgba(255,255,255,.18)}
+#view-agents .ag-hd-add{background:#fff;color:#16265C;border:none;border-radius:999px;padding:5px 13px;
+  font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;
+  box-shadow:0 2px 10px rgba(2,10,30,.30)}
+/* ป๊อปแจงรายการ · ทรงเดียวกับ .dv-pop ของ Dashboard · ต้องอ่านออกแม้ลอยทับการ์ดขาว */
+#view-agents .ag-hd-pop{display:none;position:absolute;top:44px;right:0;width:344px;z-index:80;
+  border-radius:15px;padding:11px 13px 12px;text-align:left;
+  background:linear-gradient(160deg, rgba(20,36,88,.98), rgba(12,24,62,.96));
+  border:1px solid rgba(255,255,255,.26);box-shadow:0 16px 40px rgba(2,10,30,.46)}
+#view-agents .ag-hd-pop.on{display:block}
+#view-agents .ag-hd-pop .ph{font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+  color:#8FA6CC;margin-bottom:7px}
+#view-agents .ag-hd-pr{display:flex;align-items:center;gap:9px;padding:6px 2px;
+  border-top:1px solid rgba(255,255,255,.10)}
+#view-agents .ag-hd-pr .t{flex:1;min-width:0}
+#view-agents .ag-hd-pr .t b{display:block;font-size:11.5px;font-weight:700;color:#EAF0FA}
+#view-agents .ag-hd-pr .t i{display:block;font-style:normal;font-size:9.5px;color:#93A6C8;margin-top:1px}
+#view-agents .ag-hd-pr .n{font-family:'DM Mono',ui-monospace,monospace;font-size:14px;font-weight:800;color:#FFD9D4}
+#view-agents .ag-hd-pr.dim{border-top:1px solid rgba(255,255,255,.22);margin-top:5px;padding-top:8px}
+#view-agents .ag-hd-pr.dim .t b{color:#9FB2D4;font-weight:700}
+
+/* ── หัวข้อในแผงของเอเย่นต์ · แถบทึบมีเลขกำกับ เห็นขอบเขตของแต่ละบล็อกชัด ── */
+#view-agents .ag-band{display:flex;align-items:center;gap:10px;margin:18px 0 7px;background:#F2F4F9;
+  border-left:4px solid #16265C;border-radius:0 9px 9px 0;padding:7px 12px}
+#view-agents .ag-band .no{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;font-weight:800;
+  color:#fff;background:#16265C;border-radius:5px;padding:1px 6px;flex:none}
+#view-agents .ag-band .ttl{font-size:11.5px;font-weight:800;letter-spacing:.06em;color:#16265C}
+#view-agents .ag-band .note{margin-left:auto;font-size:10px;color:#7E8798;text-align:right}
+#view-agents .ag-band .act{margin-left:auto;font-family:inherit;font-size:10px;font-weight:700;color:#16265C;
+  background:#fff;border:1px solid #D7DEEB;border-radius:999px;padding:3px 11px;cursor:pointer;white-space:nowrap}
+#view-agents .ag-band .act:hover{background:#E9EEF8}
+#view-agents .ag-band.alert{background:#FCEFED;border-left-color:#C0392B}
+#view-agents .ag-band.alert .no{background:#C0392B}
+#view-agents .ag-band.alert .ttl{color:#A32D2D}
+#view-agents .ag-band.alert .note{color:#A5564C}
+#view-agents .ag-band.clear{background:#E9F6F0;border-left-color:#0F6E56}
+#view-agents .ag-band.clear .no{background:#0F6E56}
+#view-agents .ag-band.clear .ttl{color:#0F6E56}
+#view-agents .ag-band.clear .note{color:#3F7D68}
+
+/* ── แถบ Alert · เรื่องของเอเย่นต์รายนี้ เรียงตามความด่วน ── */
+#view-agents .ag-als{border:1px solid var(--fd-line);border-radius:10px;overflow:hidden}
+#view-agents .ag-al{display:flex;align-items:center;gap:11px;padding:7px 11px 7px 9px;
+  border-left:3px solid;font-size:12px}
+#view-agents .ag-al + .ag-al{border-top:1px solid rgba(0,0,0,.055)}
+#view-agents .ag-al .t{font-weight:700;flex:0 0 168px;display:flex;align-items:center;gap:6px}
+#view-agents .ag-al .day{font-family:'DM Mono',ui-monospace,monospace;font-weight:800;font-size:11px;
+  background:rgba(255,255,255,.7);border-radius:6px;padding:1px 6px;white-space:nowrap}
+#view-agents .ag-al .d{flex:1;min-width:0;color:#4A4F55;font-size:11.5px}
+#view-agents .ag-al .d b{font-weight:700;color:#1F2A33}
+#view-agents .ag-al .go{font-family:inherit;font-size:10px;font-weight:700;border-radius:999px;
+  padding:3px 10px;white-space:nowrap;background:rgba(255,255,255,.78);border:1px solid rgba(0,0,0,.10);
+  cursor:pointer;color:inherit}
+#view-agents .ag-al .go:hover{background:#fff}
+#view-agents .ag-ok{display:flex;align-items:center;gap:9px;background:#E7F5EE;border:1px solid #BFE3D4;
+  border-radius:10px;padding:9px 12px;font-size:12px;color:#0F6E56;font-weight:600}
+
+/* ── แถว Sheet · ป้ายเล็กซ้าย ค่าขวา คั่นด้วยเส้นผม ── */
+#view-agents .ag-sh{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 26px}
+#view-agents .ag-sh.one{grid-template-columns:minmax(0,1fr)}
+#view-agents .ag-sh .r{display:flex;gap:10px;align-items:baseline;padding:5px 2px;
+  border-bottom:1px solid var(--fd-line-soft);min-width:0}
+#view-agents .ag-sh .r .k{flex:0 0 120px;font-size:8.5px;font-weight:700;letter-spacing:.055em;
+  text-transform:uppercase;color:var(--fd-ink-soft)}
+#view-agents .ag-sh .r .v{flex:1;min-width:0;font-size:12.5px;font-weight:600;line-height:1.3;
+  overflow-wrap:anywhere}
+#view-agents .ag-sh .r .v .sub{display:block;font-size:10px;color:var(--fd-ink-soft);font-weight:400;margin-top:1px}
+#view-agents .ag-bar{display:block;height:5px;border-radius:3px;background:#EEEAE2;overflow:hidden;
+  margin-top:4px;max-width:260px}
+#view-agents .ag-bar i{display:block;height:100%}
+
+/* ── ปุ่มยุบ/กางลิสต์ · มีเฉพาะจอโทรศัพท์ ── */
+#view-agents .ag-side-tgl{display:none;font-family:inherit;font-size:10.5px;font-weight:700;color:#16265C;
+  background:#EEF2F9;border:1px solid #D7DEEB;border-radius:999px;padding:4px 11px;cursor:pointer;white-space:nowrap}
+
+/* ══ §agPhone · จอโทรศัพท์ ══════════════════════════════════════════════════
+   สามอย่างที่พังบนจอแคบถ้าไม่ทำอะไร · ลิสต์ 800 รายชื่อดันเนื้อหาหลุดจอ ·
+   แถวแท็บห่อสามบรรทัด · แถว Sheet สองคอลัมน์บีบจนค่าห่อมั่ว
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width:900px){
+  #view-agents .ag-hd{padding:8px 10px 10px}
+  #view-agents .ag-hd-top{flex-wrap:wrap;gap:9px}
+  #view-agents .ag-hd-kpi{margin-left:0;flex:1 1 100%;justify-content:flex-start}
+  #view-agents .ag-hd-g{min-width:0}
+  #view-agents .ag-hd-pop{right:auto;left:0;width:auto;max-width:100%}
+  #view-agents .ag-side-tgl{display:block}
+  #view-agents .sb-side-hd-ttl{white-space:nowrap}
+  #view-agents #ag-search{width:82px}
+  /* ลิสต์ยุบไว้ก่อน · กด Browse จึงกาง · เลือกแล้วยุบเอง (ดู agSelect) */
+  #view-agents .sb-side .sb-side-body{display:none;max-height:56vh;overflow:auto}
+  #view-agents .sb-side.open .sb-side-body{display:block}
+  /* แถวแท็บ · เลื่อนแนวนอนแถวเดียว ไม่ห่อสองสามบรรทัดจนดันเนื้อหาลงไป */
+  #view-agents .sb-tabs{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+  #view-agents .sb-tabs::-webkit-scrollbar{display:none}
+  #view-agents .sb-tab{flex:none}
+  #view-agents .ag-band{flex-wrap:wrap}
+  #view-agents .ag-band .note{margin-left:0;flex:1 1 100%;text-align:left}
+  #view-agents .ag-al{flex-wrap:wrap;align-items:flex-start;gap:4px 9px}
+  #view-agents .ag-al .t{flex:1 1 auto}
+  #view-agents .ag-al .go{margin-left:auto}
+  #view-agents .ag-al .d{flex:1 1 100%}
+  #view-agents .ag-sh{grid-template-columns:minmax(0,1fr)}
+  #view-agents .ag-sh .r{flex-direction:column;gap:1px;padding:6px 2px}
+  #view-agents .ag-sh .r .k{flex:none}
+  /* แถวโปรแกรม · จากตารางห้าคอลัมน์ เป็นการ์ดต่อแถว ชื่อ+ช่วงวันอยู่คนละบรรทัด */
+  #view-agents .agi-prog-header{display:none}
+  #view-agents .agi-prog-row{flex-wrap:wrap;gap:2px 10px;padding:8px 6px}
+  #view-agents .agi-prog-name-wrap{flex:1 1 100%}
+  #view-agents .agi-period-col{flex:0 0 auto}
+  #view-agents .agi-prog-actions{margin-left:auto}
+}

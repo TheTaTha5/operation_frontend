@@ -10,7 +10,7 @@
 <link rel="icon" href="/allotment_v2/assets/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/allotment_v2/assets/favicon-180.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Quicksand:wght@500;600;700&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/01-base.css?v=c13c99cc">
+<link rel="stylesheet" href="css/01-base.css?v=64ade00d">
 <link rel="stylesheet" href="css/02-skins.css?v=55306fdc">
 <!-- §dashV3 · สกิน liquid-glass ของ Dashboard เดิมถูกลบทั้งบล็อก
      มันทาทับดีไซน์เก่าที่ไม่มีอยู่แล้ว (พื้นครีมไล่สี · การ์ดขาวฝ้า ·
@@ -634,32 +634,10 @@
 
     <!-- ══════════ AGENT LIST ══════════ -->
     <div id="view-agents" class="view">
-      <div class="page-hd">
-        <div>
-          <h1>Agent List <span style="font-size:11px;font-weight:400;color:var(--ink-soft);margin-left:6px">B2B</span></h1>
-          <p>จัดการ Agent · ราคา · ประเภทการชำระเงิน · Sales Person ผู้ดูแล</p>
-        </div>
-        <div class="page-actions">
-          <div style="display:inline-flex;gap:3px;background:#f1efe9;border-radius:9px;padding:3px;margin-right:6px">
-            <button id="agv-card" class="btn btn-sm" onclick="agSetView('card')" style="border:0;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.09);border-radius:7px;padding:5px 11px;font-size:12px;font-weight:600">การ์ด</button>
-            <button id="agv-table" class="btn btn-sm" onclick="agSetView('table')" style="border:0;background:transparent;border-radius:7px;padding:5px 11px;font-size:12px;font-weight:500;color:#8b9a94">ตาราง</button>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="agImportTemplate()" title="ดาวน์โหลดฟอร์ม Excel เปล่า (หัวคอลัมน์ตรงกับที่ระบบนำเข้า) · กรอกแล้วเอากลับมา นำเข้า Excel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            ฟอร์ม Excel
-          </button>
-          <button class="btn btn-ghost btn-sm" onclick="agImportPick()" title="นำเข้า Agent จากไฟล์ Excel · จับคู่ของเดิมให้อัตโนมัติ (อัปเดต ไม่สร้างซ้ำ)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-            นำเข้า Excel
-          </button>
-          <button class="btn btn-pink btn-sm" onclick="agNew()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-            เพิ่ม Agent
-          </button>
-        </div>
-      </div>
-
-      <div class="sb-kpi-row" id="ag-kpi"></div>
+      <!-- §agHd · แถบหัวหน้านี้ใช้ดีไซน์เดียวกับหน้า Dashboard (.dv-hd)
+           ที่ของ "กล่องวันที่" คือจำนวนเอเย่นต์ · ปุ่มงานทั้งหมดย้ายมาอยู่ในแถบนี้
+           วาดจาก renderAgKPI() ที่ไฟล์ 08-app.js — HTML เหลือแค่ที่ว่างให้วาด -->
+      <div id="ag-kpi" class="ag-hd"></div>
 
       <div class="sb-wrap">
         <aside class="sb-side">
@@ -671,6 +649,9 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
                 <span id="ag-filter-active-cnt"></span>
               </button>
+              <!-- §agPhone · บนจอโทรศัพท์ ลิสต์ยุบไว้ก่อน เปิดมาจึงเห็นข้อมูลเอเย่นต์ทันที
+                   ไม่ต้องเลื่อนผ่านรายชื่อ 800 รายก่อน · ปุ่มนี้ซ่อนเองบนจอใหญ่ -->
+              <button id="ag-side-tgl" class="ag-side-tgl" type="button" onclick="agSideToggle()">Browse</button>
               <!-- Filter popover -->
               <div id="ag-filter-pop" class="ag-filter-pop" style="display:none">
                 <div class="ag-filter-pop-hd">
@@ -3028,7 +3009,7 @@
   </div>
 </div>
 
-<script src="js/08-app.js?v=3d04e16b"></script>
+<script src="js/08-app.js?v=44cc8543"></script>
 <script src="js/09-action-board.js?v=70374360"></script>
 </body>
 </html>
