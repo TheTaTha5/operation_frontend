@@ -1,7 +1,8 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtTab` · **1 commit ahead of origin**
-(everything up to `§rtAdmin` is pushed and live; only `§rtTab` is waiting)
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§agSheet`
+(a merge from GitHub landed at `6aa8cff`, bringing `§vanAssignScroll` from another session —
+this work was re-tested on top of the merged tree, not on the pre-merge one)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -51,6 +52,51 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — the agent Information tab, rebuilt as a sheet
+
+Everything on it was a rounded card with its own fill and border, stacked. Readable one card at a
+time, impossible to compare down a column, and tall. The data is a table by nature — program ×
+booking window × travel window — so it is now drawn as one.
+
+**Done in CSS alone.** One `§agSheet` block appended to `01-base.css`; no HTML, no logic touched.
+Deleting the block returns the page to cards exactly as it was.
+
+| | before | after |
+|---|---|---|
+| Program row | 61px | **35px** |
+| Program name + pier | two lines | one line |
+| Rows | rounded cards with gaps | hairline-separated, no radius |
+| Dates | proportional | tabular mono, columns line up |
+| Sales person | 86px card | **42px** line |
+| Info fields | filled rounded boxes | flat label/value, hairline below |
+| Whole tab | 2,500px | **1,756px** |
+
+The one piece of HTML that changed is the Rate-Type coverage banner, a ~75px box carrying one fact;
+it is now a single line that wraps only when it is holding several route chips.
+
+**A bug I introduced and caught in the same pass.** Putting each summary label beside its value made
+the three-up strip wider, and that strip is flex, not grid — so the mobile rule in `02-skins.css`,
+which only collapses grids, never touched it. At 390px the page overflowed by **88px**. Verified
+against the pre-change build that this was mine, not pre-existing, then fixed by letting the strip
+wrap and dropping its dividers under 820px.
+
+`test/ui/t_aginfo.mjs` (9 checks, `npm run test:aginfo`) measures the rendered page rather than the
+markup: row height, that name and pier share a line, that rows carry no card radius, that info
+fields have no solid fill, that dates use a mono face, the sales line height, and no horizontal
+overflow at 1400px **or at 390px**. Proven to fail: remove the whole block → `พัง 5`; remove just the
+mobile wrap fix → `พัง 1`.
+
+⚠ It must render inside `#view-agents` — the whole block is scoped under that id, and a probe that
+renders elsewhere silently gets the old styling and reports the wrong thing. That cost a wrong
+measurement before it was spotted.
+
+**Merged tree, not the one this started on.** Partway through, `6aa8cff` merged `§vanAssignScroll`
+from another session into `lk-inbox`, so `08-app.js` on disk was no longer the file this session
+last wrote. The patch was applied to the merged base (hunks offset by 5 lines), every marker from
+today's work was re-checked as present, and the whole suite was re-run against the merged tree:
+`t_smoke` พัง 2 (environment-only), `t_mobile` · `t_aginfo` · `t_ratexp` · `t_rtseason` · `t_rtbulk` ·
+`t_ratebind` · `t_ovnmeal` · `t_fleetcal` · `t_daydetail` all พัง 0.
 
 ### 2026-09-18 — rate management became a tab on the agent, not a corner of the price table
 

@@ -37719,41 +37719,38 @@ function agTabInfo(a){
         if(!rtInfo) return '';
         const contractedIds = periods.map(p => p.routeId);
         const rtIds = rtInfo.routes || [];
+        /* §agSheet · แถบนี้เคยเป็นกล่องสูงราว 75px เพื่อบอกเรื่องเดียว
+           ยุบเป็นแถบบรรทัดเดียว ชิปไหลต่อท้ายได้ · ข้อมูลเท่าเดิมทุกตัว */
+        const bar = (bg, bd, inner) => `<div style="background:${bg};border:1px solid ${bd};border-radius:8px;
+          padding:6px 11px;margin:8px 0 0;display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:11px">${inner}</div>`;
         const missing = rtIds.filter(rId => !contractedIds.includes(rId));
         const orphans = contractedIds.filter(rId => rId && !rtIds.includes(rId));
         const ok = missing.length === 0 && orphans.length === 0;
         const tint = rtInfo.color + '14';
         const headerChip = `<span style="display:inline-flex;align-items:center;gap:5px;background:${tint};color:${rtInfo.color};padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">↳ ${rtInfo.code}</span>`;
         if(ok){
-          return `<div style="background:#E1F5EE;border:1px solid #9FE1CB;border-radius:12px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;font-size:11.5px;flex-wrap:wrap">
-            ${headerChip}
-            <span style="color:#0F6E56;font-weight:600">✓ Programs ครอบคลุมทุก route ใน Rate Type</span>
-            <span style="color:var(--fd-ink-soft);font-size:10.5px">${contractedIds.length} / ${rtIds.length} routes</span>
-          </div>`;
+          return bar('#F1F8F5', '#BEE0D2', `${headerChip}
+            <span style="color:#0F6E56;font-weight:600">&#10003; Programs ครอบคลุมทุก route ใน Rate Type</span>
+            <span style="color:var(--fd-ink-soft);font-size:10px;margin-left:auto">${contractedIds.length} / ${rtIds.length} routes</span>`);
         }
+        const chip = (txt, bg, col, bdr) => `<span style="background:${bg};color:${col};border:${bdr};
+          padding:1px 7px;border-radius:7px;font-size:10px;font-weight:600;white-space:nowrap">${txt}</span>`;
         const missingChips = missing.map(rId => {
           const r = ROUTES.find(x => x.id === rId);
-          return `<span style="background:#fff;border:1px dashed #C8C6BF;color:var(--fd-ink-mid);padding:3px 9px;border-radius:10px;font-size:10.5px;font-weight:500">${r ? r.name : rId}</span>`;
-        }).join(' ');
+          return chip(r ? r.name : rId, '#fff', 'var(--fd-ink-mid)', '1px dashed #C8C6BF');
+        }).join('');
         const orphanChips = orphans.map(rId => {
           const r = ROUTES.find(x => x.id === rId);
-          return `<span style="background:#FDECEA;color:#A32D2D;padding:3px 9px;border-radius:10px;font-size:10.5px;font-weight:600">${r ? r.name : rId}</span>`;
-        }).join(' ');
-        return `<div style="background:#FFF5EB;border:1px solid #F5C896;border-radius:12px;padding:11px 14px;margin-bottom:10px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:${(missingChips||orphanChips)?'9px':'0'}">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              ${headerChip}
-              <span style="color:#854F0B;font-weight:600;font-size:11.5px">⚠ Programs ไม่ตรงกับ Rate Type</span>
-              <span style="color:var(--fd-ink-soft);font-size:10.5px">${contractedIds.length} / ${rtIds.length} routes covered</span>
-            </div>
-            ${missing.length ? `<button onclick="agEditOpen('programs','${a.id}')" style="background:#854F0B;color:#fff;border:none;font-family:inherit;font-size:11px;font-weight:600;padding:6px 13px;border-radius:8px;cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;gap:5px">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:11px;height:11px"><path d="M12 5v14M5 12h14"/></svg>
-              Add missing · ${missing.length}
-            </button>` : ''}
-          </div>
-          ${missingChips ? `<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:4px"><span style="font-size:9.5px;color:var(--fd-ink-soft);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-right:4px">Missing</span>${missingChips}</div>` : ''}
-          ${orphanChips ? `<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:6px"><span style="font-size:9.5px;color:#A32D2D;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-right:4px">Orphan</span>${orphanChips}<span style="font-size:10px;color:#A32D2D;margin-left:6px;font-style:italic">route นี้ไม่อยู่ใน Rate Type · Travel period จะว่าง</span></div>` : ''}
-        </div>`;
+          return chip(r ? r.name : rId, '#FDECEA', '#A32D2D', '1px solid #F2C9C4');
+        }).join('');
+        const lbl = t => `<span style="font-size:8.5px;font-weight:700;letter-spacing:.05em;
+          text-transform:uppercase;color:var(--fd-ink-soft)">${t}</span>`;
+        return bar('#FFF7ED', '#EFD9AE', `${headerChip}
+          <span style="color:#854F0B;font-weight:600">&#9888; Programs ไม่ตรงกับ Rate Type</span>
+          <span style="color:var(--fd-ink-soft);font-size:10px">${contractedIds.length}/${rtIds.length} routes</span>
+          ${missingChips ? `<span style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap">${lbl('missing')}${missingChips}</span>` : ''}
+          ${orphanChips ? `<span style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap">${lbl('orphan')}${orphanChips}<span style="font-size:9.5px;color:#A32D2D">· travel period จะว่าง</span></span>` : ''}
+          ${missing.length ? `<button onclick="agEditOpen('programs','${a.id}')" style="margin-left:auto;background:#854F0B;color:#fff;border:none;font-family:inherit;font-size:10.5px;font-weight:600;padding:4px 11px;border-radius:7px;cursor:pointer;white-space:nowrap">+ Add missing · ${missing.length}</button>` : ''}`);
       })()}
 
       <div class="agi-prog-summary">

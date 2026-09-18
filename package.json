@@ -22,7 +22,8 @@
     "test:ratexp": "node test/ui/t_ratexp.mjs",
     "test:ratebind": "node test/ui/t_ratebind.mjs",
     "test:rtseason": "node test/ui/t_rtseason.mjs",
-    "test:rtbulk": "node test/ui/t_rtbulk.mjs"
+    "test:rtbulk": "node test/ui/t_rtbulk.mjs",
+    "test:aginfo": "node test/ui/t_aginfo.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"
