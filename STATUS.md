@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§rateBind` · **1 commit ahead of origin**
-(everything up to `§rtExpiry` is pushed and live; only `§rateBind` is waiting)
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtSeason` · **1 commit ahead of origin**
+(everything up to `§rateBind` is pushed and live; only `§rtSeason` is waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -51,6 +51,50 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — a main rate that changes with the season, without a second priority ladder
+
+The question that started it: SAYAMA's rate covers 16 May → 14 Oct — what prices a booking after
+that? Answer was "the same one", and the ask was for several rates with priority 1/2/3.
+
+**Priority was the wrong shape.** It already exists on Promotion, with its own tie-break. A second
+priority ladder is two ladders that can disagree — the failure mode §5 of this file keeps warning
+about. Seasons don't overlap, and priority exists only to resolve overlap. So: a **date-ranged list,
+no priority**.
+
+| | |
+|---|---|
+| Shape | `a.rateSeasons = [{rt, from, to}]` — sorted, non-overlapping, last one open-ended |
+| Resolves per | **trip travel date, not booking.** One booking can cross the boundary — the island-hold leg that sails out on the 14th and back on the 15th is exactly that case, fixed earlier today |
+| Not configured | byte-identical to before. Asserted across every agent × 6 dates — 2,946 points, 0 differences |
+| No season covers a date | falls back to the agent's main rate, never null. `validTo` was deliberately not a gate for this same reason: the standard price must always exist |
+| Promotion | unchanged, still overlays on top of whatever the season resolved to |
+| Discount-mode promos | now discount from the season's main rate, not last season's — but only once a schedule exists; without one the old precedence is kept exactly |
+
+Measured end to end through the real pricing path: SAYAMA, Whale Shark, 2 adults —
+**14 Oct ฿6,200 → 15 Oct ฿6,400**, and a single booking holding both dates prices each trip from its
+own rate set. Each trip now also stores `rtRef`, the rate that actually priced it, next to the
+existing `promoId` stamp — a sold booking can say which set it came from without re-resolving.
+
+The editor sits under the Source banner on the agent's Pricing Matrix, because that is where the
+question gets asked. It validates rather than blocks — overlap, gaps, a closed last range, a
+backwards range, a rate that no longer exists — since a schedule is always briefly wrong while being
+typed. "จัดวันให้ต่อกันพอดี" snaps each range's end to the day before the next one starts, which is
+the part people get wrong by hand.
+
+**It closes the §rtExpiry loop**: an agent with a season starting after the current rate's expiry
+drops out of the warning panel, per-agent line and count together. Set the schedule, the warning goes
+away — measured 172 → 171 on one agent.
+
+`test/ui/t_rtseason.mjs` (18 checks, `npm run test:rtseason`). Proven to fail: cut the season out of
+the pricing path → `พัง 4`; return null instead of falling back → `พัง 2`; stop the sidecar carrying
+the schedule → `พัง 1`; drop the `hasOwnProperty` guard so an old sidecar wipes a new schedule →
+`พัง 1`; keep warning after a schedule exists → `พัง 1`. Suite green: `t_smoke` พัง 2
+(environment-only), `t_mobile` · `t_fleetcal` · `t_daydetail` · `t_ovnmeal` · `t_ratexp` ·
+`t_ratebind` all พัง 0.
+
+**Nobody has a schedule yet.** The 172 exposed agents are still exposed until someone fills one in —
+76 of them already name their successor on the contract, which the warning panel shows per row.
 
 ### 2026-09-18 — changing an agent's Rate Type from the Agents page was silently undone
 
