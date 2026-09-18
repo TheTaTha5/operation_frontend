@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtAdmin` · **1 commit ahead of origin**
-(everything up to `§rtExpBulk` is pushed and live; only `§rtAdmin` is waiting)
+**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtTab` · **1 commit ahead of origin**
+(everything up to `§rtAdmin` is pushed and live; only `§rtTab` is waiting)
 (push from GitHub Desktop — the shell here has no credentials)
 **Data snapshot:** `allotment_v2/data_exports/backup_2026-09-10_1830.json` (19.4 MB)
 **Untracked, owner to decide:** `test/ui/t_scroll.mjs` + `test/ui/scroll_base.json` (real work from
@@ -51,6 +51,38 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-18 — rate management became a tab on the agent, not a corner of the price table
+
+Correction on the previous round: the sidebar page was the wrong reading. What was wanted was a tab
+on the agent, beside Activity, with the rate work taken out of Pricing Matrix entirely.
+
+| Tag | Change |
+|---|---|
+| `§rtTab` | New agent tab **Rate Type**, after Activity, carrying all of it: the bound rate and its expiry, the season schedule, and a summary. A dot appears on the tab only when the rate is expiring with nothing set to follow it |
+| `§rtTab` | The schedule editor is **in the page, not a modal**. A modal covers the thing being decided, which here is "which set applies on which date" — and that answer sits right below the editor, updating as rows change, before anything is saved |
+| `§rtTab` | Pricing Matrix keeps one clickable line and nothing else to set. It starts the price table at **535px**, down from 733 two rounds ago |
+
+**Two clicks for the common case.** When the contract already names the successor, the tab offers
+*"เติมจากสัญญา · &lt;rate&gt; ตั้งแต่ &lt;date&gt;"* — it fills both ranges with the same split rule the bulk
+tool uses, the summary below shows today on the old rate and the split date on the new one, and Save
+commits. Nothing is guessed silently: the button only appears when the successor is active and the
+split lands in the future.
+
+**The popup editor was deleted, not left in place.** Two editors for one fact is how the two of them
+drift apart until they disagree — the failure this file keeps recording. `rtSeasonOpen`,
+`rtSeasonBlock` and `rtAgentRateStrip` are gone; a test asserts they stay gone.
+
+The sidebar page is renamed **Rate Expiry**, since it answers a question the tab cannot: which of 202
+agents need attention, and the bulk apply. Its how-to now points at the new tab.
+
+`t_ratexp` grows to 27 checks: the tab exists, its editor is inline, the fill-from-contract button
+appears and produces exactly two ranges, the summary is present, Pricing Matrix has nothing settable
+left, and the popup functions are undefined. Proven to fail: remove the suggest button → `พัง 1`;
+drop the pointer line from Pricing Matrix → `พัง 1`; cut the summary section → `พัง 1`.
+
+Suite green: `t_smoke` พัง 2 (environment-only), `t_mobile` · `t_fleetcal` · `t_daydetail` ·
+`t_ovnmeal` · `t_rtseason` · `t_rtbulk` · `t_ratebind` all พัง 0.
 
 ### 2026-09-18 — the warning and the schedule were crowding out the pages they sat on
 

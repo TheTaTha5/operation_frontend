@@ -33472,7 +33472,7 @@ function rtExpBanner(){
     +(nBulk?('<span style="background:#E3F3EC;border:1px solid #BEE0D2;color:#0F6E56;border-radius:999px;'
       +'padding:2px 9px;font-size:10px;font-weight:800">ตั้งตารางให้ได้ทันที '+nBulk+' เจ้า</span>'):'')
     +'<span style="margin-left:auto;color:#5A6270;font-weight:600;text-decoration:underline">'
-    +'เปิด Rate Type Management</span></div>';
+    +'เปิดภาพรวม Rate Expiry</span></div>';
 }
 function rtAdminGo(){
   var el=document.querySelector('.nav-item[data-view="rate-admin"]');
@@ -33501,7 +33501,7 @@ function renderRateAdmin(){
           'ปุ่มจะขึ้นเมื่อสัญญาของเอเย่นต์ระบุเรทตัวถัดไปไว้แล้ว · กดแล้วเปิดกล่องให้ตรวจก่อน '
           +'เห็นว่าใครบ้าง เปลี่ยนเป็นเรทอะไร แบ่งวันไหน แล้วค่อยยืนยัน')
       + step(3,'แถวที่ไม่มีปุ่ม ต้องตั้งเอง',
-          'เปิดหน้า Agent รายนั้น → แท็บ Pricing Matrix → แถบ "ตารางฤดูกาล" → ปุ่มตั้งตารางฤดูกาล')
+          'เปิดหน้า Agent รายนั้น → แท็บ <b>Rate Type</b> → หัวข้อ 2 ตารางฤดูกาล · ถ้าสัญญาระบุตัวถัดไปไว้ จะมีปุ่ม "เติมจากสัญญา" กดทีเดียวจบ')
       + step(4,'ตั้งแล้วแถวนั้นจะหายไปเอง',
           'ระบบถือว่าคำถาม "หมดแล้วใช้อะไร" ถูกตอบแล้ว · เหลือแต่ชุดที่ยังไม่มีคนจัดการ')
       +'<div style="margin-top:10px;background:#F1F8F5;border:1px solid #BEE0D2;border-radius:9px;'
@@ -33583,7 +33583,10 @@ function rtExpRender(hostId){
    อยู่ใต้แถบ Source ของ Pricing Matrix · ที่เดียวกับที่คนกำลังดูราคาของเอเย่นต์รายนั้นอยู่
    ไม่ได้ทำเป็นหน้าแยก เพราะคำถาม "หลังหมดฤดูใช้เรทไหน" เกิดขึ้นตอนมองตารางราคาอยู่พอดี
    ═══════════════════════════════════════════════════════════════════════════ */
-var _rtSeasonDraft = null, _rtSeasonAgent = '';
+/* §rtTab · ตัวแก้ตารางฤดูกาลย้ายไปอยู่ในแท็บ Rate Type ของเอเย่นต์ (ดู agTabRate)
+   ตัวแก้แบบป๊อปอัปที่เคยอยู่ตรงนี้ถูกถอดออก · มีตัวแก้สองตัวสำหรับของชิ้นเดียว
+   คือทางที่ทั้งสองตัวจะค่อย ๆ ต่างกันจนพูดคนละเรื่อง
+   เหลือไว้เฉพาะตัวช่วยที่ของอื่นยังเรียกใช้ */
 function _rsE(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function _rsDate(y){ return (typeof _rtFmtDate==='function') ? (_rtFmtDate(y)||y||'—') : (y||'—'); }
@@ -33591,231 +33594,37 @@ function rtSeasonName(id){
   var t=(typeof getRateType==='function')?getRateType(id):null;
   return t ? (t.name||t.code||id) : '(ไม่พบชุดราคานี้)';
 }
-/* บล็อกสรุปในหน้า Pricing Matrix · ยังไม่ตั้ง = ชวนให้ตั้ง · ตั้งแล้ว = อ่านตารางได้จบในบรรทัดเดียว */
-function rtSeasonBlock(a){
-  if(!a) return '';
-  var S=laSeasonsOf(a), e=_rsE;
-  var T=(typeof TODAY_STR!=='undefined')?TODAY_STR:'';
-  var btn='<button onclick="rtSeasonOpen(\''+e(a.id)+'\')" style="border:1px solid #C9D2DE;background:#fff;'
-    +'color:#33506F;border-radius:7px;padding:4px 12px;font:600 10.5px inherit;cursor:pointer;font-family:inherit">'
-    +(S.length?'แก้ตารางฤดูกาล':'ตั้งตารางฤดูกาล')+'</button>';
-  if(!S.length){
-    return '<div style="background:#F7F8FA;border:1px solid #E7EAEF;border-radius:9px;padding:9px 13px;'
-      +'margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:#5A6270">'
-      +'<b style="color:#3C4553">ตารางฤดูกาล</b>'
-      +'<span>ยังไม่ได้ตั้ง · เอเย่นต์รายนี้ใช้ชุดราคาเดียวตลอดทั้งปี ไม่ว่าจะเดินทางวันไหน</span>'
-      +'<span style="margin-left:auto">'+btn+'</span></div>';
-  }
-  var cur=laSeasonAt(a,T), iss=laSeasonIssues(a);
-  var h='<div style="background:#fff;border:1px solid #DDE3EC;border-left:3px solid #33506F;border-radius:10px;'
-    +'padding:10px 13px;margin:0 0 12px">'
-    +'<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px">'
-      +'<b style="font-size:12px;color:#2C3440">ตารางฤดูกาล</b>'
-      +'<span style="font-size:11px;color:#6B7280">'+S.length+' ช่วง · ราคาสลับตาม<b>วันเดินทาง</b>ของแต่ละทริป</span>'
-      +'<span style="margin-left:auto">'+btn+'</span>'
-    +'</div>';
-  S.forEach(function(x){
-    var on=cur && cur===x;
-    h+='<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:4px 0;'
-      +'border-top:1px solid #F1F3F6;font-size:11.5px">'
-      +'<span style="width:58px;flex:none;font-size:9.5px;font-weight:800;border-radius:999px;padding:2px 0;'
-        +'text-align:center;background:'+(on?'#E3F3EC':'#F1F3F6')+';color:'+(on?'#0F6E56':'#8A929E')+'">'
-        +(on?'ใช้อยู่':'')+'</span>'
-      +'<b style="color:'+(on?'#0F6E56':'#3C4553')+'">'+e(rtSeasonName(x.rt))+'</b>'
-      +'<span style="margin-left:auto;font-variant-numeric:tabular-nums;color:#6B7280">'
-        +e(_rsDate(x.from))+' → '+(x.to?e(_rsDate(x.to)):'<b style="color:#0F6E56">ไม่มีวันสิ้นสุด</b>')+'</span>'
-    +'</div>';
-  });
-  if(iss.length){
-    h+='<div style="margin-top:7px;background:#FEF6E7;border:1px solid #EFD9AE;border-radius:8px;padding:6px 10px;'
-      +'font-size:11px;color:#8A5A00;line-height:1.6">'
-      + iss.map(function(t){ return '&#9888; '+e(t); }).join('<br>')+'</div>';
-  }
-  return h+'</div>';
-}
-/* §rtStrip · แถบเดียวใต้ Source ของ Pricing Matrix · รวมสองเรื่องที่คนต้องรู้ตรงนั้นพอดี
-     1) เรทที่ใช้อยู่กำลังจะหมดหรือยัง   2) หลังหมดแล้วใช้อะไร (ตารางฤดูกาล)
-   ตั้งใจให้สูงไม่เกินสองบรรทัด · รายละเอียดเต็ม ๆ อยู่ที่หน้า Rate Type Management
-   ของเดิมเป็นสองกล่องใหญ่ กินที่จนตารางราคาถูกดันตกจอ */
-function rtAgentRateStrip(a){
-  if(!a) return '';
-  var e = _rsE, out = [];
-  var X = (typeof rtExpForAgent === 'function') ? rtExpForAgent(a) : null;
-  var S = laSeasonsOf(a), T = (typeof TODAY_STR !== 'undefined') ? TODAY_STR : '';
-  var cur = laSeasonAt(a, T);
-  var pill = function(t, bg, bd, fg){ return '<span style="flex:none;font-size:9.5px;font-weight:800;'
-    +'border-radius:999px;padding:2px 9px;background:'+bg+';border:1px solid '+bd+';color:'+fg+';'
-    +'white-space:nowrap">'+t+'</span>'; };
-  var row = function(inner, bg, bd){ return '<div style="display:flex;align-items:center;gap:9px;'
-    +'flex-wrap:wrap;background:'+bg+';border:1px solid '+bd+';border-radius:9px;padding:7px 12px;'
-    +'margin:0 0 8px;font-size:11.5px;color:#4A5360;line-height:1.55">'+inner+'</div>'; };
-
-  /* ── เรทที่ใช้อยู่ใกล้หมด · บรรทัดเดียว รายละเอียดไปดูหน้ารวม ── */
-  if(X){
-    var tn = rtExpTone(X.days);
-    var det = [];
-    if(X.blocked.length) det.push('<span style="color:#A32D2D">จองไม่ได้ '+X.blocked.length+' โปรแกรม</span>');
-    if(X.next){
-      var nx = (typeof getRateType==='function') ? getRateType(X.next) : null;
-      if(nx) det.push('<span style="color:#0F6E56">สัญญาระบุตัวถัดไป <b>'+e(nx.name||nx.code)+'</b></span>');
-    }
-    out.push(row(
-      pill(tn.t, tn.bg, tn.bd, tn.fg)
-      + '<span>เรทที่ใช้อยู่หมด <b>'+e(_rtExpDate(X.to))+'</b></span>'
-      + (det.length ? ('<span style="color:#C9CFD8">·</span>' + det.join('<span style="color:#C9CFD8"> · </span>')) : '')
-      + '<button onclick="nav(document.querySelector(\'.nav-item[data-view=&quot;rate-admin&quot;]\'))" '
-        +'style="margin-left:auto;flex:none;border:0;background:transparent;color:#5A6270;'
-        +'font:600 10.5px inherit;cursor:pointer;font-family:inherit;text-decoration:underline">ดูภาพรวม</button>',
-      tn.bg, tn.bd));
-  }
-
-  /* ── ตารางฤดูกาล · ยังไม่ตั้ง = บรรทัดชวน · ตั้งแล้ว = บรรทัดสรุปอ่านจบในตาเดียว ── */
-  var btn = '<button onclick="rtSeasonOpen(\''+e(a.id)+'\')" style="flex:none;border:1px solid #C9D2DE;'
-    +'background:#fff;color:#33506F;border-radius:7px;padding:3px 11px;font:600 10.5px inherit;'
-    +'cursor:pointer;font-family:inherit;white-space:nowrap">'+(S.length?'แก้':'ตั้งตารางฤดูกาล')+'</button>';
-  if(!S.length){
-    out.push(row('<b style="flex:none;color:#3C4553">ตารางฤดูกาล</b>'
-      +'<span style="color:#8A929E">ยังไม่ได้ตั้ง · ใช้ชุดราคาเดียวตลอดทั้งปี ไม่ว่าจะเดินทางวันไหน</span>'
-      +'<span style="margin-left:auto;display:flex">'+btn+'</span>', '#F7F8FA', '#E7EAEF'));
-  } else {
-    var nm = function(x){ return e(rtSeasonName(x.rt)); };
-    var txt = S.map(function(x){
-      var on = cur && cur === x;
-      return '<span style="'+(on?'color:#0F6E56;font-weight:700':'color:#6B7280')+'">'
-        + nm(x) + ' <span style="font-variant-numeric:tabular-nums;opacity:.75">'
-        + e(_rsDate(x.from)) + (x.to ? ('–'+e(_rsDate(x.to))) : '→') + '</span></span>';
-    }).join('<span style="color:#C9CFD8"> · </span>');
-    var iss = laSeasonIssues(a);
-    out.push(row('<b style="flex:none;color:#2C3440">ตารางฤดูกาล</b>'
-      + pill(S.length+' ช่วง', '#EDF2F8', '#D6DEE8', '#33506F')
-      + '<span style="flex:1;min-width:0">'+txt+'</span>'
-      + (iss.length ? pill('⚠ '+iss.length, '#FEF6E7', '#EFD9AE', '#8A5A00') : '')
-      + '<span style="display:flex">'+btn+'</span>', '#fff', '#DDE3EC'));
-  }
-  return out.join('');
-}
-
-/* ── ตัวแก้ · ทำงานบนสำเนา กดบันทึกถึงจะลง ──────────────────────────────── */
-function rtSeasonOpen(agentId){
-  if(typeof laGuardEdit==='function' && !laGuardEdit('sales')) return;
-  var a=(typeof sbGetAgent==='function')?sbGetAgent(agentId):null; if(!a) return;
-  _rtSeasonAgent=agentId;
-  _rtSeasonDraft=laSeasonsOf(a).map(function(x){ return {rt:x.rt, from:x.from, to:x.to||''}; });
-  if(!_rtSeasonDraft.length && a.rateTypeId)
-    _rtSeasonDraft=[{rt:a.rateTypeId, from:(typeof TODAY_STR!=='undefined'?TODAY_STR:''), to:''}];
-  rtSeasonRender();
-}
-function rtSeasonAdd(){
-  var last=_rtSeasonDraft[_rtSeasonDraft.length-1];
-  var from=(last && last.to) ? laDayAfter(last.to) : '';
-  /* ใบก่อนหน้ายังไม่มีวันจบ · ปิดให้ก่อนหนึ่งวันจะได้ต่อกันพอดี ไม่ทับและไม่โหว่ */
-  if(last && !last.to && from==='') { last.to=''; }
-  _rtSeasonDraft.push({rt:(last&&last.rt)||'', from:from, to:''});
-  rtSeasonRender();
-}
-function rtSeasonDel(i){ _rtSeasonDraft.splice(i,1); rtSeasonRender(); }
-function rtSeasonSet(i,k,v){ if(_rtSeasonDraft[i]) _rtSeasonDraft[i][k]=String(v||''); rtSeasonRender(); }
-/* ปิดช่วงก่อนหน้าให้ชนกับวันเริ่มของช่วงถัดไปพอดี · งานที่คนทำมือแล้วพลาดบ่อยที่สุด */
-function rtSeasonSnap(){
-  for(var i=0;i<_rtSeasonDraft.length-1;i++){
-    var n=_rtSeasonDraft[i+1];
-    if(n && n.from) _rtSeasonDraft[i].to=_rtSeasonPrev(n.from);
-  }
-  if(_rtSeasonDraft.length) _rtSeasonDraft[_rtSeasonDraft.length-1].to='';
-  rtSeasonRender();
-}
+/* วันก่อนหน้าหนึ่งวัน · ใช้ตอนปิดช่วงให้ชนกับวันเริ่มของช่วงถัดไป */
 function _rtSeasonPrev(ymd){
   var p=String(ymd||'').split('-'); if(p.length!==3) return '';
   var d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])); d.setUTCDate(d.getUTCDate()-1);
   return d.toISOString().slice(0,10);
 }
-function rtSeasonRender(){
-  var e=_rsE, D=_rtSeasonDraft||[];
-  var a=(typeof sbGetAgent==='function')?sbGetAgent(_rtSeasonAgent):null;
-  var probe={rateSeasons:D};
-  var iss=laSeasonIssues(probe);
-  var opts=((typeof SB_RATE_TYPES!=='undefined')?SB_RATE_TYPES:[])
-    .filter(function(r){ return r && r.active!==false; });
-  var inp='border:1px solid #D6DCE5;border-radius:6px;padding:4px 7px;font:inherit;font-size:11.5px;'
-    +'font-family:inherit;box-sizing:border-box';
-  var h='<div style="padding:16px 18px;border-bottom:1px solid #EEF0F3">'
-    +'<div style="font-size:15px;font-weight:800;color:#1F2937">ตารางฤดูกาล · ราคามาตรฐาน</div>'
-    +'<div style="font-size:11.5px;color:#6B7280;margin-top:3px">'+e((a&&(a.code+' · '+a.name))||'')+'</div>'
-    +'</div>'
-    +'<div style="padding:14px 18px">'
-    +'<div style="font-size:11px;color:#5A6270;line-height:1.65;margin-bottom:11px">'
-      +'ราคาสลับตาม<b>วันเดินทาง</b>ของแต่ละทริป · ใบจองใบเดียวที่ข้ามฤดูจะได้คนละราคาต่อทริป<br>'
-      +'<b>ไม่มีลำดับความสำคัญ</b> — ฤดูกาลไม่ทับกันอยู่แล้ว · ส่วนที่ทับได้คือ Promotion ซึ่งยังทับข้างบนนี้เหมือนเดิม<br>'
-      +'ช่วงสุดท้ายควรเว้นวันจบไว้ว่าง จะได้ไม่มีวันไหนไม่มีราคา'
-    +'</div>';
-  if(!D.length) h+='<div style="font-size:11.5px;color:#8A929E;padding:10px 0">ยังไม่มีช่วงไหน · กด "เพิ่มช่วง" ด้านล่าง</div>';
-  /* §rsRow · หนึ่งช่วง = สองบรรทัด · ชุดราคาบรรทัดบน ช่วงวันบรรทัดล่าง
-     เดิมยัดเรียงเดียวแล้วมันตีบรรทัดเอง ปุ่มลบตกไปลอยอยู่บรรทัดถัดไป อ่านไม่ออกว่าลบอันไหน */
-  D.forEach(function(x,i){
-    var cur=(typeof TODAY_STR!=='undefined')?TODAY_STR:'';
-    var live=x.from && cur>=x.from && (!x.to || cur<=x.to);
-    h+='<div style="border:1px solid '+(live?'#BEE0D2':'#E7EAEF')+';background:'+(live?'#F6FBF9':'#fff')+';'
-      +'border-radius:9px;padding:8px 10px;margin-bottom:7px">'
-      +'<div style="display:flex;gap:7px;align-items:center;margin-bottom:6px">'
-        +'<span style="width:16px;flex:none;font-size:10px;font-weight:700;color:#9AA3AE">'+(i+1)+'</span>'
-        +'<select onchange="rtSeasonSet('+i+',\'rt\',this.value)" style="'+inp+';flex:1;min-width:0">'
-          +'<option value="">— เลือกชุดราคา —</option>'
-          + opts.map(function(r){ return '<option value="'+e(r.id)+'"'+(r.id===x.rt?' selected':'')+'>'
-              +e(r.name||r.id)+'</option>'; }).join('')
-        +'</select>'
-        +(live?'<span style="flex:none;font-size:9.5px;font-weight:800;color:#0F6E56;background:#E3F3EC;'
-          +'border-radius:999px;padding:2px 8px;white-space:nowrap">ใช้อยู่</span>':'')
-        +'<button onclick="rtSeasonDel('+i+')" title="เอาช่วงนี้ออก" style="flex:none;border:1px solid #EAD6D6;'
-          +'background:#fff;color:#A32D2D;border-radius:6px;padding:3px 9px;font:700 11px inherit;'
-          +'cursor:pointer;font-family:inherit">&#10005;</button>'
-      +'</div>'
-      +'<div style="display:flex;gap:7px;align-items:center;padding-left:23px">'
-        +'<input type="date" value="'+e(x.from)+'" onchange="rtSeasonSet('+i+',\'from\',this.value)" style="'+inp+';flex:1;min-width:0">'
-        +'<span style="flex:none;color:#9AA3AE;font-size:11px">→</span>'
-        +'<input type="date" value="'+e(x.to)+'" onchange="rtSeasonSet('+i+',\'to\',this.value)" style="'+inp+';flex:1;min-width:0">'
-        +'<span style="flex:none;font-size:10px;color:'+(x.to?'#9AA3AE':'#0F6E56')+';width:74px">'
-          +(x.to?'':'ไม่มีวันจบ')+'</span>'
-      +'</div>'
-    +'</div>';
-  });
-  h+='<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
-    +'<button onclick="rtSeasonAdd()" style="border:1px dashed #C9D2DE;background:#fff;color:#33506F;border-radius:7px;'
-      +'padding:5px 13px;font:700 11px inherit;cursor:pointer;font-family:inherit">+ เพิ่มช่วง</button>'
-    +'<button onclick="rtSeasonSnap()" title="ปิดวันจบของแต่ละช่วงให้ชนกับวันเริ่มของช่วงถัดไปพอดี" '
-      +'style="border:1px solid #C9D2DE;background:#fff;color:#33506F;border-radius:7px;'
-      +'padding:5px 13px;font:600 11px inherit;cursor:pointer;font-family:inherit">จัดวันให้ต่อกันพอดี</button>'
-    +'</div>';
-  if(iss.length){
-    h+='<div style="margin-top:11px;background:#FEF6E7;border:1px solid #EFD9AE;border-radius:8px;padding:8px 11px;'
-      +'font-size:11px;color:#8A5A00;line-height:1.65">'
-      + iss.map(function(t){ return '&#9888; '+e(t); }).join('<br>')
-      +'<div style="color:#A08558;margin-top:4px">บันทึกได้อยู่ · ข้อทักเหล่านี้ไม่ได้ปิดกั้น แต่ควรแก้ก่อนใช้จริง</div></div>';
+
+/* §rtTab · บรรทัดชี้ทางในหน้า Pricing Matrix · บอกแค่พอให้รู้ว่ามีเรื่อง แล้วกดไปจัดการที่แท็บ
+   ตั้งใจให้เป็นบรรทัดเดียวเสมอ ไม่ว่าจะมีเรื่องหรือไม่ · ตารางราคาคือพระเอกของหน้านี้ */
+function rtMatrixHint(a){
+  if(!a) return '';
+  var e = _rsE, T = (typeof TODAY_STR !== 'undefined') ? TODAY_STR : '';
+  var X = (typeof rtExpForAgent === 'function') ? rtExpForAgent(a) : null;
+  var S = laSeasonsOf(a), cur = laSeasonAt(a, T);
+  var go = 'onclick="agSwitchTab(\'ratemgmt\',\''+e(a.id)+'\')"';
+  var bg = '#F7F8FA', bd = '#E7EAEF', mid;
+  if(X){
+    var tn = rtExpTone(X.days); bg = tn.bg; bd = tn.bd;
+    mid = '<b style="color:'+tn.fg+'">&#9888; เรทที่ใช้อยู่หมด '+e(_rsDate(X.to))+'</b>'
+        + '<span style="color:#8A929E">· '+e(tn.t)+' · ยังไม่ได้ตั้งตารางฤดูกาลรับ</span>';
+  } else if(S.length){
+    mid = '<b style="color:#2C3440">ตารางฤดูกาล '+S.length+' ช่วง</b>'
+        + '<span style="color:#6B7280">· ตอนนี้ใช้ <b>'+e(cur?rtSeasonName(cur.rt):rtSeasonName(a.rateTypeId))+'</b></span>';
+  } else {
+    mid = '<span style="color:#6B7280">ใช้ชุดราคาเดียวตลอดทั้งปี · ยังไม่ได้ตั้งตารางฤดูกาล</span>';
   }
-  h+='</div>'
-    +'<div style="padding:12px 18px;border-top:1px solid #EEF0F3;display:flex;gap:8px;justify-content:flex-end">'
-      +'<button onclick="acctModalClose()" style="border:1px solid #D6DCE5;background:#fff;color:#5A6270;'
-        +'border-radius:8px;padding:7px 15px;font:600 11.5px inherit;cursor:pointer;font-family:inherit">ยกเลิก</button>'
-      +'<button onclick="rtSeasonSave()" style="border:0;background:#0F172A;color:#fff;border-radius:8px;'
-        +'padding:7px 17px;font:700 11.5px inherit;cursor:pointer;font-family:inherit">บันทึก</button>'
-    +'</div>';
-  acctModal(h);
-}
-function rtSeasonSave(){
-  if(typeof laGuardEdit==='function' && !laGuardEdit('sales')) return;
-  var a=(typeof sbGetAgent==='function')?sbGetAgent(_rtSeasonAgent):null; if(!a) return;
-  var clean=(_rtSeasonDraft||[]).filter(function(x){ return x && x.rt && x.from; })
-    .map(function(x){ return {rt:x.rt, from:x.from, to:x.to||''}; })
-    .sort(function(x,y){ return String(x.from).localeCompare(String(y.from)); });
-  if(clean.length) a.rateSeasons=clean; else delete a.rateSeasons;
-  /* §rateBind · เขียนผ่านทางเดียวกับการผูกเรท · sidecar ต้องได้ตารางไปด้วย
-     ไม่งั้นโหลดใหม่แล้วตารางหาย แบบเดียวกับบั๊กที่เพิ่งแก้ไป */
-  if(typeof sbAgentsPersist==='function') sbAgentsPersist();
-  if(typeof agLog==='function') agLog(a.id,'rate', clean.length
-    ? ('ตั้งตารางฤดูกาล '+clean.length+' ช่วง · '+clean.map(function(x){
-        return rtSeasonName(x.rt)+' '+x.from+'→'+(x.to||'ไม่มีวันสิ้นสุด'); }).join(' · '))
-    : 'เอาตารางฤดูกาลออก · กลับไปใช้ชุดราคาเดียวทั้งปี');
-  acctModalClose();
-  if(typeof renderAgents==='function') renderAgents();
+  return '<div '+go+' style="background:'+bg+';border:1px solid '+bd+';border-radius:9px;padding:7px 12px;'
+    +'margin:0 0 12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:11.5px;'
+    +'color:#4A5360;cursor:pointer">'+mid
+    +'<span style="margin-left:auto;color:#5A6270;font-weight:600;text-decoration:underline;white-space:nowrap">'
+    +'จัดการที่แท็บ Rate Type</span></div>';
 }
 
 function renderRateTypes(){
@@ -37231,6 +37040,17 @@ function agRenderDetail(aId){
         const n = Array.isArray(a.activity)?a.activity.length:0;
         return n ? ` <span style="background:#EEE9FB;color:#6c5ce7;font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:8px;margin-left:4px;font-variant-numeric:tabular-nums">${n}</span>` : '';
       })()}</div>
+      <!-- §rtTab · งานจัดการเรทของเอเย่นต์รายนี้ · ย้ายออกจาก Pricing Matrix มาอยู่แท็บของตัวเอง -->
+      <div class="sb-tab" data-tab="ratemgmt" onclick="agSwitchTab('ratemgmt','${a.id}')">Rate Type${(function(){
+        /* จุดสีขึ้นเมื่อมีเรื่องต้องจัดการ · เรทใกล้หมดและยังไม่ได้ตั้งตารางรับ
+           ไม่มีเรื่อง = ไม่มีจุด · แท็บจะได้ไม่ส่งเสียงตลอดเวลา */
+        try{
+          const X = (typeof rtExpForAgent==='function') ? rtExpForAgent(a) : null;
+          if(!X) return '';
+          const T = rtExpTone(X.days);
+          return ` <span title="${X.days<0?'เรทหมดอายุแล้ว':'เรทใกล้หมดอายุ'} · ยังไม่ได้ตั้งตารางฤดูกาลรับ" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${T.fg};margin-left:5px;vertical-align:middle"></span>`;
+        }catch(_){ return ''; }
+      })()}</div>
     </div>
     <div class="sb-main-body" id="ag-tabbody">${agTabInfo(a)}</div>
   `;
@@ -38241,10 +38061,10 @@ function agTabPrices(a){
     </div>
     <button onclick="agEditOpen('ratetype','${a.id}')" style="background:#fff;color:${rt.color};border:1px solid ${rt.color}55;font-family:inherit;font-size:10.5px;font-weight:600;padding:4px 11px;border-radius:6px;cursor:pointer">เปลี่ยน Rate Type</button>
   </div>`;
-  /* §rtStrip · ของสองอย่างที่เคยแยกกันอยู่ตรงนี้ — กล่องเตือนวันหมด กับบล็อกตารางฤดูกาล —
-     รวมเป็นแถบเดียว · เดิมสองก้อนนั้นสูงรวมกันเกือบครึ่งจอ ดันตารางราคาซึ่งเป็นพระเอกของหน้าลงไป
-     หน้านี้ชื่อ Pricing Matrix · ตารางราคาต้องมาก่อน เรื่องสัญญา-ฤดูกาลเป็นบรรทัดประกอบ */
-  html += (typeof rtAgentRateStrip==='function') ? rtAgentRateStrip(a) : '';
+  /* §rtTab · งานจัดการเรท (วันหมด · ตารางฤดูกาล) ย้ายไปแท็บ Rate Type แล้ว
+     หน้านี้ชื่อ Pricing Matrix · หน้าที่เดียวคือโชว์ตารางราคา ไม่ต้องมีของให้ตั้ง
+     เหลือบรรทัดชี้ทางไว้บรรทัดเดียว เพราะคนที่สงสัยเรื่องเรทมักสงสัยตอนมองราคาอยู่ */
+  html += (typeof rtMatrixHint==='function') ? rtMatrixHint(a) : '';
 
   /* §promoMx · ACTIVE PERIOD ในตารางดูเหมือนประตูกั้นราคา แต่วัดแล้วไม่ใช่
      จองนอกช่วงก็ยังคิดราคาเดิม · และตามที่ตกลงกันไว้ก็ควรเป็นแบบนั้น
@@ -39224,6 +39044,243 @@ function agTabHist(a){
   return html;
 }
 
+/* ══ §rtTab · แท็บ Rate Type ของเอเย่นต์ ═════════════════════════════════════
+   งานจัดการเรททั้งหมดของเอเย่นต์รายนี้อยู่ที่นี่ที่เดียว
+   หน้า Pricing Matrix กลับไปทำหน้าที่เดิมของมัน คือ "โชว์ตารางราคา" ไม่ต้องมีของให้ตั้ง
+
+   ตัวแก้ตารางฤดูกาลอยู่ในหน้าเลย ไม่ใช่ป๊อปอัป · แก้แล้วเห็นผลข้างล่างทันที
+   ป๊อปอัปบังของที่กำลังตัดสินใจอยู่ ซึ่งคือ "ตกลงวันไหนใช้ชุดไหน"
+   ═══════════════════════════════════════════════════════════════════════════ */
+var _rtmDraft = null, _rtmAgent = '';
+function _rtmE(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function _rtmD(y){ return (typeof _rtFmtDate==='function') ? (_rtFmtDate(y)||y||'—') : (y||'—'); }
+function _rtmSame(a){
+  var cur=JSON.stringify(laSeasonsOf(a).map(function(x){ return [x.rt,x.from,x.to||'']; }));
+  var dr =JSON.stringify((_rtmDraft||[]).filter(function(x){ return x.rt&&x.from; })
+            .slice().sort(function(x,y){ return String(x.from).localeCompare(String(y.from)); })
+            .map(function(x){ return [x.rt,x.from,x.to||'']; }));
+  return cur===dr;
+}
+function rtmInit(aId){
+  _rtmAgent=aId;
+  var a=(typeof sbGetAgent==='function')?sbGetAgent(aId):null;
+  _rtmDraft=laSeasonsOf(a).map(function(x){ return {rt:x.rt, from:x.from, to:x.to||''}; });
+}
+function rtmRedraw(){
+  var a=(typeof sbGetAgent==='function')?sbGetAgent(_rtmAgent):null; if(!a) return;
+  var body=document.getElementById('ag-tabbody'); if(!body) return;
+  body.innerHTML=agTabRate(a);
+}
+function rtmSet(i,k,v){ if(_rtmDraft[i]) _rtmDraft[i][k]=String(v||''); rtmRedraw(); }
+function rtmDel(i){ _rtmDraft.splice(i,1); rtmRedraw(); }
+function rtmAdd(){
+  var last=_rtmDraft[_rtmDraft.length-1];
+  _rtmDraft.push({ rt:(last&&last.rt)||'', from:(last&&last.to)?laDayAfter(last.to):'', to:'' });
+  rtmRedraw();
+}
+function rtmSnap(){
+  for(var i=0;i<_rtmDraft.length-1;i++){
+    var n=_rtmDraft[i+1];
+    if(n && n.from) _rtmDraft[i].to=_rtSeasonPrev(n.from);
+  }
+  if(_rtmDraft.length) _rtmDraft[_rtmDraft.length-1].to='';
+  rtmRedraw();
+}
+function rtmReset(){ rtmInit(_rtmAgent); rtmRedraw(); }
+/* เติมให้จากสิ่งที่สัญญาระบุไว้ · เอเย่นต์คนเดียว · กติกาวันแบ่งเดียวกับปุ่มตั้งทั้งกลุ่ม */
+function rtmFillFromContract(){
+  var a=(typeof sbGetAgent==='function')?sbGetAgent(_rtmAgent):null; if(!a) return;
+  var P=rtmSuggest(a); if(!P) return;
+  _rtmDraft=P.seasons.slice();
+  rtmRedraw();
+}
+function rtmSuggest(a){
+  if(!a || !a.rateTypeId) return null;
+  var rt=(typeof getRateType==='function')?getRateType(a.rateTypeId):null; if(!rt) return null;
+  var nx=rtExpNextOf(a.id); if(!nx || nx===a.rateTypeId) return null;
+  var nrt=(typeof getRateType==='function')?getRateType(nx):null;
+  if(!nrt || nrt.active===false) return null;
+  var vf=String(nrt.validFrom||''), vt=String(rt.validTo||'');
+  var split=(vf && (!vt || vf>=vt)) ? vf : (typeof laDayAfter==='function'?laDayAfter(vt):'');
+  if(!split) return null;
+  if(typeof TODAY_STR!=='undefined' && split<=TODAY_STR) return null;
+  var endOld=_rtSeasonPrev(split), out=[];
+  if(rt.validFrom && endOld && rt.validFrom<=endOld) out.push({rt:rt.id, from:String(rt.validFrom), to:endOld});
+  out.push({rt:nx, from:split, to:''});
+  return { seasons:out, next:nrt, split:split };
+}
+function rtmSave(){
+  if(typeof laGuardEdit==='function' && !laGuardEdit('sales')) return;
+  var a=(typeof sbGetAgent==='function')?sbGetAgent(_rtmAgent):null; if(!a) return;
+  var clean=(_rtmDraft||[]).filter(function(x){ return x && x.rt && x.from; })
+    .map(function(x){ return {rt:x.rt, from:x.from, to:x.to||''}; })
+    .sort(function(x,y){ return String(x.from).localeCompare(String(y.from)); });
+  if(clean.length) a.rateSeasons=clean; else delete a.rateSeasons;
+  if(typeof sbAgentsPersist==='function') sbAgentsPersist();     /* §rateBind · ลงทั้งสองที่ */
+  if(typeof agLog==='function') agLog(a.id,'rate', clean.length
+    ? ('ตั้งตารางฤดูกาล '+clean.length+' ช่วง · '+clean.map(function(x){
+        return rtSeasonName(x.rt)+' '+x.from+'→'+(x.to||'ไม่มีวันสิ้นสุด'); }).join(' · '))
+    : 'เอาตารางฤดูกาลออก · กลับไปใช้ชุดราคาเดียวทั้งปี');
+  rtmInit(a.id); rtmRedraw();
+  if(typeof flShowToast==='function') flShowToast('บันทึกตารางฤดูกาลแล้ว');
+}
+/* ── ตัวแท็บ ────────────────────────────────────────────────────────────── */
+function agTabRate(a){
+  if(!a) return '';
+  if(_rtmAgent!==a.id || _rtmDraft===null) rtmInit(a.id);
+  var e=_rtmE, T=(typeof TODAY_STR!=='undefined')?TODAY_STR:'';
+  var rt=(typeof getRateType==='function')?getRateType(a.rateTypeId):null;
+  var ro=(typeof laCanEditArea==='function') && !laCanEditArea('sales');
+  var card='background:#fff;border:1px solid #E7EAEF;border-radius:12px;padding:14px 16px;margin:0 0 12px';
+  var h='<div style="padding:18px 22px 26px">';
+
+  /* ① เรทที่ใช้อยู่ */
+  var X=(typeof rtExpForAgent==='function')?rtExpForAgent(a):null;
+  h+='<div style="'+card+'">'
+    +'<div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;'
+      +'color:#9AA3AE;margin-bottom:9px">1 · เรทที่ผูกไว้</div>';
+  if(!rt){
+    h+='<div style="font-size:12.5px;color:#A32D2D;font-weight:600">ยังไม่ได้ผูก Rate Type — '
+      +'ราคายังไม่ถูก resolve จองให้เอเย่นต์นี้ต้องใส่ราคาเองทุกใบ</div>';
+  }else{
+    var tn=X?rtExpTone(X.days):null;
+    h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+      +'<span style="width:10px;height:10px;border-radius:3px;background:'+(rt.color||'#5F5E5A')+';flex:none"></span>'
+      +'<b style="font-size:14.5px;color:#1F2937">'+e(rt.name||rt.id)+'</b>'
+      +'<span style="background:#F1F3F6;color:#5A6270;font-size:9.5px;font-weight:700;padding:2px 8px;'
+        +'border-radius:6px;font-variant-numeric:tabular-nums">'+e(rt.code||'')+'</span>'
+      +'<span style="font-size:11.5px;color:#8A929E;font-variant-numeric:tabular-nums">'
+        +e(_rtmD(rt.validFrom))+' → '+e(_rtmD(rt.validTo))+'</span>'
+      +(tn?('<span style="background:'+tn.bg+';border:1px solid '+tn.bd+';color:'+tn.fg
+        +';font-size:10px;font-weight:800;border-radius:999px;padding:2px 10px">'+e(tn.t)+'</span>'):'')
+      +'<button onclick="agEditOpen(\'ratetype\',\''+e(a.id)+'\')"'+(ro?' disabled':'')
+        +' style="margin-left:auto;border:1px solid #D6DCE5;background:#fff;color:#33506F;border-radius:7px;'
+        +'padding:5px 13px;font:600 11px inherit;cursor:pointer;font-family:inherit">เปลี่ยน Rate Type</button>'
+    +'</div>';
+    if(X && X.blocked.length){
+      h+='<div style="margin-top:8px;background:#FCEBEB;border:1px solid #E8C4C0;border-radius:8px;'
+        +'padding:7px 11px;font-size:11.5px;color:#A32D2D;line-height:1.6">'
+        +'<b>จองไม่ได้ '+X.blocked.length+' โปรแกรม</b> — '
+        + X.blocked.slice(0,5).map(function(p){ return e(rtExpRouteName(p)); }).join(' · ')
+        + (X.blocked.length>5?(' · และอีก '+(X.blocked.length-5)):'')
+        +'<div style="color:#8A5A00;font-weight:500;margin-top:2px">เรทชุดนี้ไม่มีราคาของโปรแกรมพวกนี้ '
+        +'· ปุ่มบันทึกใบจองจะถูกล็อก · ตั้งตารางฤดูกาลให้ไปใช้ชุดที่มีราคา แล้วจะจองได้</div></div>';
+    }
+  }
+  h+='</div>';
+
+  /* ② ตารางฤดูกาล · ตัวแก้อยู่ในหน้า */
+  var D=_rtmDraft||[], probe={rateSeasons:D}, iss=laSeasonIssues(probe);
+  var dirty=!_rtmSame(a);
+  var opts=((typeof SB_RATE_TYPES!=='undefined')?SB_RATE_TYPES:[]).filter(function(r){ return r && r.active!==false; });
+  var inp='border:1px solid #D6DCE5;border-radius:7px;padding:6px 9px;font:inherit;font-size:12px;'
+    +'font-family:inherit;box-sizing:border-box;background:#fff';
+  var sug=rtmSuggest(a);
+  h+='<div style="'+card+'">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">'
+      +'<span style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#9AA3AE">'
+      +'2 · ตารางฤดูกาล</span>'
+      +(D.length?('<span style="background:#EDF2F8;border:1px solid #D6DEE8;color:#33506F;font-size:10px;'
+        +'font-weight:800;border-radius:999px;padding:2px 9px">'+D.length+' ช่วง</span>'):'')
+      +(dirty?('<span style="background:#FEF6E7;border:1px solid #EFD9AE;color:#8A5A00;font-size:10px;'
+        +'font-weight:800;border-radius:999px;padding:2px 9px">ยังไม่ได้บันทึก</span>'):'')
+    +'</div>'
+    +'<div style="font-size:11.5px;color:#6B7280;line-height:1.65;margin-bottom:11px">'
+      +'ราคาสลับตาม<b>วันเดินทาง</b>ของแต่ละทริป · ใบจองใบเดียวที่ข้ามฤดูจะได้คนละราคาต่อทริป<br>'
+      +'ช่วงสุดท้าย<b>เว้นวันจบไว้ว่าง</b> จะได้ไม่มีวันไหนไม่มีราคา'
+    +'</div>';
+  if(!D.length){
+    h+='<div style="background:#F7F8FA;border:1px dashed #D6DCE5;border-radius:9px;padding:14px;'
+      +'text-align:center;font-size:12px;color:#8A929E">ยังไม่ได้ตั้ง · เอเย่นต์นี้ใช้ชุดราคาเดียวตลอดทั้งปี</div>';
+  }
+  D.forEach(function(x,i){
+    var live=x.from && T>=x.from && (!x.to||T<=x.to);
+    h+='<div style="border:1px solid '+(live?'#BEE0D2':'#E7EAEF')+';background:'+(live?'#F6FBF9':'#FCFCFD')+';'
+      +'border-radius:9px;padding:9px 11px;margin-bottom:8px">'
+      +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:7px">'
+        +'<span style="flex:none;width:18px;font-size:11px;font-weight:700;color:#9AA3AE">'+(i+1)+'</span>'
+        +'<select onchange="rtmSet('+i+',\'rt\',this.value)"'+(ro?' disabled':'')+' style="'+inp+';flex:1;min-width:0">'
+          +'<option value="">— เลือกชุดราคา —</option>'
+          + opts.map(function(r){ return '<option value="'+e(r.id)+'"'+(r.id===x.rt?' selected':'')+'>'
+              +e(r.name||r.id)+'</option>'; }).join('')
+        +'</select>'
+        +(live?'<span style="flex:none;font-size:9.5px;font-weight:800;color:#0F6E56;background:#E3F3EC;'
+          +'border-radius:999px;padding:3px 9px;white-space:nowrap">ใช้อยู่วันนี้</span>':'')
+        +'<button onclick="rtmDel('+i+')"'+(ro?' disabled':'')+' title="เอาช่วงนี้ออก" '
+          +'style="flex:none;border:1px solid #EAD6D6;background:#fff;color:#A32D2D;border-radius:7px;'
+          +'padding:5px 10px;font:700 12px inherit;cursor:pointer;font-family:inherit">&#10005;</button>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px;align-items:center;padding-left:26px;flex-wrap:wrap">'
+        +'<label style="font-size:10.5px;color:#8A929E;flex:none">ตั้งแต่</label>'
+        +'<input type="date" value="'+e(x.from)+'"'+(ro?' disabled':'')
+          +' onchange="rtmSet('+i+',\'from\',this.value)" style="'+inp+';width:150px">'
+        +'<label style="font-size:10.5px;color:#8A929E;flex:none">ถึง</label>'
+        +'<input type="date" value="'+e(x.to)+'"'+(ro?' disabled':'')
+          +' onchange="rtmSet('+i+',\'to\',this.value)" style="'+inp+';width:150px">'
+        +'<span style="font-size:10.5px;color:'+(x.to?'#9AA3AE':'#0F6E56')+';font-weight:'+(x.to?'500':'700')+'">'
+          +(x.to?'':'← เว้นว่าง = ใช้ยาวไม่มีวันจบ')+'</span>'
+      +'</div>'
+    +'</div>';
+  });
+  if(!ro){
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
+      +'<button onclick="rtmAdd()" style="border:1px dashed #C9D2DE;background:#fff;color:#33506F;'
+        +'border-radius:8px;padding:7px 15px;font:700 11.5px inherit;cursor:pointer;font-family:inherit">+ เพิ่มช่วง</button>'
+      +(D.length>1?('<button onclick="rtmSnap()" title="ปิดวันจบของแต่ละช่วงให้ชนวันเริ่มของช่วงถัดไปพอดี" '
+        +'style="border:1px solid #C9D2DE;background:#fff;color:#33506F;border-radius:8px;padding:7px 15px;'
+        +'font:600 11.5px inherit;cursor:pointer;font-family:inherit">จัดวันให้ต่อกันพอดี</button>'):'')
+      +(sug?('<button onclick="rtmFillFromContract()" title="สร้างตารางจากเรทตัวถัดไปที่สัญญาระบุไว้" '
+        +'style="border:1px solid #BEE0D2;background:#F1F8F5;color:#0F6E56;border-radius:8px;padding:7px 15px;'
+        +'font:700 11.5px inherit;cursor:pointer;font-family:inherit">'
+        +'เติมจากสัญญา · '+e(sug.next.name||sug.next.id)+' ตั้งแต่ '+e(_rtmD(sug.split))+'</button>'):'')
+      +'<span style="margin-left:auto;display:flex;gap:8px">'
+        +(dirty?('<button onclick="rtmReset()" style="border:1px solid #D6DCE5;background:#fff;color:#5A6270;'
+          +'border-radius:8px;padding:7px 15px;font:600 11.5px inherit;cursor:pointer;font-family:inherit">'
+          +'ยกเลิกการแก้</button>'):'')
+        +'<button onclick="rtmSave()"'+(dirty?'':' disabled')+' style="border:0;background:'+(dirty?'#0F172A':'#E7EAEF')
+          +';color:'+(dirty?'#fff':'#9AA3AE')+';border-radius:8px;padding:7px 19px;font:700 11.5px inherit;'
+          +'cursor:'+(dirty?'pointer':'default')+';font-family:inherit">บันทึก</button>'
+      +'</span></div>';
+  }
+  if(iss.length){
+    h+='<div style="margin-top:10px;background:#FEF6E7;border:1px solid #EFD9AE;border-radius:9px;'
+      +'padding:8px 12px;font-size:11.5px;color:#8A5A00;line-height:1.65">'
+      + iss.map(function(t){ return '&#9888; '+e(t); }).join('<br>')
+      +'<div style="color:#A08558;margin-top:3px">บันทึกได้อยู่ · ข้อทักพวกนี้ไม่ปิดกั้น แต่ควรแก้ก่อนใช้จริง</div></div>';
+  }
+  h+='</div>';
+
+  /* ③ ผลลัพธ์ · วันไหนใช้ชุดไหน · อ่านจากร่างที่กำลังแก้อยู่ จะได้เห็นผลก่อนกดบันทึก */
+  h+='<div style="'+card+';margin-bottom:0">'
+    +'<div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;'
+      +'color:#9AA3AE;margin-bottom:3px">3 · สรุป · วันไหนใช้ชุดไหน</div>'
+    +'<div style="font-size:11px;color:#8A929E;margin-bottom:9px">'
+      +(dirty?'ดูจากที่กำลังแก้อยู่ (ยังไม่บันทึก)':'ดูจากที่บันทึกไว้')+'</div>';
+  var probeA={ id:a.id, rateTypeId:a.rateTypeId, rateSeasons:D };
+  var dates=[{d:T, lbl:'วันนี้'}];
+  D.forEach(function(x){ if(x.from && x.from>T) dates.push({d:x.from, lbl:'เริ่มช่วงที่ '+(D.indexOf(x)+1)}); });
+  if(dates.length===1 && rt && rt.validTo && laDayAfter(rt.validTo)>T)
+    dates.push({d:laDayAfter(rt.validTo), lbl:'วันถัดจากเรทหมด'});
+  dates.forEach(function(p){
+    var hit=laSeasonAt(probeA, p.d);
+    var id=(hit&&hit.rt)||a.rateTypeId||'';
+    var nm=id?rtSeasonName(id):'—';
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #F1F3F6;font-size:12px">'
+      +'<span style="flex:none;width:150px;color:#6B7280;font-variant-numeric:tabular-nums">'
+        +e(_rtmD(p.d))+' <span style="color:#B6BDC6;font-size:10.5px">'+e(p.lbl)+'</span></span>'
+      +'<b style="color:#2C3440">'+e(nm)+'</b>'
+      +(hit?'':'<span style="font-size:10.5px;color:#8A929E">(ไม่มีช่วงไหนคลุม → ใช้เรทที่ผูกไว้)</span>')
+    +'</div>';
+  });
+  h+='<div style="margin-top:10px;background:#F1F8F5;border:1px solid #BEE0D2;border-radius:9px;'
+    +'padding:8px 12px;font-size:11.5px;color:#0F6E56;line-height:1.65">'
+    +'<b>ตั้งตาราง ≠ เปลี่ยนเรท</b> — ตารางไม่แตะราคาก่อนวันแบ่งเลยสักบาท '
+    +'เปลี่ยนเฉพาะทริปที่<b>เดินทาง</b>ตั้งแต่วันแบ่งไป · ใบที่ขายไปแล้วล็อกราคาเดิมไว้ ไม่คิดใหม่ย้อนหลัง</div>'
+    +'</div>';
+  return h+'</div>';
+}
+
 function agSwitchTab(tab, aId){
   const a = sbGetAgent(aId); if(!a) return;
   document.querySelectorAll('#ag-main .sb-tab').forEach(t=>t.classList.remove('on'));
@@ -39234,6 +39291,7 @@ function agSwitchTab(tab, aId){
   if(tab==='hist')    { _agHistPage=0; body.innerHTML = agTabHist(a); }
   if(tab==='contracts') body.innerHTML = agTabContracts(a);
   if(tab==='activity')  body.innerHTML = agTabActivity(a);
+  if(tab==='ratemgmt'){ rtmInit(aId); body.innerHTML = agTabRate(a); }   /* §rtTab */
 }
 
 // ── Agent Activity timeline (audit trail) ──

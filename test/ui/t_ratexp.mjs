@@ -173,7 +173,7 @@ const ST = await page.evaluate(ag => {
   const seat = [...box.querySelectorAll('*')]
     .filter(n => /Seat rates/.test(n.textContent || '') && n.children.length < 6)[0];
   const toSeat = seat ? Math.round(seat.getBoundingClientRect().top - top) : -1;
-  const usesStrip = /rtSeasonOpen/.test(box.innerHTML);
+  const usesStrip = /agSwitchTab\('ratemgmt'/.test(box.innerHTML);
   box.remove();
   return { toSeat, usesStrip };
 }, 'a13');
@@ -182,8 +182,52 @@ else if (ST.toSeat < 0) fail('\u0e2b\u0e32\u0e2b\u0e31\u0e27\u0e15\u0e32\u0e23\u
 else if (ST.toSeat > 680)
   fail('\u0e01\u0e27\u0e48\u0e32\u0e08\u0e30\u0e16\u0e36\u0e07\u0e15\u0e32\u0e23\u0e32\u0e07\u0e23\u0e32\u0e04\u0e32\u0e15\u0e49\u0e2d\u0e07\u0e1c\u0e48\u0e32\u0e19 ' + ST.toSeat + 'px \u00b7 \u0e02\u0e2d\u0e07\u0e02\u0e49\u0e32\u0e07\u0e1a\u0e19\u0e01\u0e34\u0e19\u0e17\u0e35\u0e48\u0e40\u0e01\u0e34\u0e19\u0e44\u0e1b');
 else ok('\u0e15\u0e32\u0e23\u0e32\u0e07\u0e23\u0e32\u0e04\u0e32\u0e40\u0e23\u0e34\u0e48\u0e21\u0e17\u0e35\u0e48 ' + ST.toSeat + 'px \u0e08\u0e32\u0e01\u0e2b\u0e31\u0e27\u0e2b\u0e19\u0e49\u0e32');
-if (ST && !ST.usesStrip) fail('\u0e2b\u0e19\u0e49\u0e32 Agent \u0e44\u0e21\u0e48\u0e21\u0e35\u0e17\u0e32\u0e07\u0e40\u0e02\u0e49\u0e32\u0e15\u0e31\u0e49\u0e07\u0e15\u0e32\u0e23\u0e32\u0e07\u0e24\u0e14\u0e39\u0e01\u0e32\u0e25');
-else if (ST) ok('\u0e2b\u0e19\u0e49\u0e32 Agent \u0e21\u0e35\u0e17\u0e32\u0e07\u0e40\u0e02\u0e49\u0e32\u0e15\u0e31\u0e49\u0e07\u0e15\u0e32\u0e23\u0e32\u0e07\u0e24\u0e14\u0e39\u0e01\u0e32\u0e25');
+if (ST && !ST.usesStrip) fail('Pricing Matrix ไม่มีบรรทัดชี้ไปแท็บ Rate Type');
+else if (ST) ok('Pricing Matrix มีบรรทัดชี้ไปแท็บ Rate Type');
+
+/* ── §rtTab · งานจัดการเรทอยู่ที่แท็บ Rate Type · ไม่ใช่ที่ Pricing Matrix ──
+   ตัวแก้ตารางฤดูกาลต้องอยู่ในแท็บ และอยู่ในหน้าเลย (ไม่ใช่ป๊อปอัป บังของที่กำลังตัดสินใจ)
+   และของเดิมแบบป๊อปอัปต้องถูกถอดออกจริง · มีตัวแก้สองตัวสำหรับของชิ้นเดียว
+   คือทางที่สองตัวจะค่อย ๆ ต่างกันจนพูดคนละเรื่อง */
+const TB = await page.evaluate(ag => {
+  const a = (SB_AGENTS||[]).filter(x => x.id === ag)[0];
+  if (!a) return null;
+  rtmInit(a.id);
+  const empty = agTabRate(a);
+  rtmFillFromContract();
+  const filled = agTabRate(a);
+  const draft = (_rtmDraft||[]).length;
+  const mx = agTabPrices(a);
+  rtmInit(a.id);                                        // คืนสภาพ ไม่ทิ้งร่างค้าง
+  return {
+    tabExists: typeof agTabRate === 'function',
+    inlineEditor: /rtmSet\(/.test(filled),
+    saveBtn: /rtmSave\(/.test(filled),
+    suggestBtn: /rtmFillFromContract\(/.test(empty),
+    preview: filled.indexOf('วันไหนใช้ชุดไหน') >= 0,
+    draft,
+    mxLeftovers: /rtmSet\(|rtmSave\(|rtSeasonOpen/.test(mx),
+    deadGone: (typeof window.rtSeasonOpen === 'undefined'
+            && typeof window.rtAgentRateStrip === 'undefined')
+  };
+}, 'a13');
+if (!TB) warn('subset นี้ไม่มี a13 · ข้ามข้อแท็บ');
+else {
+  if (!TB.tabExists) fail('ไม่มีแท็บ Rate Type');
+  else ok('มีแท็บ Rate Type ของเอเย่นต์');
+  if (!TB.inlineEditor || !TB.saveBtn) fail('ตัวแก้ตารางไม่ได้อยู่ในแท็บ');
+  else ok('ตัวแก้ตารางอยู่ในหน้า · ไม่ต้องเปิดป๊อปอัป');
+  if (!TB.suggestBtn) fail('ไม่มีปุ่ม เติมจากสัญญา ทั้งที่สัญญาระบุตัวถัดไปไว้');
+  else ok('มีปุ่มเติมจากสัญญา');
+  if (TB.draft !== 2) fail('กดเติมจากสัญญาแล้วได้ ' + TB.draft + ' ช่วง · ควรได้ 2');
+  else ok('กดเติมจากสัญญา → ได้ 2 ช่วงทันที');
+  if (!TB.preview) fail('แท็บไม่มีส่วนสรุป วันไหนใช้ชุดไหน');
+  else ok('แท็บสรุปให้ด้วยว่าวันไหนใช้ชุดไหน');
+  if (TB.mxLeftovers) fail('Pricing Matrix ยังมีของให้ตั้งหลงเหลือ');
+  else ok('Pricing Matrix ไม่มีของให้ตั้งหลงเหลือแล้ว');
+  if (!TB.deadGone) fail('ตัวแก้แบบป๊อปอัปยังอยู่ · มีตัวแก้สองตัวสำหรับของชิ้นเดียว');
+  else ok('ตัวแก้แบบป๊อปอัปถูกถอดออกแล้ว · เหลือตัวแก้ตัวเดียว');
+}
 
 /* ── สองที่ต้องพูดเลขเดียวกัน ────────────────────────────────────────── */
 if (R.a13 && R.a13panel) {

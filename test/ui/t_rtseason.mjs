@@ -147,8 +147,10 @@ const H = await page.evaluate(ag => {
   a.rateSeasons = keep;
   const on  = { warned: !!rtExpForAgent(a),
                 panel: rtExpScan().reduce((s,x) => s + x.agents.length, 0) };
-  const html = rtSeasonBlock(a);
-  return { off, on, block: html.length, today: /\u0e43\u0e0a\u0e49\u0e2d\u0e22\u0e39\u0e48/.test(html) };
+  /* §rtTab · ตัวแสดงตารางย้ายไปอยู่ในแท็บ Rate Type แล้ว (rtSeasonBlock ถูกถอดออก) */
+  rtmInit(a.id);
+  const html = agTabRate(a);
+  return { off, on, block: html.length, today: html.indexOf('ใช้อยู่วันนี้') >= 0 };
 }, AG);
 if (!H.off.warned) warn('\u0e40\u0e2d\u0e40\u0e22\u0e48\u0e19\u0e15\u0e4c\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e16\u0e39\u0e01\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e2d\u0e22\u0e39\u0e48\u0e01\u0e48\u0e2d\u0e19\u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27 \u00b7 \u0e02\u0e49\u0e32\u0e21\u0e02\u0e49\u0e2d\u0e19\u0e35\u0e49');
 else if (H.on.warned)
@@ -158,8 +160,8 @@ else if (H.on.panel !== H.off.panel - 1)
      + H.off.panel + ' \u2192 ' + H.on.panel);
 else ok('\u0e15\u0e31\u0e49\u0e07\u0e15\u0e32\u0e23\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27\u0e04\u0e33\u0e40\u0e15\u0e37\u0e2d\u0e19\u0e2b\u0e32\u0e22 \u00b7 \u0e41\u0e1c\u0e07\u0e23\u0e27\u0e21 ' + H.off.panel + ' \u2192 ' + H.on.panel + ' \u0e40\u0e2d\u0e40\u0e22\u0e48\u0e19\u0e15\u0e4c');
 if (!H.block || !H.today)
-  fail('\u0e1a\u0e25\u0e47\u0e2d\u0e01\u0e15\u0e32\u0e23\u0e32\u0e07\u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32 Pricing Matrix \u0e44\u0e21\u0e48\u0e02\u0e36\u0e49\u0e19 \u0e2b\u0e23\u0e37\u0e2d\u0e44\u0e21\u0e48\u0e1a\u0e2d\u0e01\u0e27\u0e48\u0e32\u0e0a\u0e48\u0e27\u0e07\u0e44\u0e2b\u0e19\u0e43\u0e0a\u0e49\u0e2d\u0e22\u0e39\u0e48');
-else ok('\u0e1a\u0e25\u0e47\u0e2d\u0e01\u0e15\u0e32\u0e23\u0e32\u0e07\u0e02\u0e36\u0e49\u0e19\u0e43\u0e19 Pricing Matrix \u00b7 \u0e1a\u0e2d\u0e01\u0e14\u0e49\u0e27\u0e22\u0e27\u0e48\u0e32\u0e0a\u0e48\u0e27\u0e07\u0e44\u0e2b\u0e19\u0e43\u0e0a\u0e49\u0e2d\u0e22\u0e39\u0e48\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49');
+  fail('แท็บ Rate Type ไม่ขึ้นตาราง หรือไม่บอกว่าช่วงไหนใช้อยู่วันนี้');
+else ok('แท็บ Rate Type ขึ้นตาราง · บอกด้วยว่าช่วงไหนใช้อยู่วันนี้');
 
 /* ── 7 · ตารางต้องรอดการโหลดใหม่ ─────────────────────────────────────── */
 await page.evaluate(ag => {
