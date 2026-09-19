@@ -37311,7 +37311,7 @@ function agAlerts(a){
   /* 3 · โปรแกรมที่เรทไม่มีราคาให้ — ของจริงคือหน้าจองกด Save ไม่ได้ (noRate) จึงต้องอยู่เหนือเรื่องเรทหมดอายุ */
   const rt = (typeof agHdRateOf==='function') ? agHdRateOf(a) : null;
   if(!rt && (a.programs||[]).length){
-    out.push({tone:'red', t:'No rate bound',
+    out.push({tone:'red', t:'No rate bound', sev:'Blocked',
       d:'sells <b>'+(a.programs||[]).length+' routes</b> · no Rate Type at all',
       tip:'ไม่มีเรท = ไม่มีราคาให้คิด จองไม่ได้ทุกเส้น',
       go:'Pick a rate', on:"agEditOpen('ratetype','"+a.id+"')"});
@@ -37321,8 +37321,8 @@ function agAlerts(a){
     const orph = (a.programs||[]).filter(p=>p && !have[p]);
     if(orph.length){
       const names = orph.map(p=>{ const r=(typeof getRoute==='function')?getRoute(p):null; return E((r&&r.name)||p); });
-      out.push({tone:'amber', t:'Route with no price',
-        d:'<b>'+orph.length+'</b> → Save blocked · '+names.join(' · '),
+      out.push({tone:'amber', t:'Route with no price', sev:'Blocked',
+        d:'<b>'+orph.length+' route'+(orph.length===1?'':'s')+'</b> · '+names.join(' · '),
         tip:'เรทที่ผูกอยู่ไม่มีราคาของเส้นเหล่านี้ · ปุ่มบันทึกในหน้าจองถูกล็อก (noRate)',
         go:'Open Pricing Matrix', on:"agSwitchTab('prices','"+a.id+"')"});
     }
@@ -37359,7 +37359,7 @@ function agAlerts(a){
   /* 7 · ข้อมูลโปรไฟล์ไม่ครบ · ท้ายสุด ไม่ได้ทำให้จองไม่ได้ แต่ทำให้ติดต่อกลับไม่ได้ */
   const miss = (typeof agIncompleteFields==='function') ? agIncompleteFields(a) : [];
   if(miss.length){
-    out.push({tone:'amber', t:'Incomplete profile', day:miss.length+' items',
+    out.push({tone:'amber', t:'Incomplete profile', sev:'Attention', day:miss.length+' items',
       d:'missing <b>'+E(miss.join(' · '))+'</b>',
       go:'Edit profile', on:"agEditOpen('profile','"+a.id+"')"});
   }
@@ -37372,21 +37372,22 @@ function agAlertSyncRate(agentId){
   alert(n>0 ? ('Synced '+n+' main contract(s) to the bound rate.') : 'Nothing to sync.');
   agRenderDetail(agentId);
 }
-var AG_AL_TONE = {
-  red:  {bd:'#C0392B', bg:'#FCEBEB', fg:'#A32D2D'},
-  amber:{bd:'#D48A14', bg:'#FDF3E4', fg:'#8A5410'},
-  blue: {bd:'#185FA5', bg:'#EDF3FB', fg:'#17507F'}
-};
+/* §agStd · ชื่อคลาสของโทน · ใช้ระบายเฉพาะคอลัมน์ความด่วนซ้ายสุด ไม่ระบายทั้งแถว
+   ย้อมทั้งแถวทำให้ห้าเรื่องดูด่วนเท่ากันหมด แล้วคนอ่านต้องกลับไปไล่เองว่าอันไหนก่อน
+   คำบอกความด่วน: ใช้จำนวนวันถ้ามี (11 DAYS) ไม่มีก็ใช้คำตามโทน */
+var AG_AL_TONE = { red:'red', amber:'amb', blue:'blu' };
+var AG_AL_SEV  = { red:'Critical', amber:'Attention', blue:'Review' };
 function agAlertsHTML(a){
   const A = agAlerts(a);
   if(!A.length) return '<div class="ag-ok">&#10003; Nothing needs action for this agent</div>';
   return '<div class="ag-als">' + A.map(function(x){
-    const T = AG_AL_TONE[x.tone] || AG_AL_TONE.blue;
-    return '<div class="ag-al"'+(x.tip?(' title="'+String(x.tip).replace(/"/g,'&quot;')+'"'):'')
-      +' style="border-left-color:'+T.bd+';background:'+T.bg+';color:'+T.fg+'">'
-      + '<span class="t">'+x.t+(x.day?'<span class="day">'+x.day+'</span>':'')+'</span>'
+    const cls = AG_AL_TONE[x.tone] || 'blu';
+    const sev = x.sev || x.day || AG_AL_SEV[x.tone] || 'Review';
+    return '<div class="ag-al '+cls+'"'+(x.tip?(' title="'+String(x.tip).replace(/"/g,'&quot;')+'"'):'')+'>'
+      + '<span class="sev"><i></i>'+sev+'</span>'
+      + '<span class="t">'+x.t+'</span>'
       + '<span class="d">'+x.d+'</span>'
-      + (x.go?'<button class="go" onclick="'+x.on+'">'+x.go+' &rarr;</button>':'')
+      + (x.go?'<button class="go" onclick="'+x.on+'">'+x.go+'</button>':'')
       + '</div>';
   }).join('') + '</div>';
 }
@@ -38188,26 +38189,29 @@ function agTabInfo(a){
   const utilPct = a.creditLimit ? Math.round(creditUsed/a.creditLimit*100) : 0;
 
   /* ── เครื่องมือวาดของบล็อกนี้ ─────────────────────────────────────────────
-     band()  หัวข้อมีเลขกำกับ · rowS() แถว Sheet หนึ่งบรรทัด (ป้ายเล็ก/ค่าใหญ่)
+     §agStd · กติกาเดียวของชุดนี้: โครงสร้างเป็นเทา-ขาว · สีใช้บอกสถานะอย่างเดียว
+       sec()  หัวข้อ = ป้าย + เส้นคั่น (ไม่มีแถบสี ไม่มีเลขในวงกลม)
+       box()  การ์ดขาวขอบเส้นเดียว · สถานะไปอยู่บนป้ายที่หัวการ์ด ไม่ย้อมกรอบ
+       cls ของ box คือความกว้างในกริด 12 คอลัมน์ (c3/c5/c6/c8/wide · ไม่ใส่ = 4)
      esc/escapeHTML ไม่ใช่ตัวแปร global จึงประกาศเองตรงนี้ (§escLocal) */
   const E = t => String(t==null?'':t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const band = (no, ttl, note, act, cls) => {
+  const tag = (txt, tone) => `<span class="ag-tag ${tone||''}">${E(txt)}</span>`;
+  const sec = (ttl, note, act, cls) => {
     const acts = !act ? [] : (Array.isArray(act) ? act : [act]);
-    return `<div class="ag-band ${cls||''}"><span class="no">${no}</span><span class="ttl">${E(ttl)}</span>`
-      + (note ? `<span class="note">${note}</span>` : '<span class="note"></span>')
-      + acts.map(x=>`<button class="act" style="margin-left:7px" onclick="${x.on}">${E(x.txt)}</button>`).join('')
+    return `<div class="ag-band ${cls||''}"><span class="ttl">${E(ttl)}</span><span class="rule"></span>`
+      + (note ? `<span class="note">${note}</span>` : '')
+      + acts.map(x=>`<button class="act" onclick="${x.on}">${E(x.txt)}</button>`).join('')
       + `</div>`;
   };
   const rowS = (k, v, cls) =>
-    `<div class="r"><span class="k">${E(k)}</span><span class="v ${cls||''}">${v||'<span style="color:var(--fd-ink-faint)">—</span>'}</span></div>`;
-  /* กล่องย่อย · หัวเล็ก ๆ + แถว Sheet ข้างใน · tone = 'alert' | 'warn' เมื่อกล่องนั้นมีเรื่อง */
-  const box = (ttl, rows, note, cls) =>
-    `<div class="ag-box ${cls||''}"><div class="bh">${E(ttl)}${note?`<em>${note}</em>`:''}</div>`
+    `<div class="r"><span class="k">${E(k)}</span><span class="v ${cls||''}">${v||'<span style="color:var(--ag-ink4)">—</span>'}</span></div>`;
+  const box = (ttl, rows, meta, cls) =>
+    `<div class="ag-box ${cls||''}"><div class="bh">${E(ttl)}${meta?`<em>${meta}</em>`:''}</div>`
     + `<div class="ag-sh one">${rows}</div></div>`;
 
   /* ── บล็อก 1 · เรื่องที่ต้องจัดการ ── */
   const _AL = (typeof agAlerts==='function') ? agAlerts(a) : [];
-  const sect1 = band(1, 'Needs action',
+  const sect1 = sec('Needs action',
       _AL.length ? (_AL.length + ' item' + (_AL.length===1?'':'s') + ' · most urgent first') : 'nothing outstanding',
       null, _AL.length ? 'alert' : 'clear')
     + ((typeof agAlertsHTML==='function') ? agAlertsHTML(a) : '');
@@ -38218,14 +38222,14 @@ function agTabInfo(a){
   if(_cs && _cs.mode==='invoice' && _cs.limit>0){
     const over=_cs.available<0, near=_cs.pct>=80;
     const col = over?'#A32D2D':(near?'#8A5410':'#0F6E56');
-    creditRows = rowS('Credit limit', `<span class="mono">${acctFmt(_cs.limit)}</span> · ${a.creditDays||0} days`)
+    creditRows = rowS('Limit', `<span class="mono">${acctFmt(_cs.limit)}</span> · ${a.creditDays||0} days`)
       + rowS('Used', `<span class="mono" style="color:${col}">${acctFmt(_cs.used)} · ${_cs.pct}%</span>`
         + `<span class="ag-bar"><i style="width:${Math.min(100,Math.max(0,_cs.pct))}%;background:${col}"></i></span>`
-        + `<span class="sub">${over ? ('<strong style="color:#A32D2D" title="ใบจองใหม่ควรรอเคลียร์ยอดก่อน">over '+acctFmt(-_cs.available)+'</strong>')
+        + `<span class="sub">${over ? ('<strong style="color:var(--ag-red)" title="ใบจองใหม่ควรรอเคลียร์ยอดก่อน">over '+acctFmt(-_cs.available)+'</strong>')
                                     : (acctFmt(_cs.available)+' left')}`
-        + ` · <span onclick="acctStatementOpen('${a.id}')" style="cursor:pointer;color:#185FA5;text-decoration:underline">statement</span></span>`);
+        + ` · <span onclick="acctStatementOpen('${a.id}')" style="cursor:pointer;color:var(--ag-blu)">statement</span></span>`);
   } else {
-    creditRows = rowS('Credit limit', `<span style="color:var(--fd-ink-soft);font-weight:400">none · paid before travel</span>`);
+    creditRows = rowS('Limit', `<span style="color:var(--ag-ink3);font-weight:400">none · paid before travel</span>`);
   }
   const _ctDays = (typeof ctDaysUntilExpiry==='function') ? ctDaysUntilExpiry(a) : null;
   /* ชิปเวอร์ชันสัญญา · ใบที่ใช้อยู่เป็นสีเขียว ใบเก่าเป็นสีเทา · กดดูใบไหนก็ได้ */
@@ -38240,25 +38244,31 @@ function agTabInfo(a){
     + _ctHist.map(h => _ctChip(h.version, h.contractStart, h.contractEnd, h.version, false)).join('');
   const _credOver = !!(_cs && _cs.mode==='invoice' && _cs.limit>0 && _cs.available<0);
   const _credNear  = !!(_cs && _cs.mode==='invoice' && _cs.limit>0 && !_credOver && _cs.pct>=80);
-  const sect2 = band(2, 'Commercial', 'contract · credit · payment',
-      [{txt:'Payment', on:`agEditOpen('profile','${a.id}')`},
-       {txt:'Booking channel', on:`agEditOpen('booking','${a.id}')`}])
+  /* §agStd · สถานะของกล่องไปอยู่บนป้ายที่หัวกล่อง ไม่ใช่การย้อมกรอบ
+     กรอบสีทำให้ทั้งใบดูเป็นเรื่องด่วน ทั้งที่ด่วนอยู่ค่าเดียวในนั้น */
+  const _ctTag = (_ctDays===null||_ctDays===undefined) ? (_nCt + ' version' + (_nCt===1?'':'s'))
+    : (_ctDays<0 ? tag('Expired '+Math.abs(_ctDays)+'d', 'red')
+                 : (_ctDays<=30 ? tag(_ctDays+' days left', 'red')
+                                : (_ctDays<=60 ? tag(_ctDays+' days left', 'amb') : tag(_ctDays+' days left'))));
+  const sect2 = sec('Commercial', null,
+      [{txt:'Edit payment', on:`agEditOpen('profile','${a.id}')`},
+       {txt:'Edit booking channel', on:`agEditOpen('booking','${a.id}')`}])
     + `<div class="ag-grp">`
       /* ประวัติสัญญาเป็นชิปของตัวเอง ไม่ใช้ .ct-history เดิม
          คอมโพเนนต์นั้นถูกออกแบบมาสำหรับแถบเต็มความกว้าง · ยัดลงกล่อง 280px แล้วตัวอักษรบีบเป็นแนวตั้ง */
       + box('Contract',
-          rowS('Current', `${E(a.contractVersion||'—')} <span class="mono" style="font-size:11.5px;color:var(--fd-ink-mid)">${fmtD(a.contractStart)} → ${fmtD(a.contractEnd)}</span>`
-            + (_ctDays===null||_ctDays===undefined ? '' : `<span class="sub">${_ctDays<0?('expired '+Math.abs(_ctDays)+'d'):(_ctDays+' days left')}</span>`))
-          + rowS('Versions', _ctVerChips),
-          _nCt + ' kept', (_ctDays!==null && _ctDays!==undefined && _ctDays<=30) ? 'alert' : '')
+          rowS('Current', `${E(a.contractVersion||'—')}`
+            + `<span class="sub mono">${fmtD(a.contractStart)} → ${fmtD(a.contractEnd)}</span>`)
+          + rowS('Versions', _ctVerChips + `<span class="sub">${_nCt} kept</span>`),
+          _ctTag)
       + box('Credit & payment',
-          rowS('Payment', `${E(pay?.name||'—')}${a.payType==='invoice'?` · ${a.creditDays}d`:''}${a.vatMode&&a.vatMode!=='none'?` · VAT ${a.vatMode==='include'?'incl':'excl'}`:''}`)
+          rowS('Payment', `${E(pay?.name||'—')}${a.payType==='invoice'?` · ${a.creditDays} days`:''}${a.vatMode&&a.vatMode!=='none'?` · VAT ${a.vatMode==='include'?'incl':'excl'}`:''}`)
           + creditRows,
-          null, _credOver ? 'alert' : (_credNear ? 'warn' : ''))
+          _credOver ? tag(_cs.pct+'%','red') : (_credNear ? tag(_cs.pct+'%','amb') : ''))
       + box('Booking channel',
           rowS('Method', `${E(bc.method||'—')}${bc.cutoff?` · ${E(bc.cutoff)}`:''}`)
           + rowS('Cancellation', E(bc.cancelPolicy||''))
-          + rowS('Send to', `<span class="mono" style="font-size:11.5px">${E(bc.email||'')}</span>${bc.phone?(' · '+E(bc.phone)):''}`))
+          + rowS('Send to', `${E(bc.email||'')}${bc.phone?(`<span class="sub mono">${E(bc.phone)}</span>`):''}`))
     + `</div>`;
 
   /* ── บล็อก 3 · เรทที่ใช้คิดราคา ─────────────────────────────────────────
@@ -38269,71 +38279,74 @@ function agTabInfo(a){
   const _conRtId = (typeof rtExpNextOf==='function') ? rtExpNextOf(a.id) : '';
   const _conRt = (_conRtId && typeof getRateType==='function') ? getRateType(_conRtId) : null;
   const _seasons = (typeof laSeasonsOf==='function') ? laSeasonsOf(a) : [];
+  /* เส้นทางที่เรทมีราคาให้ · ใช้ทั้งในกล่อง Coverage และปุ่มเติมที่ขาดของบล็อก 4 · อ่านที่เดียว */
+  const _rtCover = _rtNow ? (typeof agRtRoutes==='function' ? agRtRoutes(_rtNow) : (_rtNow.routes||[])) : [];
+  const _missing = _rtCover.filter(r => !periods.some(p => p.routeId === r));
   let boxBound = '', boxToday = '', boxSeason = '';
   if(!_rtNow){
     boxBound = box('Bound rate',
-      rowS('Rate', `<span style="color:#A32D2D">no rate type assigned</span>`
+      rowS('Rate', `<span style="color:var(--ag-red)">No rate type assigned</span>`
         + `<span class="sub">every price on this agent comes from a rate type · without one, booking Save is blocked</span>`),
-      null, 'alert');
+      tag('Blocked','red'), 'c8');
   } else {
     const vf = String(_rtNow.validFrom||''), vt = String(_rtNow.validTo||'');
     const dvf = (vf && typeof rtExpDaysTo==='function') ? rtExpDaysTo(vf) : null;
     const dvt = (vt && typeof rtExpDaysTo==='function') ? rtExpDaysTo(vt) : null;
-    let today = `<span style="color:#0F6E56">within its normal window</span>`, toneToday = '';
+    /* "วันนี้เรทอยู่ในช่วงของตัวเองไหม" เคยเป็นกล่องของตัวเอง · เป็นค่าเดียวบรรทัดเดียว
+       ยุบลงมาเป็นแถวในกล่อง Bound rate · สถานะอยู่บนป้าย ไม่ต้องใช้กรอบทั้งใบมาบอก */
+    let today = tag('Within its normal window','grn');
     if(dvf!==null && dvf>0){
-      today = `<span style="color:#8A5410" title="validFrom ไม่ใช่ประตูคิดเงิน (ดู §promoMx) · ระบบยังคิดราคาชุดนี้ให้อยู่">starts in ${dvf} days</span>`
-        + `<span class="sub">prices still charged from this set</span>`;
-      toneToday = 'warn';
+      today = tag('Starts in '+dvf+' days','amb')
+        + `<span class="sub" title="validFrom ไม่ใช่ประตูคิดเงิน (ดู §promoMx) · ระบบยังคิดราคาชุดนี้ให้อยู่">prices still charged from this set</span>`;
     } else if(dvt!==null && dvt<0){
-      today = `<span style="color:#A32D2D">expired ${Math.abs(dvt)} days ago</span>`
+      today = tag('Expired '+Math.abs(dvt)+' days ago','red')
         + `<span class="sub">prices still charged from this set</span>`;
-      toneToday = 'alert';
     } else if(dvt!==null && dvt<=60){
-      today = `<span style="color:#8A5410">in window · ends in ${dvt} days</span>`;
-      toneToday = 'warn';
+      today = tag('In window · ends in '+dvt+' days','amb');
     }
     boxBound = box('Bound rate',
-      rowS('Rate', `<span style="color:${_rtNow.color||'#16265C'}">${E(_rtNow.name||'')}</span> `
-        + `<span class="mono" style="font-size:10px;font-weight:700;background:${(_rtNow.color||'#16265C')}18;color:${_rtNow.color||'#16265C'};padding:2px 7px;border-radius:7px">${E(_rtNow.code||'')}</span>`)
-      + rowS('Active', `<span class="mono" style="font-size:11.5px">${E(_rtFmtDate(vf)||vf||'—')} → ${E(_rtFmtDate(vt)||vt||'no end date')}</span>`),
-      (_rtNow.routes||[]).length + ' routes');
-    boxToday = box('In effect today', rowS('Status', today), null, toneToday);
+      rowS('Rate', `${E(_rtNow.name||'')}<span class="sub mono">${E(_rtNow.code||'')}</span>`)
+      + rowS('Active', `<span class="mono">${E(_rtFmtDate(vf)||vf||'—')} → ${E(_rtFmtDate(vt)||vt||'no end date')}</span>`)
+      + rowS('In effect today', today),
+      tag(_rtCover.length + ' route' + (_rtCover.length===1?'':'s')), 'c5');
     boxSeason = box('Contract & season',
       rowS('Named in contract', _conRt
         ? (_conRtId===a.rateTypeId
-            ? `<span style="color:#0F6E56">${E(_conRt.name||_conRt.code||'')} · matches</span>`
-            : `<span style="color:#A32D2D" title="เอกสารสัญญาจะพิมพ์ราคาชุดนี้ ไม่ใช่ชุดที่ผูกอยู่">${E(_conRt.name||_conRt.code||'')}</span><span class="sub">documents print this set · <span onclick="agAlertSyncRate('${a.id}')" style="cursor:pointer;color:#185FA5;text-decoration:underline">sync</span></span>`)
-        : `<span style="color:var(--fd-ink-soft);font-weight:400">not named on any contract</span>`)
+            ? `${E(_conRt.name||_conRt.code||'')}<span class="sub">matches the bound rate</span>`
+            : `${E(_conRt.name||_conRt.code||'')}<span class="sub" title="เอกสารสัญญาจะพิมพ์ราคาชุดนี้ ไม่ใช่ชุดที่ผูกอยู่">documents print this set · <span onclick="agAlertSyncRate('${a.id}')" style="cursor:pointer;color:var(--ag-blu)">sync</span></span>`)
+        : `<span style="color:var(--ag-ink3);font-weight:400">Not named on any contract</span>`)
       + rowS('Season schedule', _seasons.length
         ? `${_seasons.length} period${_seasons.length===1?'':'s'} set`
           + `<span class="sub">${_seasons.map(x=>E((_rtFmtDate(x.from)||x.from)+' → '+(x.to?(_rtFmtDate(x.to)||x.to):'open'))).join(' · ')}</span>`
-        : `<span style="color:var(--fd-ink-soft);font-weight:400" title="ตั้งล่วงหน้าได้ · ราคาก่อนวันแบ่งไม่ขยับ">not set yet</span>`
-          + `<span class="sub">set in the Rate Type tab</span>`),
-      null, (_conRt && _conRtId!==a.rateTypeId) ? 'alert' : '');
+        : `<span style="color:var(--ag-ink3);font-weight:400" title="ตั้งล่วงหน้าได้ · ราคาก่อนวันแบ่งไม่ขยับ">Not set</span>`
+          + `<span class="sub">set it in the Rate Type tab</span>`),
+      (_conRt && _conRtId!==a.rateTypeId) ? tag('Mismatch','blu') : '', 'c4');
+    const _nCharter = Object.keys(_rtNow.charterRates||{}).length;
+    const _nAdd = Object.keys(_rtNow.addOns||{}).length;
+    boxToday = box('Coverage',
+      rowS('Routes priced', `<span class="mono">${_rtCover.filter(r=>periods.some(p=>p.routeId===r)).length}</span>`
+        + `<span style="color:var(--ag-ink4);font-weight:400"> / ${periods.length} sold</span>`)
+      + rowS('Extras', [_nCharter?'Charter':'', _nAdd?(_nAdd+' add-on'+(_nAdd>1?'s':'')):''].filter(Boolean).join(' · ')),
+      '', 'c3');
   }
-  const sect3 = band(3, 'Rate used for pricing', 'read from the bound rate, not the one in the contract',
-      {txt:_rtNow?'Change':'Pick', on:`agEditOpen('ratetype','${a.id}')`})
-    + `<div class="ag-grp">` + boxBound + boxToday + boxSeason + `</div>`;
+  const sect3 = sec('Rate used for pricing', 'read from the bound rate, not the contract',
+      {txt:_rtNow?'Change rate':'Pick a rate', on:`agEditOpen('ratetype','${a.id}')`})
+    + `<div class="ag-grp">` + boxBound + boxSeason + boxToday + `</div>`;
 
   /* ── บล็อก 4 · โปรแกรมที่ขาย ── */
   /* §agTight · สามค่าสรุป (จำนวนเส้น · ช่วงสัญญา · เส้นที่ปิดก่อนเพื่อน) เคยเป็นแถบของตัวเองสูงราว 60px
      ทั้งสามเป็นค่าสั้น ๆ ที่อ่านครั้งเดียว · ย้ายขึ้นไปอยู่บนหัวข้อ ได้ความสูงคืนโดยไม่เสียข้อมูล */
-  const _rtCover = _rtNow ? (typeof agRtRoutes==='function' ? agRtRoutes(_rtNow) : (_rtNow.routes||[])) : [];
-  const _missing = _rtCover.filter(r => !periods.some(p => p.routeId === r));
-  const sect4 = band(4, 'Programs sold',
-      `${periods.length} route${periods.length===1?'':'s'} · สัญญา <span class="mono">${fmtD(validityStart)} → ${fmtD(validityEnd)}</span>`
-      + (earliestCutoff ? ` · ปิดก่อนเพื่อน <span class="mono" style="color:var(--fd-coral-deep)">${fmtD(earliestCutoff)}</span>${earliestCutoffName?(' '+E(earliestCutoffName.split(' ').slice(0,2).join(' '))):''}` : ''),
-      [].concat(_missing.length ? [{txt:'+ เติมที่ขาด · '+_missing.length, on:`agEditOpen('programs','${a.id}')`}] : [],
+  const sect4 = sec('Programs sold',
+      `${periods.length} route${periods.length===1?'':'s'} · contract <span class="mono">${fmtD(validityStart)} → ${fmtD(validityEnd)}</span>`
+      + (earliestCutoff ? ` · first to close <span class="mono">${fmtD(earliestCutoff)}</span>${earliestCutoffName?(' '+E(earliestCutoffName.split(' ').slice(0,2).join(' '))):''}` : ''),
+      [].concat(_missing.length ? [{txt:'Fill missing · '+_missing.length, on:`agEditOpen('programs','${a.id}')`}] : [],
                 [{txt:'Edit programs', on:`agEditOpen('programs','${a.id}')`}]));
 
   /* ── บล็อก 5 · บริษัทและผู้ติดต่อ · ของที่ไปโผล่บนเอกสารสัญญา ── */
-  const sect5 = band(5, 'Company & Contact', 'printed onto contract documents',
+  const sect5 = sec('Company & Contact', 'printed onto contract documents',
       [{txt:'Company', on:`agEditOpen('company','${a.id}')`},
        {txt:'Signatory', on:`agEditOpen('signatory','${a.id}')`},
        {txt:'Notes', on:`agEditOpen('notes','${a.id}')`}]);
-  const subHd = (t, d) => `<div style="display:flex;align-items:baseline;gap:8px;margin:12px 0 2px">`
-    + `<span style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#16265C">${E(t)}</span>`
-    + `<span style="font-size:10px;color:var(--fd-ink-soft)">${E(d||'')}</span></div>`;
 
   return `
     ${sect1}
@@ -38377,13 +38390,15 @@ function agTabInfo(a){
         }
         const _ap = (typeof _rtAddonPreview==='function')?_rtAddonPreview(rt):{preview:'—',lbl:'No add-on'};
         let addOnPreview = _ap.preview, addOnLbl = _ap.lbl;
+        /* §agStd · สามช่องนี้เคยเป็นการ์ดสีตามเรทซ้อนอยู่ในกล่องอีกที
+           ตัวเลขตัวอย่างไม่ใช่สถานะ · จึงไม่ควรมีสีของตัวเอง เหลือเส้นคั่นสามช่อง */
         bodyHtml = `
-          ${isInactive?'<div style="font-size:10.5px;color:#854F0B;font-weight:600;background:#FFF5EB;border:1px solid #F0997B;border-radius:8px;padding:6px 10px">&#9888; Rate Type นี้ถูก Deactivate — แนะนำให้เปลี่ยน หรือ activate ในหน้า Rate Types</div>':''}
-          <div class="ag-box" style="margin-top:7px"><div class="bh">Sample prices<em>${nRoutes} routes${hasCharter?' · charter':''}${nAddOns>0?(' · '+nAddOns+' add-on'+(nAddOns>1?'s':'')):''} · ${validHint}</em></div>
-          <div class="agi-grid agi-grid-3">
-            <div class="agi-info-card"><div class="agi-info-lbl">Seat (sample)</div><div class="agi-info-val mono big" style="color:${rt.color}">${seatPreview}</div><div class="agi-info-sub">${seatLbl}</div></div>
-            <div class="agi-info-card"><div class="agi-info-lbl">Charter (sample)</div><div class="agi-info-val mono big" style="color:${rt.color}">${charterPreview}</div><div class="agi-info-sub">${charterLbl}</div></div>
-            <div class="agi-info-card"><div class="agi-info-lbl">Add-on (sample)</div><div class="agi-info-val mono big" style="color:${rt.color}">${addOnPreview}</div><div class="agi-info-sub">${addOnLbl}</div></div>
+          ${isInactive?`<div class="ag-al red" style="border:1px solid var(--ag-line);border-radius:8px;background:#fff;margin-bottom:9px"><span class="sev"><i></i>Inactive</span><span class="t">Rate type deactivated</span><span class="d">prices still resolve from it · activate it or bind another set</span><button class="go" onclick="nav(document.querySelector('.nav-item[data-view=&quot;rate-types&quot;]'))">Open rate types</button></div>`:''}
+          <div class="ag-box wide"><div class="bh">Sample prices<em>${nRoutes} routes${hasCharter?' · charter':''}${nAddOns>0?(' · '+nAddOns+' add-on'+(nAddOns>1?'s':'')):''} · ${validHint}</em></div>
+          <div class="ag-stats">
+            <div class="ag-stat"><span class="k">Seat</span><span class="v">${seatPreview}</span><span class="s">${seatLbl}</span></div>
+            <div class="ag-stat"><span class="k">Charter</span><span class="v">${charterPreview}</span><span class="s">${charterLbl}</span></div>
+            <div class="ag-stat"><span class="k">Add-on</span><span class="v">${addOnPreview}</span><span class="s">${addOnLbl}</span></div>
           </div></div>
         `;
       }
@@ -38397,12 +38412,13 @@ function agTabInfo(a){
       <!-- §agTight · แถบ coverage กับแถบสรุปถูกถอดออก
            เส้นที่เรทไม่มีราคาถูกพูดไปแล้วในบล็อก 1 (Needs action) พร้อมปุ่มพาไปแก้
            พูดสองที่แล้ววันหนึ่งจะไม่ตรงกัน · ปุ่ม "เติมที่ขาด" ย้ายขึ้นไปอยู่บนหัวข้อ -->
+      <div class="agi-prog-wrap">
       <div class="agi-prog-header">
+        <div>Route</div>
+        <div>Booking period</div>
+        <div>Travel period</div>
+        <div>Status</div>
         <div></div>
-        <div>Program · Pier</div>
-        <div>Booking Period</div>
-        <div>Travel Period</div>
-        <div>Action</div>
       </div>
 
       <div class="agi-prog-list">
@@ -38415,13 +38431,18 @@ function agTabInfo(a){
           const inheritedTravel = !!rv;
           const orphanRow = rtForPeriods && !rv;   // route not in RT
           const travelInheritChip = inheritedTravel
-            ? `<span style="background:${rtForPeriods.color}1A;color:${rtForPeriods.color};font-size:8.5px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:6px;margin-left:5px;text-transform:uppercase;font-family:'DM Mono',monospace" title="Inherited from Rate Type ${rtForPeriods.code}">↳ RT</span>`
-            : (orphanRow
-                ? `<span style="background:#FDECEA;color:#A32D2D;font-size:8.5px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:6px;margin-left:5px;text-transform:uppercase" title="Route not in Rate Type · travel period blank">⚠ orphan</span>`
-                : '');
+            ? `<span class="agi-rtchip" title="Inherited from Rate Type ${E(rtForPeriods.code||'')}">&#8627; RT</span>`
+            : '';
+          /* §agStd · คอลัมน์สถานะ · "ขายได้วันนี้ไหม" เคยต้องอ่านช่วงวันสองช่องแล้วคิดเอง
+             เส้นที่เรทไม่มีราคา อ่านจาก seatRates ที่เดียวกับที่ §agAlert ใช้
+             (แยกกันเมื่อไหร่ ตารางกับแถบเตือนจะบอกคนละเรื่องในหน้าจอเดียวกัน) */
+          let st = '<span style="color:var(--ag-ink4)">—</span>';
+          if(_rtNow && !((_rtNow.seatRates||{})[p.routeId])) st = tag('No price','red');
+          else if(p.travelTo && p.travelTo < TODAY_STR) st = tag('Ended');
+          else if(p.travelFrom && p.travelFrom > TODAY_STR) st = tag('Future');
+          else if(p.travelFrom || p.travelTo) st = tag('Selling','grn');
           return `
             <div class="agi-prog-row">
-              <div class="agi-prog-dot-wrap"><span class="agi-prog-dot" style="background:${r.color||'#999'}"></span></div>
               <div class="agi-prog-name-wrap">
                 <div class="agi-prog-name">${r.name}</div>
                 <div class="agi-prog-pier">${pierTag}${noteSuffix}</div>
@@ -38432,67 +38453,67 @@ function agTabInfo(a){
               </div>
               <div class="agi-period-col">
                 <div class="agi-period-lbl travel">Travel${travelInheritChip}</div>
-                <div class="agi-period-val" ${orphanRow?'style="color:var(--fd-ink-faint);font-style:italic"':''}>${p.travelFrom||p.travelTo ? `${fmtD(p.travelFrom)} <span class="arrow">→</span> ${fmtD(p.travelTo)}` : '<span style="color:#A32D2D">not set in RT</span>'}</div>
+                <div class="agi-period-val" ${orphanRow?'style="color:var(--ag-ink4)"':''}>${p.travelFrom||p.travelTo ? `${fmtD(p.travelFrom)} <span class="arrow">→</span> ${fmtD(p.travelTo)}` : '<span style="color:var(--ag-red)">not set in rate</span>'}</div>
               </div>
+              <div class="agi-prog-st">${st}</div>
               <div class="agi-prog-actions">
-                <button class="agi-prog-act-btn" title="ดู Pricing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM3 9h18M9 21V9"/></svg></button>
-                <button class="agi-prog-act-btn" title="แก้ไข" onclick="agEditOpen('programs','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                <button class="agi-prog-act-btn" title="Pricing matrix" onclick="agSwitchTab('prices','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM3 9h18M9 21V9"/></svg></button>
+                <button class="agi-prog-act-btn" title="Edit programs" onclick="agEditOpen('programs','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
               </div>
             </div>
           `;
         }).join('')}
-        <div class="agi-prog-add" onclick="agEditOpen('programs','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>เพิ่มโปรแกรมในสัญญา</div>
+        <div class="agi-prog-add" onclick="agEditOpen('programs','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add a program to this contract</div>
+      </div>
       </div>
 
       <div class="agi-note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span><strong>Booking Period</strong> = ช่วงรับจอง (จองเข้ามาในช่วงนี้) · <strong>Travel Period</strong> = ช่วงเดินทางจริง</span>
+        <span><b>Booking period</b> = when the booking may be taken · <b>Travel period</b> = when the trip may run, read from the rate type</span>
       </div>
 
     ${sect5}
     <div class="ag-grp">
+      ${/* §agStd · "Name in system" กับ "Market" ถูกถอดออกจากกล่องนี้
+            ทั้งคู่อยู่บนหัวแผงไปแล้ว (ชื่อเอเย่นต์ + บรรทัดตลาดใต้ชื่อ)
+            ซ้ำสองที่แล้ววันหนึ่งจะไม่ตรงกัน และกินความสูงไปสองแถวเปล่า ๆ */''}
       ${box('Company',
-          rowS('Name in system', E(a.name))
-        + rowS('Legal name', E(ci.legalName||a.name))
+          rowS('Legal name', E(ci.legalName||a.name))
         + rowS('TAT license', ci.tatLicense?`<span class="mono">${E(ci.tatLicense)}</span>`:'')
-        + rowS('Market', `${E(mkt?.name||'')}${a.sub?(' · '+E(a.sub)):''}`)
         + rowS('Address', E(ci.address||'')))}
       ${box('Contact',
-          rowS('Telephone', ci.tel?`<span class="mono">${E(ci.tel)}</span>`:'')
+          rowS('Person', E(a.contact||''))
+        + rowS('Telephone', ci.tel?`<span class="mono">${E(ci.tel)}</span>`:'')
         + rowS('Hotline', ci.hotline?`<span class="mono">${E(ci.hotline)}</span>`:'')
-        + rowS('Email', a.email?`<span class="mono" style="font-size:11.5px">${E(a.email)}</span>`:'')
-        + rowS('Website', ci.website?`<a href="https://${E(ci.website)}" target="_blank" style="color:var(--fd-coral-deep);text-decoration:none">${E(ci.website)}</a>`:'')
-        + rowS('Contact person', E(a.contact||'')))}
+        + rowS('Email', E(a.email||''))
+        + rowS('Website', ci.website?`<a href="https://${E(ci.website)}" target="_blank" style="color:var(--ag-blu);text-decoration:none">${E(ci.website)}</a>`:''))}
       ${box('Sales owner',
           rowS('Owner', sales
-            ? `<span style="color:${sales.color||'#16265C'}">${E(sales.name||'')}</span>${sales.fullName?` <span style="font-weight:400;color:var(--fd-ink-mid)">· ${E(sales.fullName)}</span>`:''}`
+            ? `${E(sales.name||'')}${sales.fullName?`<span class="sub">${E(sales.fullName)}</span>`:''}`
             : '')
         + rowS('Role', E(sales?.designation||''))
-        + rowS('Reach at', `${sales?.email?`<span class="mono" style="font-size:11.5px">${E(sales.email)}</span>`:''}${sales?.tel?(' · '+E(sales.tel)):''}`),
-        `<span onclick="agEditOpen('sales','${a.id}')" style="cursor:pointer;color:#185FA5;text-decoration:underline">change</span>`)}
+        + rowS('Reach at', `${E(sales?.email||'')}${sales?.tel?(`<span class="sub mono">${E(sales.tel)}</span>`):''}`),
+        `<span onclick="agEditOpen('sales','${a.id}')" style="cursor:pointer;color:var(--ag-navy);font-weight:500">Change</span>`)}
       ${box('Agent signatory',
           rowS('Signs for', E(ci.legalName||a.name))
-        + rowS('Name', sig.name?`<span style="font-weight:700">${E(sig.name)}</span>`:'')
+        + rowS('Name', E(sig.name||''))
         + rowS('Designation', E(sig.designation||'Authorized Signatory'))
-        + rowS('Signed', sig.signedDate ? E(fmtD(sig.signedDate)) : '<span style="color:#8A5410">not signed yet</span>'),
-        null, sig.signedDate ? '' : 'warn')}
+        + rowS('Signed', sig.signedDate ? E(fmtD(sig.signedDate)) : tag('Not signed','amb')))}
       ${(()=>{
         const _t  = (typeof ctTmplForAgent==='function') ? ctTmplForAgent(a) : null;
         const _bound = !!a.contractTemplateId;
         const _nSec = _t && _t.sections ? Object.keys(_t.sections).filter(k=>_t.sections[k]).length : 0;
         return box('Contract template',
             rowS('Template', _t
-              ? `<span class="mono" style="font-size:10px;font-weight:700;background:#E1F5EE;color:#0F6E56;padding:2px 7px;border-radius:7px">${E(_t.code||_t.id)}</span> ${E(_t.name||'')}`
-              : `<span style="color:#A32D2D">ยังไม่มี Contract Template ในระบบ</span>`)
-          + rowS('Sections', _t ? `${_nSec} เปิดอยู่ <span style="font-weight:400;color:var(--fd-ink-soft)" title="${_bound?'ผูกกับเอเยนต์รายนี้โดยตรง':'เปลี่ยน default ส่วนกลางแล้วเอเยนต์นี้เปลี่ยนตาม'}">· ${_bound?'ผูกตรง':'ค่าตั้งต้น'}</span>` : ''),
-          `<span onclick="agEditOpen('contracttmpl','${a.id}')" style="cursor:pointer;color:#185FA5;text-decoration:underline">change</span>`,
-          _t ? '' : 'alert');
+              ? `${E(_t.name||'')}<span class="sub mono">${E(_t.code||_t.id)}</span>`
+              : `<span style="color:var(--ag-red)">No contract template in the system</span>`)
+          + rowS('Sections', _t ? `${_nSec} enabled<span class="sub" title="${_bound?'ผูกกับเอเยนต์รายนี้โดยตรง':'เปลี่ยน default ส่วนกลางแล้วเอเยนต์นี้เปลี่ยนตาม'}">${_bound?'bound to this agent':'workspace default'}</span>` : ''),
+          `<span onclick="agEditOpen('contracttmpl','${a.id}')" style="cursor:pointer;color:var(--ag-navy);font-weight:500">Change</span>`);
       })()}
       ${box('Internal notes',
           a.note
-            ? `<div class="r" style="border-bottom:none"><span class="v" style="font-weight:400;color:var(--fd-ink-mid);font-size:12px;line-height:1.6">${a.note.replace(/\n/g,'<br>').replace(/(•|·)/g,'•')}</span></div>`
-            : `<div class="r" style="border-bottom:none"><span class="v" style="font-weight:400;font-style:italic;color:var(--fd-ink-soft);font-size:11.5px">ยังไม่มีโน้ต · กดปุ่ม Notes ด้านบนเพื่อบันทึก</span></div>`,
-          `<span onclick="agEditOpen('notes','${a.id}')" style="cursor:pointer;color:#185FA5;text-decoration:underline">${a.note?'edit':'add'}</span>`)}
+            ? `<div class="r" style="border-bottom:none"><span class="v" style="font-weight:400">${a.note.replace(/\n/g,'<br>').replace(/(•|·)/g,'•')}</span></div>`
+            : `<div class="r" style="border-bottom:none"><span class="v" style="font-weight:400;color:var(--ag-ink4)">No notes yet.</span></div>`,
+          `<span onclick="agEditOpen('notes','${a.id}')" style="cursor:pointer;color:var(--ag-navy);font-weight:500">${a.note?'Edit':'Add'}</span>`)}
     </div>
   `;
 }

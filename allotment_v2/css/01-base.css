@@ -3033,83 +3033,150 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
 #view-agents .ag-hd-pr.dim{border-top:1px solid rgba(255,255,255,.22);margin-top:5px;padding-top:8px}
 #view-agents .ag-hd-pr.dim .t b{color:#9FB2D4;font-weight:700}
 
-/* ── หัวข้อในแผงของเอเย่นต์ · แถบทึบมีเลขกำกับ เห็นขอบเขตของแต่ละบล็อกชัด ── */
-/* หัวข้อใหญ่ · เข้มกว่ากรอบย่อยหนึ่งระดับเสมอ ไม่งั้นลำดับชั้นพัง
-   พื้นไล่สีจางไปขวาเพื่อให้แถบจบตัวเองได้โดยไม่ต้องมีขอบรอบด้าน */
-#view-agents .ag-band{display:flex;align-items:center;gap:10px;margin:14px 0 6px;
-  background:linear-gradient(90deg,#E6EBF6,#F5F7FC 62%);
-  border-left:5px solid #16265C;border-radius:0 9px 9px 0;padding:6px 12px}
-#view-agents .ag-band .no{font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;font-weight:800;
-  color:#fff;background:#16265C;border-radius:5px;padding:1px 7px;flex:none}
-#view-agents .ag-band .ttl{font-size:13px;font-weight:800;letter-spacing:.02em;color:#16265C}
-#view-agents .ag-band .note{margin-left:auto;font-size:10px;color:#7E8798;text-align:right}
-#view-agents .ag-band .act{margin-left:auto;font-family:inherit;font-size:10px;font-weight:700;color:#16265C;
-  background:#fff;border:1px solid #D7DEEB;border-radius:999px;padding:3px 11px;cursor:pointer;white-space:nowrap}
-#view-agents .ag-band .act:hover{background:#E9EEF8}
-#view-agents .ag-band.alert{background:linear-gradient(90deg,#FBE4E0,#FDF3F1 62%);border-left-color:#C0392B}
-#view-agents .ag-band.alert .no{background:#C0392B}
-#view-agents .ag-band.alert .ttl{color:#A32D2D}
-#view-agents .ag-band.alert .note{color:#A5564C}
-#view-agents .ag-band.clear{background:linear-gradient(90deg,#DFF1E9,#F2FAF6 62%);border-left-color:#0F6E56}
-#view-agents .ag-band.clear .no{background:#0F6E56}
-#view-agents .ag-band.clear .ttl{color:#0F6E56}
-#view-agents .ag-band.clear .note{color:#3F7D68}
+/* ══ §agStd · แผงของเอเย่นต์ · ชุดมาตรฐาน ════════════════════════════════════
+   ของเดิมใช้สีหกชุดทำงานสามหน้าที่พร้อมกัน — แบ่งกลุ่ม · บอกสถานะ · ตกแต่ง
+   พอสีทำสามอย่าง ตาก็แยกไม่ออกว่าสีไหนกำลังเตือน สีไหนแค่คั่นกลุ่ม
+   ชุดนี้เหลือกติกาเดียว: โครงสร้างทั้งหมดเป็นเทา-ขาว · สีใช้บอกสถานะอย่างเดียว
 
-/* ── แถบ Alert · เรื่องของเอเย่นต์รายนี้ เรียงตามความด่วน ── */
-#view-agents .ag-als{border:1px solid var(--fd-line);border-radius:10px;overflow:hidden}
-#view-agents .ag-al{display:flex;align-items:center;gap:11px;padding:5px 11px 5px 9px;
-  border-left:3px solid;font-size:12px}
-#view-agents .ag-al + .ag-al{border-top:1px solid rgba(0,0,0,.055)}
-#view-agents .ag-al .t{font-weight:700;flex:0 0 168px;display:flex;align-items:center;gap:6px}
-#view-agents .ag-al .day{font-family:'DM Mono',ui-monospace,monospace;font-weight:800;font-size:11px;
-  background:rgba(255,255,255,.7);border-radius:6px;padding:1px 6px;white-space:nowrap}
-#view-agents .ag-al .d{flex:1;min-width:0;color:#4A4F55;font-size:11.5px}
-#view-agents .ag-al .d b{font-weight:700;color:#1F2A33}
-#view-agents .ag-al .go{font-family:inherit;font-size:10px;font-weight:700;border-radius:999px;
-  padding:3px 10px;white-space:nowrap;background:rgba(255,255,255,.78);border:1px solid rgba(0,0,0,.10);
-  cursor:pointer;color:inherit}
-#view-agents .ag-al .go:hover{background:#fff}
-#view-agents .ag-ok{display:flex;align-items:center;gap:9px;background:#E7F5EE;border:1px solid #BFE3D4;
-  border-radius:10px;padding:9px 12px;font-size:12px;color:#0F6E56;font-weight:600}
+   อีกสองเรื่องที่ทำให้ของเดิมดูไม่เป็นมาตรฐาน
+     · กล่องเรียงแบบ auto-fit · ความกว้างจึงไม่ลงตัว ขอบกล่องแต่ละแถวไม่ตรงกัน → กริด 12 คอลัมน์
+     · ป้ายกำกับแถวกว้างไม่เท่ากันในแต่ละกล่อง ค่าเลยไม่เรียงเป็นคอลัมน์ → ตรึง 104px ทั้งหน้า
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* โทเคนทั้งชุดผูกไว้กับ #view-agents · ไม่รั่วไปหน้าอื่นที่ยังใช้ชุด --fd-* เดิม */
+#view-agents{--ag-ink:#101828;--ag-ink2:#475467;--ag-ink3:#667085;--ag-ink4:#98A2B3;
+  --ag-line:#E4E7EC;--ag-line2:#F2F4F7;--ag-soft:#F9FAFB;--ag-navy:#16265C;
+  --ag-red:#B42318;--ag-red-bg:#FEF3F2;--ag-red-bd:#FECDCA;
+  --ag-amb:#B54708;--ag-amb-bg:#FFFAEB;--ag-amb-bd:#FEDF89;
+  --ag-blu:#175CD3;--ag-blu-bg:#EFF8FF;--ag-blu-bd:#B2DDFF;
+  --ag-grn:#067647;--ag-grn-bg:#ECFDF3;--ag-grn-bd:#ABEFC6}
 
-/* ── กล่องย่อยในแต่ละหัวข้อ · แยกเรื่องที่ไม่เกี่ยวกันออกจากกันด้วยกรอบ ──
-   แผ่นเดียวยาว ๆ อ่านได้ แต่ไล่ไม่ถูกว่าอะไรอยู่กลุ่มไหน · โดยเฉพาะคอลัมน์ขวาที่ตาต้องกระโดดข้าม
-   กรอบทำให้ "สัญญา" "เครดิต" "ช่องทางจอง" เป็นสามก้อนที่มองปราดเดียวก็แยกออก */
-#view-agents .ag-grp{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:7px;align-items:start}
-/* §agFrame · กรอบต้องอ่านออกว่าเป็นกรอบ และหัวกล่องต้องอ่านออกว่าเป็นหัว
-   ของเดิมขอบจางเท่าเส้นคั่นในตาราง · หัวกล่องเล็กและสีเทาเท่าป้ายกำกับแถว
-   ผลคือมองแวบเดียวแยกไม่ออกว่าอะไรเป็นกรอบ อะไรเป็นเนื้อ
-   แก้ด้วยการทำหัวกล่องเป็นแถบของตัวเอง (พื้นอ่อน + เส้นใต้) แบบหัวตาราง */
-#view-agents .ag-box{border:1px solid #D7DDE9;border-radius:9px;padding:0 0 2px;background:#fff;min-width:0;
-  box-shadow:0 1px 2px rgba(22,38,92,.05)}
-#view-agents .ag-box.wide{grid-column:1/-1}
-#view-agents .ag-box .bh{display:flex;align-items:center;gap:7px;margin:0;padding:5px 10px;
-  background:#F4F6FB;border-bottom:1px solid #E1E6F0;border-radius:8px 8px 0 0;
-  font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#16265C}
-#view-agents .ag-box .bh em{font-style:normal;font-size:9px;font-weight:700;letter-spacing:0;
-  text-transform:none;color:#8A93A6;margin-left:auto}
-#view-agents .ag-box .ag-sh{padding:1px 10px 0}
+/* ── หัวข้อ · ป้ายเรียบ + เส้นคั่น · ไม่มีแถบสี ไม่มีเลขในวงกลม ──
+   หัวข้อไม่ใช่ "ของ" ในหน้า · หน้าที่มันคือคั่นกลุ่มแล้วหลบไป
+   ของเดิมเป็นแถบไล่สีมีเลขกำกับ เด่นกว่าเนื้อที่มันคั่นเสียเอง */
+#view-agents .ag-band{display:flex;align-items:center;gap:12px;margin:18px 0 8px;
+  background:none;border:0;border-radius:0;padding:0}
+#view-agents .ag-band .ttl{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ag-ink2);white-space:nowrap}
+#view-agents .ag-band .rule{flex:1;min-width:10px;height:1px;background:var(--ag-line)}
+#view-agents .ag-band .note{font-size:11.5px;color:var(--ag-ink4);white-space:nowrap}
+#view-agents .ag-band .act{font-family:inherit;font-size:12px;font-weight:600;color:var(--ag-navy);
+  background:none;border:0;border-radius:0;padding:2px 0;cursor:pointer;white-space:nowrap}
+#view-agents .ag-band .act:hover{background:none;text-decoration:underline}
+#view-agents .ag-band.alert .ttl{color:var(--ag-red)}
+
+/* ── รายการที่ต้องจัดการ · ตารางเดียว แถวไม่ย้อมสี ──
+   ย้อมพื้นทั้งแถวทำให้ห้าเรื่องดูด่วนเท่ากันหมด · ความด่วนอยู่ที่คอลัมน์ซ้ายคอลัมน์เดียว
+   เรียงจากด่วนสุดลงมา อ่านเป็นลิสต์งานได้ตั้งแต่บรรทัดแรก */
+#view-agents .ag-als{background:#fff;border:1px solid var(--ag-line);border-radius:8px;overflow:hidden}
+#view-agents .ag-al{display:flex;align-items:center;gap:12px;padding:9px 13px;font-size:13px;
+  border:0;border-top:1px solid var(--ag-line2);color:var(--ag-ink)}
+#view-agents .ag-al:first-child{border-top:0}
+#view-agents .ag-al:hover{background:var(--ag-soft)}
+#view-agents .ag-al .sev{flex:0 0 96px;display:flex;align-items:center;gap:7px;
+  font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+#view-agents .ag-al .sev i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+#view-agents .ag-al.red .sev{color:var(--ag-red)}
+#view-agents .ag-al.amb .sev{color:var(--ag-amb)}
+#view-agents .ag-al.blu .sev{color:var(--ag-blu)}
+#view-agents .ag-al .t{flex:0 0 168px;min-width:0;font-size:13px;font-weight:600;color:var(--ag-ink)}
+#view-agents .ag-al .d{flex:1;min-width:0;font-size:12.5px;color:var(--ag-ink2)}
+#view-agents .ag-al .d b{font-weight:600;color:var(--ag-ink)}
+#view-agents .ag-al .go{flex:none;font-family:inherit;font-size:12px;font-weight:600;color:var(--ag-navy);
+  background:none;border:0;border-radius:0;padding:4px 2px;cursor:pointer;white-space:nowrap}
+#view-agents .ag-al .go:hover{background:none;text-decoration:underline}
+#view-agents .ag-ok{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--ag-line);
+  border-radius:8px;padding:10px 13px;font-size:12.5px;color:var(--ag-ink3);font-weight:500}
+
+/* ── กริด 12 คอลัมน์ · ทุกการ์ดเกาะเส้นเดียวกัน ──
+   ที่ต้องระวัง: แผงนี้ไม่ได้กว้างเท่าจอ · ลิสต์เอเย่นต์ฝั่งซ้ายกินไปราว 390px
+   จอ 1440 จึงเหลือเนื้อที่ราว 740px — สามใบต่อแถวได้ใบละ 233px ซึ่งแคบเกินกว่าที่ค่าจะไม่ห่อ
+   ค่าเริ่มต้นจึงเป็นสองใบต่อแถว แล้วค่อยขยับเป็นสามใบเมื่อจอกว้างจริง (วัดที่ 1500) */
+#view-agents .ag-grp{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;align-items:start}
+/* ── การ์ด · ขาว ขอบเส้นเดียว ไม่มีเงา ไม่มีไล่สี · สถานะบอกด้วยป้ายบนหัว ไม่ใช่ย้อมกรอบ ── */
+#view-agents .ag-box{grid-column:span 6;min-width:0;background:#fff;
+  border:1px solid var(--ag-line);border-radius:8px;box-shadow:none;padding:0 0 4px}
+#view-agents .ag-box.c3,#view-agents .ag-box.c4,#view-agents .ag-box.c5{grid-column:span 6}
+#view-agents .ag-box.c8,#view-agents .ag-box.wide{grid-column:1/-1}
+@media (min-width:1500px){
+  #view-agents .ag-box{grid-column:span 4}
+  #view-agents .ag-box.c3{grid-column:span 3}
+  #view-agents .ag-box.c4{grid-column:span 4}
+  #view-agents .ag-box.c5{grid-column:span 5}
+  #view-agents .ag-box.c8{grid-column:span 8}
+}
+#view-agents .ag-box .bh{display:flex;align-items:center;gap:8px;margin:0;padding:9px 13px;
+  background:none;border-bottom:1px solid var(--ag-line2);border-radius:0;
+  font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ag-ink3)}
+#view-agents .ag-box .bh em{font-style:normal;margin-left:auto;font-size:11.5px;font-weight:400;
+  letter-spacing:0;text-transform:none;color:var(--ag-ink4)}
+#view-agents .ag-box .ag-sh{padding:2px 13px 0}
 #view-agents .ag-box .ag-sh .r:last-child{border-bottom:none}
-#view-agents .ag-box.alert{border-color:#E4B6AF}
-#view-agents .ag-box.alert .bh{background:#FBECE9;border-bottom-color:#E8C9C4;color:#A32D2D}
-#view-agents .ag-box.warn{border-color:#E8CB96}
-#view-agents .ag-box.warn .bh{background:#FDF3E2;border-bottom-color:#EFD9AE;color:#8A5410}
 
-/* ── แถว Sheet · ป้ายเล็กซ้าย ค่าขวา คั่นด้วยเส้นผม ── */
-#view-agents .ag-sh{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 26px}
-#view-agents .ag-sh.one{grid-template-columns:minmax(0,1fr)}
-/* แถวเตี้ยที่สุดที่ยังอ่านออก · ป้ายกว้าง 88px พอสำหรับคำที่ยาวที่สุดที่ใช้จริง (BOOKING CHANNEL)
-   ป้ายที่กว้างกว่านี้ไปเบียดค่าจนห่อบรรทัด ซึ่งกินความสูงมากกว่าที่ประหยัดได้ */
-#view-agents .ag-sh .r{display:flex;gap:9px;align-items:baseline;padding:3px 2px;
-  border-bottom:1px solid var(--fd-line-soft);min-width:0}
-#view-agents .ag-sh .r .k{flex:0 0 88px;font-size:8px;font-weight:700;letter-spacing:.05em;
-  text-transform:uppercase;color:var(--fd-ink-soft);line-height:1.5}
-#view-agents .ag-sh .r .v{flex:1;min-width:0;font-size:12.5px;font-weight:600;line-height:1.3;
-  overflow-wrap:anywhere}
-#view-agents .ag-sh .r .v .sub{display:block;font-size:9.5px;color:var(--fd-ink-soft);font-weight:400;line-height:1.4}
-#view-agents .ag-bar{display:block;height:5px;border-radius:3px;background:#EEEAE2;overflow:hidden;
-  margin-top:4px;max-width:260px}
+/* ── ป้ายสถานะ · ที่เดียวในหน้าที่มีสีพื้น ── */
+#view-agents .ag-tag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;
+  border-radius:6px;padding:2px 8px;white-space:nowrap;letter-spacing:0;text-transform:none;
+  border:1px solid var(--ag-line);background:var(--ag-soft);color:var(--ag-ink2)}
+#view-agents .ag-tag.red{background:var(--ag-red-bg);border-color:var(--ag-red-bd);color:var(--ag-red)}
+#view-agents .ag-tag.amb{background:var(--ag-amb-bg);border-color:var(--ag-amb-bd);color:var(--ag-amb)}
+#view-agents .ag-tag.blu{background:var(--ag-blu-bg);border-color:var(--ag-blu-bd);color:var(--ag-blu)}
+#view-agents .ag-tag.grn{background:var(--ag-grn-bg);border-color:var(--ag-grn-bd);color:var(--ag-grn)}
+
+/* ── แถว label/value · ป้ายกว้าง 104px เท่ากันทุกการ์ด ค่าจึงเรียงเป็นคอลัมน์เดียวทั้งหน้า ── */
+#view-agents .ag-sh{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+#view-agents .ag-sh .r{display:flex;gap:12px;align-items:baseline;padding:6px 0;min-width:0;
+  border-bottom:1px solid var(--ag-line2)}
+#view-agents .ag-sh .r .k{flex:0 0 104px;font-size:11.5px;font-weight:400;letter-spacing:0;
+  text-transform:none;color:var(--ag-ink3);line-height:1.45}
+/* break-word ไม่ใช่ anywhere · anywhere ทำให้เบราว์เซอร์คิดความกว้างขั้นต่ำเป็นตัวอักษรเดียว
+   แล้วตัดกลางคำทั้งที่ยังมีที่เหลือ ("2 add-ons" กลายเป็น "2 add - ons") */
+#view-agents .ag-sh .r .v{flex:1;min-width:0;font-size:13px;font-weight:500;line-height:1.45;
+  color:var(--ag-ink);overflow-wrap:break-word}
+#view-agents .ag-sh .r .v .sub{display:block;font-size:11.5px;color:var(--ag-ink3);font-weight:400;
+  line-height:1.45;margin-top:2px}
+#view-agents .ag-bar{display:block;height:6px;border-radius:3px;background:var(--ag-line2);overflow:hidden;
+  margin-top:6px;max-width:220px}
 #view-agents .ag-bar i{display:block;height:100%}
+
+/* ── ตัวเลขตัวอย่าง · สามช่องคั่นด้วยเส้น ไม่ใช่สามการ์ดซ้อนในการ์ด ── */
+#view-agents .ag-stats{display:flex}
+#view-agents .ag-stat{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding:10px 13px;
+  border-right:1px solid var(--ag-line2)}
+#view-agents .ag-stat:last-child{border-right:none}
+#view-agents .ag-stat .k{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ag-ink3)}
+#view-agents .ag-stat .v{font-family:'DM Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;
+  font-size:19px;font-weight:500;color:var(--ag-ink);letter-spacing:-.01em}
+#view-agents .ag-stat .s{font-size:11.5px;color:var(--ag-ink3);overflow-wrap:anywhere}
+
+/* จอกลาง · สามการ์ดต่อแถวเริ่มบีบจนค่าห่อบรรทัด · ลดเหลือสองแถวละสองใบ
+   (ยังเป็นกริด 12 อยู่ · ขอบจึงยังตรงกันเหมือนเดิม) */
+
+/* ── ตารางโปรแกรม · อยู่ในกรอบการ์ดเดียวกับที่เหลือ ──
+   §agStd · ของเดิมลอยอยู่กลางหน้าไม่มีกรอบ · ชนกับการ์ดข้างบนที่มีกรอบ เลยดูคนละชุดกัน
+   สีที่เคยใช้ hover (coral) ถูกถอด — สีในหน้านี้สงวนไว้บอกสถานะอย่างเดียว */
+#view-agents .agi-prog-wrap{background:#fff;border:1px solid var(--ag-line);border-radius:8px;overflow:hidden}
+/* ช่วงวันเป็นตัวเลขความกว้างคงที่ (mono) · ให้คอลัมน์วันกว้างพอดีวันแล้วยกที่เหลือให้ชื่อเส้นทาง
+   ของเดิมแบ่งด้วย fr ทั้งสามคอลัมน์ ชื่อเส้นทางเลยโดนตัด "…" ทั้งที่ช่องวันเหลือที่ว่าง */
+#view-agents .agi-prog-header,#view-agents .agi-prog-row{
+  grid-template-columns:minmax(0,1fr) 152px 152px 92px auto;gap:12px}
+#view-agents .agi-prog-header{margin-top:0;padding:8px 13px;background:var(--ag-soft);
+  border-bottom:1px solid var(--ag-line);font-size:10.5px;font-weight:700;letter-spacing:.06em;
+  color:var(--ag-ink3)}
+#view-agents .agi-prog-row{padding:9px 13px;border-bottom:1px solid var(--ag-line2)}
+#view-agents .agi-prog-row:hover{background:var(--ag-soft);border-color:var(--ag-line2)}
+#view-agents .agi-prog-name{font-size:12.5px;font-weight:500;color:var(--ag-ink)}
+#view-agents .agi-prog-pier{font-size:11px;font-weight:400;color:var(--ag-ink4)}
+#view-agents .agi-period-val{font-size:12px;font-weight:400;color:var(--ag-ink2)}
+#view-agents .agi-prog-st{display:flex;align-items:center;min-width:0}
+/* ชิป "↳ RT" · เคยระบายสีตามเรท · สีในหน้านี้สงวนไว้บอกสถานะ ชิปนี้บอกที่มาของวัน ไม่ใช่สถานะ */
+#view-agents .agi-rtchip{margin-left:5px;font-size:10px;font-weight:600;letter-spacing:.04em;
+  color:var(--ag-ink4);text-transform:uppercase;white-space:nowrap}
+#view-agents .agi-prog-act-btn{border-color:var(--ag-line);color:var(--ag-ink4)}
+#view-agents .agi-prog-act-btn:hover{background:var(--ag-soft);color:var(--ag-navy)}
+#view-agents .agi-prog-add{padding:9px 13px;border:0;border-top:1px solid var(--ag-line2);
+  font-size:12px;color:var(--ag-ink3)}
+#view-agents .agi-prog-add:hover{background:var(--ag-soft);border-color:var(--ag-line2);color:var(--ag-navy)}
+#view-agents .agi-note{padding:8px 2px 0;font-size:11.5px;color:var(--ag-ink4)}
 
 /* ── ปุ่มยุบ/กางลิสต์ · มีเฉพาะจอโทรศัพท์ ── */
 #view-agents .ag-side-tgl{display:none;font-family:inherit;font-size:10.5px;font-weight:700;color:#16265C;
@@ -3137,16 +3204,28 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
   #view-agents .sb-tabs{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
   #view-agents .sb-tabs::-webkit-scrollbar{display:none}
   #view-agents .sb-tab{flex:none}
-  #view-agents .ag-band{flex-wrap:wrap}
-  #view-agents .ag-band .note{margin-left:0;flex:1 1 100%;text-align:left}
-  #view-agents .ag-al{flex-wrap:wrap;align-items:flex-start;gap:4px 9px}
+  /* หัวข้อ · เส้นคั่นไม่มีที่พอบนจอแคบ · ตัดเส้นทิ้ง ให้ข้อความประกอบลงบรรทัดใหม่แทน */
+  /* ชื่อหัวข้อขึ้นบรรทัดของตัวเอง · ปุ่มงานจึงอยู่ด้วยกันบรรทัดเดียว ไม่กระจายคนละบรรทัด */
+  #view-agents .ag-band{flex-wrap:wrap;gap:6px 14px;margin:18px 0 8px}
+  #view-agents .ag-band .rule{display:none}
+  #view-agents .ag-band .ttl{flex:1 1 100%}
+  #view-agents .ag-band .note{flex:1 1 100%;order:5;white-space:normal;text-align:left}
+  /* แถวเตือน · บรรทัดแรก ความด่วน + เรื่อง + ปุ่ม · บรรทัดสอง รายละเอียด
+     ถ้าปล่อยตามลำดับ DOM ปุ่มจะตกไปอยู่บรรทัดสามเดี่ยว ๆ แถวสูงขึ้นเปล่า ๆ */
+  #view-agents .ag-al{flex-wrap:wrap;align-items:flex-start;gap:4px 12px}
+  #view-agents .ag-al .sev{flex:0 0 auto}
   #view-agents .ag-al .t{flex:1 1 auto}
-  #view-agents .ag-al .go{margin-left:auto}
-  #view-agents .ag-al .d{flex:1 1 100%}
-  #view-agents .ag-grp{grid-template-columns:minmax(0,1fr);gap:8px}
+  #view-agents .ag-al .go{order:3;margin-left:auto;padding:0 2px}
+  #view-agents .ag-al .d{order:5;flex:1 1 100%}
+  #view-agents .ag-grp{grid-template-columns:minmax(0,1fr);gap:10px}
+  #view-agents .ag-box,#view-agents .ag-box.c3,#view-agents .ag-box.c5,
+  #view-agents .ag-box.c6,#view-agents .ag-box.c8{grid-column:1/-1}
   #view-agents .ag-sh{grid-template-columns:minmax(0,1fr)}
-  #view-agents .ag-sh .r{flex-direction:column;gap:1px;padding:6px 2px}
+  #view-agents .ag-sh .r{flex-direction:column;gap:1px;padding:7px 0}
   #view-agents .ag-sh .r .k{flex:none}
+  #view-agents .ag-stats{flex-direction:column}
+  #view-agents .ag-stat{border-right:none;border-bottom:1px solid var(--ag-line2)}
+  #view-agents .ag-stat:last-child{border-bottom:none}
   /* แถวโปรแกรม · จากตารางห้าคอลัมน์ เป็นการ์ดต่อแถว ชื่อ+ช่วงวันอยู่คนละบรรทัด */
   #view-agents .agi-prog-header{display:none}
   #view-agents .agi-prog-row{flex-wrap:wrap;gap:2px 10px;padding:8px 6px}

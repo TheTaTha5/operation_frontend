@@ -25,7 +25,10 @@ const draw = async (page) => page.evaluate(() => {
   const row  = host.querySelector('.agi-prog-row');
   const name = host.querySelector('.agi-prog-name-wrap');
   const val  = host.querySelector('.agi-period-val');
-  const card = host.querySelector('.agi-info-card');
+  /* §agStd · ช่องตัวเลขตัวอย่างย้ายจาก .agi-info-card มาเป็น .ag-stat
+     ถามคำถามเดิม (ช่องข้อมูลต้องไม่เป็นกล่องสีทึบ) กับตัวที่วาดจริงในวันนี้
+     เผื่อชื่อเก่าไว้ด้วย · ไม่มีทั้งคู่ = ไม่มีเรทผูกอยู่ ไม่ใช่ความผิดของหน้าตา */
+  const card = host.querySelector('.ag-stat') || host.querySelector('.agi-info-card');
   const sale = host.querySelector('.agi-sales-card');
   const cs   = el => el ? getComputedStyle(el) : null;
   return {
@@ -38,7 +41,39 @@ const draw = async (page) => page.evaluate(() => {
     rowRadius: row  ? cs(row).borderTopLeftRadius : '?',
     cardBg:    card ? cs(card).backgroundColor    : '?',
     valMono:   val  ? /mono/i.test(cs(val).fontFamily) : false,
-    overflowX: Math.max(0, host.scrollWidth - host.clientWidth)
+    overflowX: Math.max(0, host.scrollWidth - host.clientWidth),
+
+    /* ── §agStd · สามข้อที่ทำให้ของเดิม "ดูไม่เป็นมาตรฐาน" ──────────────────
+       วัดตรงที่มันพัง ไม่ใช่วัดว่ามีคลาสอะไรอยู่
+         1 หัวข้อเป็นแถบสีเด่นกว่าเนื้อที่มันคั่น     → พื้นหัวข้อต้องโปร่ง
+         2 กล่องเรียงแบบ auto-fit ขอบแต่ละแถวไม่ตรงกัน → ขอบซ้ายต้องมีไม่กี่ค่า และกว้างเท่ากัน
+         3 ป้ายกำกับกว้างไม่เท่ากันในแต่ละกล่อง        → ความกว้างป้ายต้องมีค่าเดียวทั้งหน้า */
+    bandFills: [...host.querySelectorAll('.ag-band')].map(b=>{
+      const c = cs(b); return c.backgroundColor + '|' + c.backgroundImage;
+    }),
+    bandNums: host.querySelectorAll('.ag-band .no').length,
+    /* ขอบซ้ายของการ์ดทุกใบ ปัดเป็น int · กริดจริงต้องซ้ำกันไม่กี่ค่า */
+    boxLefts: [...new Set([...host.querySelectorAll('.ag-box')]
+      .map(b=>Math.round(b.getBoundingClientRect().left)))].sort((x,y)=>x-y),
+    /* ขอบขวาด้วย · ขอบซ้ายอย่างเดียวจับไม่ได้ตอนการ์ดใบหนึ่งกว้างผิดขนาดแล้วอยู่ลำพังในแถว */
+    boxRights: [...new Set([...host.querySelectorAll('.ag-box')]
+      .map(b=>Math.round(b.getBoundingClientRect().right)))].sort((x,y)=>x-y),
+    /* การ์ดที่ขอบบนตรงกันคือแถวเดียวกัน · แถวเดียวกันต้องกว้างเท่ากัน */
+    rowWidthSpread: (function(){
+      const rows = {};
+      [...host.querySelectorAll('.ag-box')].forEach(b=>{
+        const r = b.getBoundingClientRect();
+        (rows[Math.round(r.top)] = rows[Math.round(r.top)] || []).push(Math.round(r.width));
+      });
+      return Math.max(0, ...Object.values(rows).map(w=>Math.max(...w)-Math.min(...w)));
+    })(),
+    labelWidths: [...new Set([...host.querySelectorAll('.ag-sh .r .k')]
+      .map(k=>Math.round(k.getBoundingClientRect().width)))].sort((x,y)=>x-y),
+    /* แถวเตือนต้องไม่ย้อมพื้น และต้องมีคอลัมน์ความด่วน */
+    alTints: [...new Set([...host.querySelectorAll('.ag-al')]
+      .map(r=>cs(r).backgroundColor))],
+    alNoSev: [...host.querySelectorAll('.ag-al')].filter(r=>!r.querySelector('.sev')).length,
+    nAl: host.querySelectorAll('.ag-al').length
   };
 });
 
@@ -65,8 +100,9 @@ if (parseFloat(D.rowRadius) > 4)
 else ok('แถวเป็นเส้นคั่น ไม่ใช่การ์ด');
 
 /* ── ช่องข้อมูลต้องไม่เป็นกล่องสีทึบ ── */
-const solid = D.cardBg && !/rgba\(0, 0, 0, 0\)|transparent/.test(D.cardBg);
-if (solid) fail('ช่องข้อมูลยังมีพื้นหลังทึบ (' + D.cardBg + ')');
+if (D.cardBg === '?') warn('เอเย่นต์รายนี้ไม่มีช่องตัวเลขตัวอย่างให้วัด · ข้ามข้อนี้');
+else if (!/rgba\(0, 0, 0, 0\)|transparent/.test(D.cardBg))
+  fail('ช่องข้อมูลยังมีพื้นหลังทึบ (' + D.cardBg + ')');
 else ok('ช่องข้อมูลแบนราบ คั่นด้วยเส้น');
 
 /* ── วันที่ต้องเป็นตัวเลขเรียงหลัก ── */
@@ -80,6 +116,35 @@ else ok('แถบคนดูแลสูง ' + D.saleH + 'px');
 if (D.overflowX > 2) fail('ล้นแนวนอน ' + D.overflowX + 'px');
 else ok('ไม่ล้นแนวนอน');
 console.log('  · ความสูงทั้งแท็บ ' + D.totalH + 'px');
+
+/* ══ §agStd · กติกาของชุดมาตรฐาน ════════════════════════════════════════════ */
+const painted = D.bandFills.filter(f => !/rgba\(0, 0, 0, 0\)\|none/.test(f));
+if (painted.length)
+  fail(painted.length + ' หัวข้อยังมีพื้นสี · หัวข้อต้องเบากว่าเนื้อที่มันคั่น (' + painted[0] + ')');
+else if (D.bandNums)
+  fail('หัวข้อยังมีเลขกำกับในวงกลม ' + D.bandNums + ' อัน');
+else ok('หัวข้อเป็นป้ายเรียบ ไม่มีพื้นสี ไม่มีเลขกำกับ');
+
+/* จอ 1400 ของเทสนี้ = สองใบต่อแถว · เส้นกริดที่การ์ดได้จึงมีแค่ซ้าย/กลาง และ กลาง/ขวา
+   เกินกว่านั้นแปลว่ามีใบไหนกว้างไม่ลงล็อก — ซึ่งคือสิ่งที่ auto-fit ของเดิมทำอยู่ */
+if (D.boxLefts.length > 2)
+  fail('การ์ดเริ่มที่ขอบซ้าย ' + D.boxLefts.length + ' ตำแหน่ง · กริดไม่ลงคอลัมน์เดียวกัน · ' + D.boxLefts.join(', '));
+else if (D.boxRights.length > 2)
+  fail('การ์ดจบที่ขอบขวา ' + D.boxRights.length + ' ตำแหน่ง · มีใบกว้างไม่ลงล็อก · ' + D.boxRights.join(', '));
+else if (D.rowWidthSpread > 2)
+  fail('การ์ดในแถวเดียวกันกว้างไม่เท่ากัน ต่างกัน ' + D.rowWidthSpread + 'px');
+else ok('การ์ดเกาะกริดเดียวกัน · ขอบซ้าย ' + D.boxLefts.join(' / ') + ' · ขอบขวา ' + D.boxRights.join(' / '));
+
+if (D.labelWidths.length > 1)
+  fail('ป้ายกำกับกว้างไม่เท่ากัน ' + D.labelWidths.length + ' ขนาด (' + D.labelWidths.join(', ') + ') · ค่าเลยไม่เรียงเป็นคอลัมน์');
+else ok('ป้ายกำกับกว้างเท่ากันทั้งหน้า · ' + D.labelWidths[0] + 'px');
+
+if (!D.nAl) console.log('  ! เอเย่นต์รายนี้ไม่มีเรื่องค้าง · ข้ามข้อแถบเตือน');
+else if (D.alTints.some(c => !/rgba\(0, 0, 0, 0\)|rgb\(255, 255, 255\)/.test(c)))
+  fail('แถวเตือนยังย้อมพื้นทั้งแถว (' + D.alTints.join(' / ') + ') · ทุกเรื่องเลยดูด่วนเท่ากันหมด');
+else if (D.alNoSev)
+  fail(D.alNoSev + ' แถวเตือนไม่มีคอลัมน์ความด่วน');
+else ok('แถวเตือน ' + D.nAl + ' แถว · ไม่ย้อมพื้น · มีคอลัมน์ความด่วนครบ');
 
 /* ── มือถือ · กฎใน 02-skins.css ต้องยังชนะบล็อกนี้ ─────────────────────────
    บล็อก §agSheet เป็น CSS ชั้นบน · ถ้าวันไหนเขียนแรงกว่ากฎมือถือ ตารางจะไม่ยุบเป็นคอลัมน์เดียว
