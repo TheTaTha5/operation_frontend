@@ -14210,11 +14210,114 @@ function flProjDeleteVendorVisit(projId, vvId){
 }
 
 // ── Photo helpers (stored as docs[] with type='photo') ──
+/* ══ §projAttach · แนบรูป/ไฟล์เข้าโปรเจคได้จริง ไม่ต้องไปหา URL มาแปะ ═════════
+   ของเดิมปุ่ม + Add Photo เปิด prompt ขอ "Image URL" และช่องเอกสารรับแต่ลิงก์
+   ช่างที่ยืนถ่ายงานอู่อยู่หน้างานด้วยมือถือจึงแนบไม่ได้เลยสักรูป ต้องเอาไปอัป
+   ที่อื่นก่อนแล้วค่อยก๊อปลิงก์กลับมา — ในทางปฏิบัติแปลว่าไม่มีใครแนบ
+
+   ใช้ท่อเดียวกับสลิปที่มีอยู่แล้ว ไม่ได้สร้างของใหม่:
+     POST /api/attach {bookingId,filename,mime,dataB64} → ตาราง attachments
+     GET  /api/attach/<id>  เสิร์ฟไฟล์แบบ inline (ต้องมี session)
+   bookingId ที่ส่งคือ 'proj_<projId>' เป็นแค่ตัวคั่น ไม่ได้อ้างบุ๊กกิ้งจริง
+   (ตาราง attachments ไม่มี FK ไปหา bookings · ฝั่ง mailimg ก็ใช้วิธีนี้อยู่แล้ว)
+   จึงไม่ต้อง migrate อะไรเลย
+
+   ⚠ blob เก็บแค่ ref — {attId, url:'/api/attach/<id>', mime, size} ไม่เคยเก็บ base64
+     เก็บ data: URL ลง docs[] = blob ของทั้งแอปบวมทุกครั้งที่ถ่ายรูป (ดู §fkIndex)
+   ⚠ รูปย่อก่อนส่งด้วย _bkV2DownscaleImage ซึ่งอยู่ 08-app.js (โหลดทีหลังไฟล์นี้)
+     เรียกตอนคลิกเท่านั้นจึงมีตัวจริงเสมอ · ยังใส่ fallback ไว้เผื่อ
+   เพดาน 6MB เป็นของฝั่งเซิร์ฟเวอร์ · เช็กฝั่ง client ด้วยเพื่อไม่ให้เสียเที่ยว
+   ═══════════════════════════════════════════════════════════════════════════ */
+function _flProjPickFiles(accept, multiple, cb){
+  // กดยกเลิกในหน้าต่างเลือกไฟล์ onchange ไม่ยิง · ตัวเก่าจึงค้างใน DOM · เก็บกวาดก่อนสร้างใหม่
+  const stale = document.getElementById('fl-proj-file'); if(stale) stale.remove();
+  const inp = document.createElement('input');
+  inp.id='fl-proj-file';
+  inp.type='file'; if(accept) inp.accept=accept; if(multiple) inp.multiple=true;
+  inp.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';
+  document.body.appendChild(inp);
+  inp.onchange = ()=>{ const fs=Array.prototype.slice.call(inp.files||[]); inp.remove(); if(fs.length) cb(fs); };
+  inp.click();
+}
+function _flProjBusy(text){
+  let el = document.getElementById('fl-proj-busy');
+  if(!text){ if(el) el.remove(); return; }
+  if(!el){
+    el = document.createElement('div');
+    el.id='fl-proj-busy';
+    el.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:100000;'
+      +'background:rgba(15,31,46,.94);color:#fff;font-family:\'DM Sans\',sans-serif;font-size:12px;font-weight:600;'
+      +'padding:9px 18px;border-radius:20px;box-shadow:0 6px 20px rgba(0,0,0,.28);pointer-events:none';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+}
+function _flProjUploadOne(file, projId, cb){
+  const post = (blob, mime, name)=>{
+    if(blob && blob.size > 6*1024*1024){ alert('File "'+name+'" is over 6MB · please compress it first'); cb(null); return; }
+    const fr = new FileReader();
+    fr.onload = ()=>{
+      const b64 = String(fr.result).split(',')[1]||'';
+      fetch('/api/attach',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({bookingId:'proj_'+projId, filename:name, mime:mime, dataB64:b64})})
+        .then(r=>r.json())
+        .then(j=>{ if(j&&j.error){ alert('Upload failed: '+j.error); cb(null); return; }
+                   cb({id:j.id, name:j.filename, mime:j.mime, size:j.size}); })
+        .catch(e=>{ alert('Upload failed: '+e.message); cb(null); });
+    };
+    fr.onerror = ()=>{ alert('Cannot read file: '+(file.name||'')); cb(null); };
+    fr.readAsDataURL(blob);
+  };
+  if(/^image\//.test(file.type||'')){
+    const dn = (typeof _bkV2DownscaleImage==='function') ? _bkV2DownscaleImage : (f,m,c)=>c(f,f.type);
+    dn(file, 2000, (b,m)=>{ if(b) post(b, m, (file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg');
+                            else   post(file, file.type||'image/jpeg', file.name||'photo.jpg'); });
+  } else post(file, file.type||'application/octet-stream', file.name||'file');
+}
+// อัปทีละไฟล์ต่อกันเป็นแถว · ยิงพร้อมกันทั้งกองจะชน limit 6MB ต่อ request ของ Railway ง่าย
+function _flProjUploadAll(files, projId, each, done){
+  let i=0, ok=0;
+  const step = ()=>{
+    if(i>=files.length){ _flProjBusy(''); done(ok); return; }
+    const f = files[i++];
+    _flProjBusy('Uploading '+i+'/'+files.length+' …');
+    _flProjUploadOne(f, projId, meta=>{ if(meta){ ok++; each(meta, f); } step(); });
+  };
+  step();
+}
 function flProjAddPhoto(projId){
   const p = flProjGetById(projId); if(!p) return;
-  const url = prompt('Image URL (paste link or data: URL):', ''); if(!url) return;
+  _flProjPickFiles('image/*', true, files=>{
+    if(!p.docs) p.docs=[];
+    _flProjUploadAll(files, projId, meta=>{
+      p.docs.push({
+        id:'ph_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        name: meta.name,
+        url: '/api/attach/'+encodeURIComponent(meta.id),
+        attId: meta.id,
+        mime: meta.mime,
+        size: meta.size,
+        note: '',
+        type: 'photo',
+        phase: p.phase||'planning',
+        status: 'received',
+        addedAt: TODAY_STR,
+        by: (typeof laBy==='function'?laBy():'user')
+      });
+    }, n=>{
+      if(!n) return;
+      if(!p.log) p.log=[];
+      p.log.push({date:TODAY_STR, text:`Photo added · ${n} file${n>1?'s':''}`, by:'user'});
+      flSave();
+      flRenderProjects();
+    });
+  });
+}
+// แปะลิงก์รูปจากที่อื่น · ทางเดิมที่ยังมีคนใช้ (เช่นรูปจาก Drive ของอู่)
+function flProjAddPhotoUrl(projId){
+  const p = flProjGetById(projId); if(!p) return;
+  const url = prompt('Image URL (paste a link):', ''); if(!url) return;
   const caption = prompt('Caption (optional):', '')||'';
-  const phase = prompt('Phase tag (planning/liftout/hull/mechanical/sea_trial/handover):', p.phase||'planning')||'planning';
   if(!p.docs) p.docs=[];
   p.docs.push({
     id:'ph_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
@@ -14222,14 +14325,67 @@ function flProjAddPhoto(projId){
     url: url.trim(),
     note: caption,
     type: 'photo',
-    phase: phase,
+    phase: p.phase||'planning',
     status: 'received',
-    addedAt: TODAY_STR
+    addedAt: TODAY_STR,
+    by: (typeof laBy==='function'?laBy():'user')
   });
   if(!p.log) p.log=[];
   p.log.push({date:TODAY_STR, text:`Photo added${caption?': '+caption:''}`, by:'user'});
   flSave();
   flRenderProjects();
+}
+// แนบไฟล์เอกสาร (รูป · PDF · อะไรก็ได้) · ชื่อเอกสารเอาจากช่องชื่อถ้ากรอกไว้ ไม่งั้นใช้ชื่อไฟล์
+function flProjAttachDoc(projId){
+  const p = flProjGetById(projId); if(!p) return;
+  const nameEl = document.getElementById('proj-doc-name-'+projId);
+  const noteEl = document.getElementById('proj-doc-note-'+projId);
+  const typed  = (nameEl&&nameEl.value.trim())||'';
+  const note   = (noteEl&&noteEl.value.trim())||'';
+  _flProjPickFiles('', true, files=>{
+    if(!p.docs) p.docs=[];
+    _flProjUploadAll(files, projId, (meta,f)=>{
+      p.docs.push({
+        id:'dc_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        name: (files.length===1 && typed) ? typed : (meta.name||f.name||'file'),
+        url: '/api/attach/'+encodeURIComponent(meta.id),
+        attId: meta.id,
+        mime: meta.mime,
+        size: meta.size,
+        note: note,
+        status: 'received',
+        addedAt: TODAY_STR,
+        by: (typeof laBy==='function'?laBy():'user')
+      });
+    }, n=>{
+      if(!n) return;
+      if(!p.log) p.log=[];
+      p.log.push({date:TODAY_STR, text:`+ Document: ${n} file${n>1?'s':''} attached`, by:'user'});
+      if(nameEl) nameEl.value=''; if(noteEl) noteEl.value='';
+      flSave();
+      flRenderProjects();
+    });
+  });
+}
+// แนบไฟล์ให้เอกสารที่มีอยู่แล้ว (แถวที่ยัง PENDING ไม่มีไฟล์) · กดจากปุ่ม 📎 ในแถวนั้น
+function flProjAttachToDoc(projId, docId){
+  const p = flProjGetById(projId); if(!p||!p.docs) return;
+  const d = p.docs.find(x=>x.id===docId); if(!d) return;
+  _flProjPickFiles('', false, files=>{
+    _flProjUploadAll(files, projId, meta=>{
+      d.url  = '/api/attach/'+encodeURIComponent(meta.id);
+      d.attId= meta.id;
+      d.mime = meta.mime;
+      d.size = meta.size;
+      if(d.status==='pending'||!d.status) d.status='received';
+    }, n=>{
+      if(!n) return;
+      if(!p.log) p.log=[];
+      p.log.push({date:TODAY_STR, text:`File attached to "${d.name}"`, by:'user'});
+      flSave();
+      flRenderProjects();
+    });
+  });
 }
 function flProjLightbox(url, caption){
   const html = `<div onclick="this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out">
@@ -15804,7 +15960,9 @@ function flProjRenderDocsTab(p){
                 <div style="font-size:12px;font-weight:600;color:${P.ink}">${d.name||''}</div>
                 ${d.note?`<div style="font-size:10px;color:${P.ink3};margin-top:1px">${d.note}</div>`:''}
               </div>
-              ${d.url?`<a href="${d.url}" target="_blank" style="font-size:11px;color:${P.blue};text-decoration:none;font-weight:600">📎 link</a>`:''}
+              ${d.url
+                ? `<a href="${d.url}" target="_blank" rel="noopener" style="font-size:11px;color:${P.blue};text-decoration:none;font-weight:600">${d.attId?'📎 file':'📎 link'}</a>`
+                : `<button onclick="flProjAttachToDoc('${p.id}','${d.id}')" style="background:none;border:1px solid ${P.line};border-radius:8px;color:${P.ink3};font-size:11px;font-weight:600;padding:3px 9px;cursor:pointer" title="แนบไฟล์">📎 แนบไฟล์</button>`}
               <span style="background:${st.bg};color:${st.color};padding:3px 9px;border-radius:10px;font-size:9px;font-weight:700">${st.label}</span>
               <select onchange="flProjUpdateDocStatus('${p.id}','${d.id}',this.value)" style="font-size:10px;padding:3px 6px;border:1px solid ${P.line};border-radius:6px;background:white;cursor:pointer">
                 <option value="pending" ${d.status==='pending'?'selected':''}>Pending</option>
@@ -15816,11 +15974,12 @@ function flProjRenderDocsTab(p){
           }).join('')}
         </div>
       ` : `<div style="background:${P.bg};border:1px dashed ${P.line};border-radius:10px;padding:24px;text-align:center;color:${P.ink3};font-size:12px;margin-bottom:14px">ยังไม่มีเอกสาร · เพิ่มจากด้านล่าง</div>`}
-      <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr auto;gap:6px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr auto auto;gap:6px;margin-bottom:10px">
         <input id="proj-doc-name-${p.id}" type="text" placeholder="ชื่อเอกสาร เช่น Quotation จากอู่ A" style="font-size:12px;padding:9px 12px;border:1px solid ${P.line};border-radius:8px">
         <input id="proj-doc-url-${p.id}" type="text" placeholder="URL / file link (optional)" style="font-size:12px;padding:9px 12px;border:1px solid ${P.line};border-radius:8px">
         <input id="proj-doc-note-${p.id}" type="text" placeholder="หมายเหตุ" style="font-size:12px;padding:9px 12px;border:1px solid ${P.line};border-radius:8px">
-        <button onclick="flProjAddDoc('${p.id}')" style="background:${P.navy};color:white;border:none;border-radius:8px;padding:0 16px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
+        <button onclick="flProjAttachDoc('${p.id}')" style="background:white;color:${P.navy};border:1px solid ${P.line};border-radius:8px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer" title="เลือกไฟล์จากเครื่อง · รูป/PDF ก็ได้">📎 แนบไฟล์</button>
+        <button onclick="flProjAddDoc('${p.id}')" style="background:${P.navy};color:white;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
       </div>
       ${missingRequired.length ? `
         <div style="font-size:10px;color:${P.ink3};margin:14px 0 6px;letter-spacing:.6px;text-transform:uppercase;font-weight:600">Required for ${p.type} (still missing)</div>
@@ -15836,7 +15995,10 @@ function flProjRenderDocsTab(p){
           <div style="font-size:14px;letter-spacing:.4px;color:${P.navy};font-weight:800;text-transform:uppercase;display:inline-flex;align-items:center;gap:6px">${flProjIcon('camera',13,P.purple)} Photo Gallery</div>
           <div style="font-size:12px;color:${P.ink2};margin-top:2px">Before · during · after photos · grouped by phase</div>
         </div>
-        <button onclick="flProjAddPhoto('${p.id}')" style="background:${P.navy};color:white;border:none;border-radius:14px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer">+ Add Photo</button>
+        <div style="display:flex;gap:6px;align-items:center;flex:none">
+          <button onclick="flProjAddPhotoUrl('${p.id}')" style="background:white;color:${P.ink3};border:1px solid ${P.line};border-radius:14px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer" title="แปะลิงก์รูปจากที่อื่น">🔗 ลิงก์</button>
+          <button onclick="flProjAddPhoto('${p.id}')" style="background:${P.navy};color:white;border:none;border-radius:14px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer">+ Add Photo</button>
+        </div>
       </div>
       ${photos.length ? `
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
@@ -15896,6 +16058,9 @@ function flProjDeleteDoc(projId, docId){
   const p = flProjGetById(projId); if(!p||!p.docs) return;
   const d = p.docs.find(x=>x.id===docId); if(!d) return;
   if(!confirm(`Delete document: ${d.name}?`)) return;
+  // §projAttach · ไฟล์ที่อัปขึ้นเซิร์ฟเวอร์ต้องลบตามด้วย ไม่งั้นเหลือค้างในตาราง attachments
+  // ลิงก์ที่แปะเอง (ไม่มี attId) ไม่ต้องยุ่ง · ยิงแบบ fire-and-forget เหมือน bkV2AttachRemove
+  if(d.attId) fetch('/api/attach/'+encodeURIComponent(d.attId),{method:'DELETE'}).catch(()=>{});
   p.docs = p.docs.filter(x=>x.id!==docId);
   if(!p.log) p.log=[];
   p.log.push({date:TODAY_STR, text:`- Document removed: ${d.name}`, by:'user'});
