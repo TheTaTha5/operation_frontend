@@ -38352,62 +38352,18 @@ function agTabInfo(a){
     ${sect1}
     ${sect2}
     ${sect3}
-    <div style="margin-top:9px">
     ${(function(){
+      /* §agStd · บล็อก Sample prices ถูกถอดออก
+         สามตัวเลขนั้นเป็นตัวอย่างของเส้นทางแรกที่เจอเท่านั้น ไม่ใช่ราคาที่ใช้ตัดสินใจอะไรได้
+         ใครอยากดูราคาจริงต้องไปแท็บ Pricing Matrix อยู่แล้ว ซึ่งมีครบทุกเส้นทุกโซน
+         เหลือไว้แค่เรื่องที่ต้องลงมือ: เรทที่ผูกอยู่ถูกปิดใช้งาน */
       const rt = a.rateTypeId ? (typeof getRateType==='function' ? getRateType(a.rateTypeId) : null) : null;
-      const isInactive = rt && rt.active===false;
-      const tint = rt ? (rt.color + '14') : '#fafaf8';
-      const fmt = n => (n||0).toLocaleString();
-      const ROUTES_ARR = (typeof ROUTES!=='undefined' && ROUTES) || [];
-      const rName = id => (ROUTES_ARR.find(r=>r.id===id)||{}).name || id;
-      let bodyHtml = '';
-      if(!rt){
-        /* §agTight · กล่อง Bound rate ในบล็อก 3 บอกเรื่องนี้ไปแล้ว พร้อมปุ่ม Pick บนหัวข้อ
-           การ์ดแดงใบเดิมตรงนี้จึงเป็นการพูดซ้ำที่เดียวกันสองรอบ · ไม่วาดอะไรเลย */
-        bodyHtml = '';
-      } else {
-        const nRoutes = (rt.routes||[]).length;
-        const hasCharter = Object.keys(rt.charterRates||{}).length > 0;
-        const nAddOns = Object.keys(rt.addOns||{}).length;
-        const validHint = (rt.validFrom||rt.validTo) ? `valid until ${_rtFmtDate(rt.validTo)||'—'}` : 'always valid';
-        // Build 3 preview cards (same logic as agEditBuildRTPreview)
-        const firstRoute = (rt.routes||[])[0];
-        let seatPreview='—', seatLbl='No seat rate';
-        if(firstRoute && rt.seatRates && rt.seatRates[firstRoute]){
-          const z = rt.seatRates[firstRoute].PK || rt.seatRates[firstRoute].NoTransfer || {};
-          if(z['adult-thai'] || z['adult-fr']){
-            seatPreview = `${fmt(z['adult-thai'])} / ${fmt(z['adult-fr'])}`;
-            seatLbl = `${rName(firstRoute)} · PK · Adult TH/FR`;
-          }
-        }
-        const charterEntries = [];
-        Object.keys(rt.charterRates||{}).forEach(rId => Object.keys(rt.charterRates[rId]).forEach(bt => charterEntries.push({rId, bt, ch:rt.charterRates[rId][bt]})));
-        let charterPreview='—', charterLbl='No charter';
-        if(charterEntries.length){
-          const c = charterEntries[0];
-          charterPreview = fmt(c.ch.starterPrice);
-          charterLbl = `${rName(c.rId)} · ${c.bt} · starter / ${c.ch.starterIncludes||4} pax · +${fmt(c.ch.extraPerPax)} ea`;
-        }
-        const _ap = (typeof _rtAddonPreview==='function')?_rtAddonPreview(rt):{preview:'—',lbl:'No add-on'};
-        let addOnPreview = _ap.preview, addOnLbl = _ap.lbl;
-        /* §agStd · สามช่องนี้เคยเป็นการ์ดสีตามเรทซ้อนอยู่ในกล่องอีกที
-           ตัวเลขตัวอย่างไม่ใช่สถานะ · จึงไม่ควรมีสีของตัวเอง เหลือเส้นคั่นสามช่อง */
-        bodyHtml = `
-          ${isInactive?`<div class="ag-al red" style="border:1px solid var(--ag-line);border-radius:8px;background:#fff;margin-bottom:9px"><span class="sev"><i></i>Inactive</span><span class="t">Rate type deactivated</span><span class="d">prices still resolve from it · activate it or bind another set</span><button class="go" onclick="nav(document.querySelector('.nav-item[data-view=&quot;rate-types&quot;]'))">Open rate types</button></div>`:''}
-          <div class="ag-box wide"><div class="bh">Sample prices<em>${nRoutes} routes${hasCharter?' · charter':''}${nAddOns>0?(' · '+nAddOns+' add-on'+(nAddOns>1?'s':'')):''} · ${validHint}</em></div>
-          <div class="ag-stats">
-            <div class="ag-stat"><span class="k">Seat</span><span class="v">${seatPreview}</span><span class="s">${seatLbl}</span></div>
-            <div class="ag-stat"><span class="k">Charter</span><span class="v">${charterPreview}</span><span class="s">${charterLbl}</span></div>
-            <div class="ag-stat"><span class="k">Add-on</span><span class="v">${addOnPreview}</span><span class="s">${addOnLbl}</span></div>
-          </div></div>
-        `;
-      }
-      /* §agHd · หัวข้อกับปุ่มเปลี่ยนเรทอยู่บนแถบหัวข้อของบล็อกนี้แล้ว · เหลือแค่ตัวอย่างราคา */
-      return bodyHtml;
-
+      if(!rt || rt.active!==false) return '';
+      return `<div class="ag-al red" style="border:1px solid var(--ag-line);border-radius:8px;background:#fff;margin-top:9px">`
+        + `<span class="sev"><i></i>Inactive</span><span class="t">Rate type deactivated</span>`
+        + `<span class="d">prices still resolve from it · activate it or bind another set</span>`
+        + `<button class="go" onclick="nav(document.querySelector('.nav-item[data-view=&quot;rate-types&quot;]'))">Open rate types</button></div>`;
     })()}
-
-    </div>
     ${sect4}
       <!-- §agTight · แถบ coverage กับแถบสรุปถูกถอดออก
            เส้นที่เรทไม่มีราคาถูกพูดไปแล้วในบล็อก 1 (Needs action) พร้อมปุ่มพาไปแก้

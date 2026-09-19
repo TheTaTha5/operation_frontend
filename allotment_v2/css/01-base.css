@@ -3165,6 +3165,14 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
    เหลือให้ชื่อเส้นทาง 310px ซึ่งกว้างกว่าชื่อที่ยาวที่สุดที่ใช้จริง (216px) */
 #view-agents .agi-prog-header,#view-agents .agi-prog-row{
   grid-template-columns:minmax(0,1fr) 155px 155px 88px 40px;gap:8px}
+/* จอกว้าง · ตรึงความกว้างตายตัวแล้วคอลัมน์จะไปกองชิดขวา ที่ว่างทั้งหมดตกเป็นของชื่อเส้นทางคนเดียว
+   ให้ช่องวันโตตามไปด้วยเป็นสัดส่วน · ระยะห่างจึงยังเท่ากันเหมือนตอนจอแคบ
+   ขั้นต่ำที่ใส่ไว้คือตัวเลขที่วัดมา (ชื่อยาวสุด 226 · ช่วงวัน 155) และรวมกันพอดีที่ 1200
+   ต่ำกว่านั้นกลับไปใช้กฎข้างบน ซึ่งยอมให้ชื่อหดได้ เพื่อไม่ให้ตารางล้นขอบ */
+@media (min-width:1200px){
+  #view-agents .agi-prog-header,#view-agents .agi-prog-row{
+    grid-template-columns:minmax(226px,2fr) minmax(155px,1.1fr) minmax(155px,1.1fr) 88px 40px}
+}
 #view-agents .agi-prog-header{margin-top:0;padding:8px 13px;background:var(--ag-soft);
   border-bottom:1px solid var(--ag-line);font-size:10.5px;font-weight:700;letter-spacing:.06em;
   color:var(--ag-ink3)}

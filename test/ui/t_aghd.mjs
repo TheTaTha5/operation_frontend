@@ -215,6 +215,27 @@ else ok('จอ 1440 · ชื่อเส้นทางครบทุกแ�
 await page.setViewportSize({ width: 1680, height: 1100 });
 await page.waitForTimeout(350);
 
+/* §agStd · จอกว้าง · ที่ว่างที่เพิ่มมาต้องกระจายให้ทุกคอลัมน์ ไม่ใช่ตกเป็นของชื่อเส้นทางคนเดียว
+   ตรึงความกว้างช่องวันไว้ตายตัวเมื่อไหร่ คอลัมน์ขวาจะไปกองชิดกันเป็นกระจุก ระยะห่างไม่เท่ากัน
+   วัดเป็นสัดส่วน ไม่ใช่พิกเซล · พิกเซลเปลี่ยนตามจอ แต่สัดส่วนคือสิ่งที่ตาเห็นว่า "เท่ากันไหม" */
+const CW = await page.evaluate(() => {
+  const r = document.querySelector('#view-agents .agi-prog-row');
+  if(!r) return null;
+  const w = e => e ? e.getBoundingClientRect().width : 0;
+  const per = [...r.querySelectorAll('.agi-period-col')];
+  return { route: Math.round(w(r.querySelector('.agi-prog-name-wrap'))),
+           date:  Math.round(w(per[0])), date2: Math.round(w(per[1])) };
+});
+if (!CW) console.log('  ! ไม่มีแถวโปรแกรมให้วัดสัดส่วน · ข้ามข้อนี้');
+else {
+  const ratio = CW.date ? +(CW.route / CW.date).toFixed(2) : 99;
+  if (ratio > 2.2)
+    fail('จอ 1680 · ชื่อเส้นทางกว้างกว่าช่องวัน ' + ratio + ' เท่า (' + CW.route + ' vs ' + CW.date + ') · ที่ว่างไม่ได้ถูกแบ่ง คอลัมน์ขวาไปกองชิดกัน');
+  else if (Math.abs(CW.date - CW.date2) > 2)
+    fail('จอ 1680 · ช่องวันสองช่องกว้างไม่เท่ากัน ' + CW.date + ' / ' + CW.date2);
+  else ok('จอ 1680 · คอลัมน์แบ่งที่ว่างกันทุกช่อง · ชื่อ:วัน = ' + ratio + ' เท่า');
+}
+
 const noGo = D.als.filter(x => !x.go || !x.on);
 if (noGo.length) fail(noGo.length + ' แถวไม่มีปุ่มพาไปแก้ · ' + noGo.map(x => x.t).join(', '));
 else if (D.als.length) ok('ทุกแถวมีปุ่มพาไปแก้ · ' + D.als.map(x => x.t.replace(/\s+/g, ' ')).join(' · '));
