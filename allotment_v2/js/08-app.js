@@ -30767,7 +30767,7 @@ document.addEventListener('keydown', function(e){
    340px = ราว 10 แถว ยังพอไล่ดูได้ · คิดเป็น % จะเพี้ยนตามความสูงจอ
    จอเตี้ยจะผ่านเกณฑ์ % ทั้งที่เหลือพื้นที่จริงน้อยกว่าจอสูงมาก
    ผลที่ได้: MacBook ขึ้นไปตรึง · แท็บเล็ตกับโน้ตบุ๊กเล็กไม่ตรึง · มือถือไม่ตรึง */
-function ctBtPinFit(){
+function _ctBtPinFitMeasure(){
   var v = document.getElementById('view-booking'); if(!v) return;
   var tc = v.querySelector('.bkv2-topcard'), pk = v.querySelector('.bt-pkh');
   if(!tc || !pk){ v.classList.remove('bt-pinok'); return; }
@@ -30808,6 +30808,30 @@ function ctBtPinFit(){
     }
   } else {
     v.style.setProperty('--t2-wrap-max', Math.max(240, window.innerHeight - used - 14) + 'px');
+  }
+}
+/* ══ §btPinScroll (2026-09-19) · จัดรถแล้วตารางเด้งกลับหัว — รอบสอง ══════
+   §vanAssignScroll แก้ด้วย bkV2RenderKeep() คือเก็บตำแหน่งเลื่อนไว้ก่อนวาด แล้วคืนให้ใน rAF
+   สองชั้น · ตรงนั้นถูกแล้ว แต่ยังเด้งอยู่ เพราะยังมีคนมารีเซ็ตทีหลังจากนั้นอีกที
+   ctBtPinFit วัดความสูง "ตอนยังไม่ตรึง" จึงถอดคลาส bt-pinok ออกก่อนวัดทุกครั้ง
+   พอถอด · .t2-wrap หมด max-height + overflow:auto ทันที = เลิกเป็นกล่องเลื่อน
+   เบราว์เซอร์จึงทิ้ง scrollTop ทันที · ใส่คลาสกลับก็ได้กล่องที่ scrollTop = 0
+   ตัวก่อเหตุคือ ctBtPinFitLater() ที่ยิงหลังวาด 300ms — หลัง rAF ของ
+   bkV2KeepScroll ไปนานแล้ว คืนไปเท่าไหร่ก็โดนล้างอยู่ดี (resize ก็เจอเหมือนกัน)
+   แก้ที่ต้นเหตุ: ห่อตัววัด เก็บ scrollTop/scrollLeft ของ .t2-wrap ไว้ก่อน
+   แล้วคืนหลังวัดเสร็จ · ครอบทุกทางที่เรียกวัด (วาดใหม่ / 300ms / resize)
+   คืนเฉพาะตอนมีค่าจริง · จอที่ไม่ตรึง scrollTop เป็น 0 อยู่แล้ว คืนก็ไม่มีผล */
+function ctBtPinFit(){
+  var v = document.getElementById('view-booking');
+  var w = v ? v.querySelector('.t2-wrap') : null;
+  var st = w ? w.scrollTop : 0, sl = w ? w.scrollLeft : 0;
+  try{ _ctBtPinFitMeasure(); }
+  finally{
+    if(st || sl){ try{
+      var w2 = v ? v.querySelector('.t2-wrap') : null;
+      if(w2){ if(st && w2.scrollTop !== st) w2.scrollTop = st;
+              if(sl && w2.scrollLeft !== sl) w2.scrollLeft = sl; }
+    }catch(_){} }
   }
 }
 /* ⚠ ตอน rAF หลังวาดเสร็จใหม่ ๆ ความสูงยังไม่นิ่ง (วัดได้ topcard 45px
