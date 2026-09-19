@@ -38430,21 +38430,25 @@ function agTabInfo(a){
           const rv = rtForPeriods && _rvMap[p.routeId];
           const inheritedTravel = !!rv;
           const orphanRow = rtForPeriods && !rv;   // route not in RT
-          const travelInheritChip = inheritedTravel
-            ? `<span class="agi-rtchip" title="Inherited from Rate Type ${E(rtForPeriods.code||'')}">&#8627; RT</span>`
-            : '';
+          /* §agStd · ชิป "↳ RT" ถูกถอด · ช่วงเดินทางทุกแถวมาจากเรทอยู่แล้ว (หัวข้อบอกไว้แล้วว่าอ่านจากเรท)
+             แถวที่เรทไม่ได้บอกวัน ขึ้น "No dates" ในคอลัมน์สถานะแทน · ชิปที่ติดทุกแถวไม่ได้แยกอะไรออก
+             และมันดันคอลัมน์วันให้กว้างขึ้นราว 35px จนชื่อเส้นทางโดนตัด */
+          const travelInheritChip = '';
           /* §agStd · คอลัมน์สถานะ · "ขายได้วันนี้ไหม" เคยต้องอ่านช่วงวันสองช่องแล้วคิดเอง
              เส้นที่เรทไม่มีราคา อ่านจาก seatRates ที่เดียวกับที่ §agAlert ใช้
              (แยกกันเมื่อไหร่ ตารางกับแถบเตือนจะบอกคนละเรื่องในหน้าจอเดียวกัน) */
           let st = '<span style="color:var(--ag-ink4)">—</span>';
           if(_rtNow && !((_rtNow.seatRates||{})[p.routeId])) st = tag('No price','red');
+          /* มีราคาแต่เรทไม่ได้บอกช่วงเดินทาง · ขายไม่ได้เหมือนกัน แต่คนละสาเหตุกับไม่มีราคา
+             เดิมช่องนี้ขึ้น "—" ซึ่งไม่ได้บอกอะไรเลยทั้งที่เป็นเรื่องต้องแก้ */
+          else if(orphanRow) st = tag('No dates','amb');
           else if(p.travelTo && p.travelTo < TODAY_STR) st = tag('Ended');
           else if(p.travelFrom && p.travelFrom > TODAY_STR) st = tag('Future');
           else if(p.travelFrom || p.travelTo) st = tag('Selling','grn');
           return `
             <div class="agi-prog-row">
               <div class="agi-prog-name-wrap">
-                <div class="agi-prog-name">${r.name}</div>
+                <div class="agi-prog-name" title="${E(r.name)}">${r.name}</div>
                 <div class="agi-prog-pier">${pierTag}${noteSuffix}</div>
               </div>
               <div class="agi-period-col">
@@ -38457,7 +38461,8 @@ function agTabInfo(a){
               </div>
               <div class="agi-prog-st">${st}</div>
               <div class="agi-prog-actions">
-                <button class="agi-prog-act-btn" title="Pricing matrix" onclick="agSwitchTab('prices','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM3 9h18M9 21V9"/></svg></button>
+                <!-- §agStd · เหลือปุ่มเดียว · ปุ่ม "ดู Pricing" ที่เคยอยู่คู่กันเป็นทางเข้าที่ซ้ำกับ
+                     แท็บ Pricing Matrix และปุ่มในแถบ Needs action อยู่แล้ว · คืนที่ให้ชื่อเส้นทางไม่ต้องโดนตัด -->
                 <button class="agi-prog-act-btn" title="Edit programs" onclick="agEditOpen('programs','${a.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
               </div>
             </div>
