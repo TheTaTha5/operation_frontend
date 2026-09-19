@@ -2417,6 +2417,53 @@ const GZIP_EXT = new Set(['.html','.js','.css','.json','.svg','.csv','.txt']);
 const EMBED_ORIGINS = String(process.env.EMBED_ORIGINS||'').split(',')
   .map(s=>s.trim()).filter(s=>s && s!=='*' && /^https?:\/\/[^/\s]+$/.test(s));
 const FRAME_ANCESTORS = "frame-ancestors 'self'" + (EMBED_ORIGINS.length ? ' '+EMBED_ORIGINS.join(' ') : '');
+
+/* §embedToken (2026-09-19) · ทางเข้าสำหรับคนที่ไม่มีบัญชีในระบบนี้เลย
+   พนักงาน CS ล็อกอินที่ cs.loveandaman.com ด้วยบัญชีของฝั่งนั้น · ไม่มีบัญชี rsvn
+   และไม่ควรต้องมี · ฝั่งนั้นจึงเซ็นตั๋วอายุสั้นแนบมากับ src ของ iframe
+   แล้วที่นี่แลกตั๋วเป็น session แบบดูอย่างเดียว
+
+   ⚠ กุญแจคนละดอกกับ SESSION_SECRET โดยเจตนา · ถ้าฝั่ง CS ถือ SESSION_SECRET
+     มันจะเซ็น session เป็น admin ได้เอง · แยกดอกแล้วต่อให้กุญแจนี้หลุด
+     สิ่งที่ได้คือหน้า Booking แบบอ่านอย่างเดียวเท่านั้น
+
+   ⚠ ตั๋วไม่ได้บอกว่า "ผู้ใช้คือใคร" และเราไม่เชื่อถ้ามันบอก · มันพิสูจน์แค่ว่า
+     "ฝั่ง CS รับรองคนดูคนนี้" · ตัวตนที่ได้เป็นของตายที่ฝั่งนี้กำหนดเอง
+     (ดูอย่างเดียว · เห็นแค่หน้า Booking) ยกระดับสิทธิ์ผ่านตั๋วไม่ได้
+
+   ไม่ตั้ง EMBED_TOKEN_SECRET = ปิดทางนี้ทั้งหมด ตั๋วทุกใบถูกเมิน
+   ตั๋วซ้ำภายในอายุของมันใช้ได้อีก (ไม่ได้เก็บ nonce) · กันด้วยอายุสั้นแทน
+   และผลลัพธ์ที่เลวร้ายที่สุดคืออ่านอย่างเดียวอยู่ดี */
+const EMBED_SECRET       = String(process.env.EMBED_TOKEN_SECRET||'');
+const EMBED_TOKEN_AHEAD  = 10*60e3;    // ตั๋วที่อ้างอายุยาวกว่านี้ = ฝั่งโน้นตั้งผิด ไม่รับ
+const EMBED_SESS_MS      = Math.min(24, Math.max(1, Number(process.env.EMBED_SESS_HOURS||12))) * 3600e3;
+const LA_PERM_EXPLICIT   = '*explicit';   // ตรงกับ js/01-auth-sync.js · "เอาตามรายการนี้ ห้ามยกให้เพิ่ม"
+function embedTokenOk(t){
+  if(!EMBED_SECRET || !t) return false;
+  try{
+    const [p, sig] = String(t).split('.');
+    if(!p || !sig) return false;
+    const want = crypto.createHmac('sha256', EMBED_SECRET).update(p).digest('base64url');
+    const a = Buffer.from(sig), b = Buffer.from(want);
+    if(a.length !== b.length) return false;              // timingSafeEqual โยนถ้าความยาวต่างกัน
+    if(!crypto.timingSafeEqual(a, b)) return false;
+    const o = JSON.parse(Buffer.from(p,'base64url').toString());
+    const now = Date.now();
+    if(!o || typeof o.exp !== 'number') return false;    // ไม่มีวันหมดอายุ = ไม่รับ
+    return now <= o.exp && (o.exp - now) <= EMBED_TOKEN_AHEAD;
+  }catch(_){ return false; }
+}
+// ตัวตนของกรอบ · ไม่มีแถวนี้ในตาราง users และไม่ต้องมี — ทางอ่านทุกเส้น
+// (/api/load · /api/v1 GET · /api/me) อ่านจาก token ที่เซ็นแล้วอย่างเดียว
+// ไม่เคยไปถามฐานข้อมูลว่าผู้ใช้นี้มีจริงไหม · ตาราง users ถูกอ่านแค่ตอนล็อกอิน
+function embedSessionCookie(){
+  const EXP = Date.now() + EMBED_SESS_MS;
+  const tok = sign({ username:'embed:cs', name:'CS · view only', role:'staff',
+                     perms:['booking', LA_PERM_EXPLICIT],   // เห็นแค่ Booking · ห้าม back-fill หน้าอื่น
+                     edit:false, editAreas:[],               // → /api/save และ /api/v1/_batch ตอบ 403
+                     embed:true, iat:Date.now(), exp:EXP });
+  return `sess=${tok}; HttpOnly; Path=/; SameSite=Lax; Secure; Max-Age=${Math.floor(EMBED_SESS_MS/1000)}`;
+}
 /* §assetVer · Cloudflare เขียนทับ Cache-Control ของเราเป็น max-age=14400
    เบราว์เซอร์จึงถือ js ตัวเก่าไว้สี่ชั่วโมง · deploy แล้วมองไม่เห็นผล
    วัดจริงแล้ว script tag โหลดด้วย transferSize 0 คือไม่ยิงเน็ตเลย
@@ -3381,7 +3428,23 @@ const server = http.createServer((req, res) => {
     /* §embedRO · ไม่ใส่อะไร = ดูอย่างเดียว · edit=1 คือการขอปุ่มลงมือกลับมา
        default อยู่ฝั่งปลอดภัย · ลืมใส่แล้วได้หน้าที่แก้ไม่ได้ ดีกว่าลืมใส่แล้วได้หน้าที่จัดรถได้ */
     if(qp.get('edit') === '1') out.push('edit=1');
-    res.writeHead(302,{Location:'/allotment_v2/allotment_v2.html?'+out.join('&'),'Cache-Control':'no-store'});
+
+    /* §embedToken · แลกตั๋วเป็น session · ทำเฉพาะตอน "ยังไม่มี session"
+       ที่ต้องเป็นแบบนี้เพราะ cs. กับ rsvn. ใช้คุกกี้ก้อนเดียวกัน (โฮสต์เดียวกัน)
+       ถ้าตั๋วชนะเสมอ พนักงานที่ล็อกอิน rsvn ด้วยบัญชีตัวเองอยู่ในแท็บอื่น
+       จะโดนเขียนทับคุกกี้ = เตะออกจากระบบกลางคัน · ยอมไม่ได้
+       มี session อยู่แล้ว = คนนั้นคือคนนั้นจริง ๆ ใช้ของเขาไป
+       ไม่มี session (พนักงาน CS ที่ไม่มีบัญชีที่นี่) = ตั๋วทำงาน ซึ่งคือเคสที่ต้องการ
+
+       ตั๋วไม่ถูกใส่ลงใน out จึงหลุดออกจาก URL ปลายทาง ไม่ค้างใน history/referrer */
+    const head = {Location:'/allotment_v2/allotment_v2.html?'+out.join('&'),'Cache-Control':'no-store'};
+    const t = qp.get('t');
+    if(t && !session(req)){
+      if(embedTokenOk(t)) head['Set-Cookie'] = embedSessionCookie();
+      else console.warn('[embed] rejected token from '+(req.headers.origin||req.headers.referer||'?'));
+      // ตั๋วเสีย = ไม่ตั้งคุกกี้ แล้วปล่อยให้หน้าเว็บขึ้นการ์ด "ยังไม่ได้เข้าสู่ระบบ" เอง
+    }
+    res.writeHead(302, head);
     return res.end();
   }
 
