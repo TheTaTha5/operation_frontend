@@ -196,6 +196,25 @@ else if (!C.rows.some(t => /Contract expiring/.test(t)))
   fail(C.code + ' สัญญาเหลือ ' + C.left + ' วัน แต่แถบไม่ได้ขึ้นเรื่องนี้ · ได้ ' + C.rows.join(' / '));
 else ok(C.code + ' สัญญาเหลือ ' + C.left + ' วัน · แถบขึ้นเรื่องนี้จริง');
 
+/* §agStd · จอ 1440 คือจอที่แคบที่สุดที่ยังเป็นเดสก์ท็อป และเป็นจอที่ใช้กันจริง
+   แผงเหลือกว้างราว 720px เพราะลิสต์เอเย่นต์กินไป 390px · ตารางโปรแกรมต้องยังอ่านชื่อได้ครบ
+   (วัดที่ 1680 อย่างเดียวจับไม่ได้ · ที่นั่นเหลือ 960px ซึ่งกว้างเกินกว่าจะพัง) */
+await page.setViewportSize({ width: 1440, height: 1100 });
+await page.waitForTimeout(450);
+const PW = await page.evaluate(() => {
+  const w = document.querySelector('#view-agents .agi-prog-wrap');
+  const n = [...document.querySelectorAll('#view-agents .agi-prog-name')];
+  return { panelW: w ? Math.round(w.getBoundingClientRect().width) : -1,
+           names: n.length, clipped: n.filter(e=>e.scrollWidth > e.clientWidth + 1).length,
+           clippedNames: n.filter(e=>e.scrollWidth > e.clientWidth + 1).map(e=>e.textContent.trim()).slice(0,3) };
+});
+if (PW.names <= 0) console.log('  ! เอเย่นต์รายนี้ไม่มีโปรแกรม · ข้ามข้อชื่อเส้นทาง');
+else if (PW.clipped)
+  fail('จอ 1440 · ชื่อเส้นทางโดนตัด ' + PW.clipped + ' จาก ' + PW.names + ' แถว (แผงกว้าง ' + PW.panelW + 'px) · ' + PW.clippedNames.join(' / '));
+else ok('จอ 1440 · ชื่อเส้นทางครบทุกแถว · แผงกว้าง ' + PW.panelW + 'px');
+await page.setViewportSize({ width: 1680, height: 1100 });
+await page.waitForTimeout(350);
+
 const noGo = D.als.filter(x => !x.go || !x.on);
 if (noGo.length) fail(noGo.length + ' แถวไม่มีปุ่มพาไปแก้ · ' + noGo.map(x => x.t).join(', '));
 else if (D.als.length) ok('ทุกแถวมีปุ่มพาไปแก้ · ' + D.als.map(x => x.t.replace(/\s+/g, ' ')).join(' · '));

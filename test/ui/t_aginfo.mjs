@@ -67,6 +67,24 @@ const draw = async (page) => page.evaluate(() => {
       });
       return Math.max(0, ...Object.values(rows).map(w=>Math.max(...w)-Math.min(...w)));
     })(),
+    /* การ์ดในแถวเดียวกันต้องจบที่ขอบล่างเดียวกัน · align-items:start เมื่อไหร่ ขอบล่างจะหยักทันที */
+    rowBottomSpread: (function(){
+      const rows = {};
+      [...host.querySelectorAll('.ag-box')].forEach(b=>{
+        const r = b.getBoundingClientRect();
+        (rows[Math.round(r.top)] = rows[Math.round(r.top)] || []).push(Math.round(r.bottom));
+      });
+      return Math.max(0, ...Object.values(rows).filter(v=>v.length>1).map(v=>Math.max(...v)-Math.min(...v)));
+    })(),
+    /* ตารางโปรแกรม · ช่องวันสองช่องต้องกว้างเท่ากัน (ระยะห่างในตารางจึงสม่ำเสมอ)
+       ส่วน "ชื่อโดนตัดไหม" ตัวจริงอยู่ใน t_aghd · ที่นั่นเป็นความกว้างจริงของแผง (722px)
+       host ของเทสนี้กว้างราว 1030px จึงมีที่เหลือเฟือ ข้อนี้จับได้แค่เคสที่เพี้ยนมาก */
+    progClipped: [...host.querySelectorAll('.agi-prog-name')]
+      .filter(e=>e.scrollWidth > e.clientWidth + 1).length,
+    progNames: host.querySelectorAll('.agi-prog-name').length,
+    progDateW: [...new Set([...host.querySelectorAll('.agi-prog-row')].slice(0,1)
+      .flatMap(r=>[...r.querySelectorAll('.agi-period-col')])
+      .map(c=>Math.round(c.getBoundingClientRect().width)))],
     labelWidths: [...new Set([...host.querySelectorAll('.ag-sh .r .k')]
       .map(k=>Math.round(k.getBoundingClientRect().width)))].sort((x,y)=>x-y),
     /* แถวเตือนต้องไม่ย้อมพื้น และต้องมีคอลัมน์ความด่วน */
@@ -133,7 +151,16 @@ else if (D.boxRights.length > 2)
   fail('การ์ดจบที่ขอบขวา ' + D.boxRights.length + ' ตำแหน่ง · มีใบกว้างไม่ลงล็อก · ' + D.boxRights.join(', '));
 else if (D.rowWidthSpread > 2)
   fail('การ์ดในแถวเดียวกันกว้างไม่เท่ากัน ต่างกัน ' + D.rowWidthSpread + 'px');
-else ok('การ์ดเกาะกริดเดียวกัน · ขอบซ้าย ' + D.boxLefts.join(' / ') + ' · ขอบขวา ' + D.boxRights.join(' / '));
+else if (D.rowBottomSpread > 2)
+  fail('การ์ดในแถวเดียวกันจบไม่ตรงกัน ขอบล่างต่างกัน ' + D.rowBottomSpread + 'px');
+else ok('การ์ดเกาะกริดเดียวกัน · ขอบซ้าย ' + D.boxLefts.join(' / ') + ' · ขอบขวา ' + D.boxRights.join(' / ') + ' · ขอบล่างตรงกันทุกแถว');
+
+if (!D.progNames) console.log('  ! เอเย่นต์รายนี้ไม่มีโปรแกรมให้วัด · ข้ามข้อตาราง');
+else if (D.progClipped)
+  fail('ชื่อเส้นทางโดนตัด ' + D.progClipped + ' จาก ' + D.progNames + ' แถว · คอลัมน์แบ่งไม่พอดี');
+else if (D.progDateW.length > 1)
+  fail('ช่องวันสองช่องกว้างไม่เท่ากัน (' + D.progDateW.join(', ') + ') · ระยะห่างในตารางไม่สม่ำเสมอ');
+else ok('ตารางโปรแกรม · ชื่อเส้นทางครบทุกแถว · ช่องวันกว้างเท่ากัน ' + D.progDateW[0] + 'px');
 
 if (D.labelWidths.length > 1)
   fail('ป้ายกำกับกว้างไม่เท่ากัน ' + D.labelWidths.length + ' ขนาด (' + D.labelWidths.join(', ') + ') · ค่าเลยไม่เรียงเป็นคอลัมน์');

@@ -38448,8 +38448,12 @@ function agTabInfo(a){
           return `
             <div class="agi-prog-row">
               <div class="agi-prog-name-wrap">
-                <div class="agi-prog-name" title="${E(r.name)}">${r.name}</div>
-                <div class="agi-prog-pier">${pierTag}${noteSuffix}</div>
+                <!-- §agStd · ท่าเรือย้ายไปอยู่ใน title · วัดแล้วแผงนี้กว้างจริง 696px
+                     ชื่อเส้นทางที่ยาวสุด 216px + ท่าเรือ 76px + ช่องวันสองช่อง 310px + สถานะ 70 + ปุ่ม 40
+                     รวม 752px — เกินมา 56px · อย่างใดอย่างหนึ่งต้องออก
+                     เลือกให้ชื่อเส้นทางอยู่ครบ เพราะเป็นตัวที่คนอ่านตารางนี้มองหา
+                     และเพื่อให้ช่องวันกับสถานะกว้างเท่ากันได้จริงตามแบบที่วางไว้ -->
+                <div class="agi-prog-name" title="${E(r.name)}${pierTag?(' · '+E(pierTag)):''}${E(noteSuffix)}">${r.name}</div>
               </div>
               <div class="agi-period-col">
                 <div class="agi-period-lbl book">Booking</div>

@@ -3091,9 +3091,12 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
    ที่ต้องระวัง: แผงนี้ไม่ได้กว้างเท่าจอ · ลิสต์เอเย่นต์ฝั่งซ้ายกินไปราว 390px
    จอ 1440 จึงเหลือเนื้อที่ราว 740px — สามใบต่อแถวได้ใบละ 233px ซึ่งแคบเกินกว่าที่ค่าจะไม่ห่อ
    ค่าเริ่มต้นจึงเป็นสองใบต่อแถว แล้วค่อยขยับเป็นสามใบเมื่อจอกว้างจริง (วัดที่ 1500) */
-#view-agents .ag-grp{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;align-items:start}
+/* ไม่ใส่ align-items:start · ปล่อยให้เป็น stretch ตามค่าเริ่มต้นของกริด
+   การ์ดในแถวเดียวกันจึงสูงเท่ากัน ขอบล่างตรงกันทั้งแถว — แบบที่วางไว้เป็นแบบนั้น
+   ใส่ start เมื่อไหร่ ขอบล่างจะหยักตามเนื้อในแต่ละใบทันที */
+#view-agents .ag-grp{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
 /* ── การ์ด · ขาว ขอบเส้นเดียว ไม่มีเงา ไม่มีไล่สี · สถานะบอกด้วยป้ายบนหัว ไม่ใช่ย้อมกรอบ ── */
-#view-agents .ag-box{grid-column:span 6;min-width:0;background:#fff;
+#view-agents .ag-box{grid-column:span 6;min-width:0;background:#fff;display:flex;flex-direction:column;
   border:1px solid var(--ag-line);border-radius:8px;box-shadow:none;padding:0 0 4px}
 #view-agents .ag-box.c3,#view-agents .ag-box.c4,#view-agents .ag-box.c5{grid-column:span 6}
 #view-agents .ag-box.c8,#view-agents .ag-box.wide{grid-column:1/-1}
@@ -3155,11 +3158,13 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
    §agStd · ของเดิมลอยอยู่กลางหน้าไม่มีกรอบ · ชนกับการ์ดข้างบนที่มีกรอบ เลยดูคนละชุดกัน
    สีที่เคยใช้ hover (coral) ถูกถอด — สีในหน้านี้สงวนไว้บอกสถานะอย่างเดียว */
 #view-agents .agi-prog-wrap{background:#fff;border:1px solid var(--ag-line);border-radius:8px;overflow:hidden}
-/* ช่วงวันเป็นตัวเลขความกว้างคงที่ (mono) · ให้คอลัมน์วันกินแค่เท่าที่วันต้องใช้ (max-content)
-   ที่เหลือยกให้ชื่อเส้นทางทั้งหมด · แผงนี้กว้างราว 740px เท่านั้น (ลิสต์ซ้ายกินไป 390px)
-   ถ้าแบ่งด้วย fr เหมือนเดิม ชื่อเส้นทางจะโดนตัด "…" ทั้งที่ช่องวันยังเหลือที่ว่าง */
+/* คอลัมน์วันเป็นตัวเลข mono ความกว้างคงที่ · ตรึงเท่ากันสองคอลัมน์ ระยะห่างจึงเท่ากันทั้งแถว
+   max-content ทำให้คอลัมน์หดชิดกันไปกองขวา ระยะไม่เท่ากันอย่างที่วางไว้
+   เลขพวกนี้มาจากการวัด: เนื้อที่จริงในกรอบ 696px (แผง 722 หักขอบใน 26)
+   ช่องวันต้องการ 155px พอดีข้อความ · สถานะ 88 · ปุ่ม 40 · ช่องไฟ 4×8
+   เหลือให้ชื่อเส้นทาง 310px ซึ่งกว้างกว่าชื่อที่ยาวที่สุดที่ใช้จริง (216px) */
 #view-agents .agi-prog-header,#view-agents .agi-prog-row{
-  grid-template-columns:minmax(0,1fr) max-content max-content max-content auto;gap:10px}
+  grid-template-columns:minmax(0,1fr) 155px 155px 88px 40px;gap:8px}
 #view-agents .agi-prog-header{margin-top:0;padding:8px 13px;background:var(--ag-soft);
   border-bottom:1px solid var(--ag-line);font-size:10.5px;font-weight:700;letter-spacing:.06em;
   color:var(--ag-ink3)}
