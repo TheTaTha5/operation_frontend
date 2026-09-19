@@ -2405,6 +2405,18 @@ const MIME = { '.html':'text/html; charset=utf-8','.js':'text/javascript; charse
 // raw on every load / after each deploy. gzip cuts it ~5x. Buffer cached per (path,etag) so it compresses once,
 // not on every request. Images/fonts (.png/.woff2/…) are already compressed → skipped.
 const GZIP_EXT = new Set(['.html','.js','.css','.json','.svg','.csv','.txt']);
+/* §embedFrame (2026-09-19) · ใครมีสิทธิ์เอาแอปนี้ไปใส่ <iframe>
+   ก่อนหน้านี้ไม่มี X-Frame-Options และไม่มี CSP อยู่เลยสักบรรทัด = เว็บไหนในโลก
+   ก็ฝังได้ ซึ่งคือช่อง clickjacking (ลากปุ่มของเราไปซ้อนใต้ปุ่มของเขา)
+   ค่าเริ่มต้น 'self' = ฝังได้เฉพาะจากโดเมนตัวเอง · ที่อื่นบล็อกหมด
+   เปิดให้บริการอื่นด้วยการตั้ง EMBED_ORIGINS เป็นรายชื่อ origin คั่นด้วย comma
+   ต้องเป็น origin เต็ม ๆ เท่านั้น เช่น  https://www.loveandaman.com,https://ops.example.com
+   (ห้ามใส่ path · ห้ามใส่ * · ถ้าใส่ * มาจะถูกทิ้ง เพราะเท่ากับไม่กันอะไรเลย)
+   ⚠ นี่กันแค่ "ใครฝังได้" ไม่ได้กัน "ฝังแล้วทำอะไรได้" — คนในกรอบยังเป็นแอปเต็มตัว
+     ที่รันด้วยสิทธิ์ของ session ตัวเอง (ดู allotment_v2/js/10-embed.js) */
+const EMBED_ORIGINS = String(process.env.EMBED_ORIGINS||'').split(',')
+  .map(s=>s.trim()).filter(s=>s && s!=='*' && /^https?:\/\/[^/\s]+$/.test(s));
+const FRAME_ANCESTORS = "frame-ancestors 'self'" + (EMBED_ORIGINS.length ? ' '+EMBED_ORIGINS.join(' ') : '');
 /* §assetVer · Cloudflare เขียนทับ Cache-Control ของเราเป็น max-age=14400
    เบราว์เซอร์จึงถือ js ตัวเก่าไว้สี่ชั่วโมง · deploy แล้วมองไม่เห็นผล
    วัดจริงแล้ว script tag โหลดด้วย transferSize 0 คือไม่ยิงเน็ตเลย
@@ -3339,6 +3351,37 @@ const server = http.createServer((req, res) => {
   // allotment_v2/ itself). 302, not 301: a permanent redirect is cached hard and painful to undo.
   if(u==='/'||u===''){ res.writeHead(302,{Location:'/allotment_v2/allotment_v2.html'+(q?('?'+q):''),'Cache-Control':'no-store'}); return res.end(); }
 
+  /* §embedRoute (2026-09-19) · ที่อยู่สั้น ๆ ให้บริการอื่นเอาไปใส่ <iframe>
+       /embed/calendar                  → ปฏิทินของหน้า Booking
+       /embed/bytrip?date=2026-09-20    → By trip · date ของวันนั้น
+     บริการอื่นจะได้ไม่ต้องรู้จัก ?embed=1&view=...&tab=... และเราย้ายของข้างใน
+     ได้ทีหลังโดยไม่ต้องไปขอให้เขาแก้ลิงก์
+
+     เป็น 302 ไม่ใช่การ rewrite ด้วยเหตุผลเดียวกับ '/' ข้างบน — allotment_v2.html
+     อ้าง js/ กับ css/ แบบ path สัมพัทธ์ · เสิร์ฟเนื้อหาที่ /embed/bytrip ตรง ๆ
+     จะทำให้ js/08-app.js กลายเป็น /embed/js/08-app.js แล้ว 404 ทั้งหน้า
+
+     ส่งต่อเฉพาะพารามิเตอร์ที่รู้จักและตรวจรูปแบบแล้วเท่านั้น · ค่าที่หลุดเข้าไป
+     ใน Location โดยไม่ตรวจคือช่อง header injection / open redirect */
+  if(u === '/embed' || u.startsWith('/embed/')){
+    const EMBED_PAGES = {
+      'calendar': 'view=booking&tab=cal',
+      'bytrip':   'view=booking&tab=bytrip',
+    };
+    const page = u.slice('/embed/'.length).replace(/\/+$/,'');
+    const base = EMBED_PAGES[page];
+    if(!base){
+      res.writeHead(404,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'});
+      return res.end('unknown embed page · try /embed/'+Object.keys(EMBED_PAGES).join(' or /embed/'));
+    }
+    const qp = new URLSearchParams(q), out = ['embed=1', base];
+    const date = qp.get('date');   if(date  && /^\d{4}-\d{2}-\d{2}$/.test(date))   out.push('date='+date);
+    const rid  = qp.get('route');  if(rid   && /^[A-Za-z0-9_-]{1,40}$/.test(rid))  out.push('route='+rid);
+    if(qp.get('chrome') === '1') out.push('chrome=1');   // ดีบั๊ก · คงแถบเครื่องมือ+เมนูไว้
+    res.writeHead(302,{Location:'/allotment_v2/allotment_v2.html?'+out.join('&'),'Cache-Control':'no-store'});
+    return res.end();
+  }
+
   // §ssoGate (2026-08-27): with Authentik configured, IT is the login page. Without this the app
   // still loads its own username/password modal (js/01-auth-sync.js showLogin(), reached when
   // /api/me answers 401) and the Authentik routes just sit there unused. Redirecting server-side
@@ -3346,8 +3389,12 @@ const server = http.createServer((req, res) => {
   //   · only a top-level browser navigation for the app page — never a fetch/XHR, never an asset
   //   · never when a session already exists
   //   · ?login=password always wins, so a broken Authentik cannot lock everyone out (PASSWORD_ESCAPE)
+  /* §embedFrame · ?embed=1 ไม่เด้งไป Authentik · หน้าล็อกอินของ Authentik ส่ง
+     X-Frame-Options: DENY มาตามมาตรฐาน กรอบจะขาวโพลนโดยไม่มีอะไรบอกสาเหตุ
+     ปล่อยให้หน้าโหลดไปก่อน แล้ว js/10-embed.js ขึ้นการ์ด "เปิดแท็บใหม่เพื่อเข้าสู่ระบบ" แทน */
   if(u === '/allotment_v2/allotment_v2.html' && req.method === 'GET' && oidc.enabled() && !session(req)
      && String(req.headers.accept||'').includes('text/html')
+     && new URLSearchParams(q).get('embed') !== '1'
      && new URLSearchParams(q).get(oidc.PASSWORD_ESCAPE) !== 'password'){
     const next = u + (q ? ('?' + q) : '');
     res.writeHead(302, {Location:'/auth/login?next=' + encodeURIComponent(next), 'Cache-Control':'no-store'});
@@ -3364,10 +3411,15 @@ const server = http.createServer((req, res) => {
       try{ data = _laStampAssets(data); }catch(_){}
     }
     const etag = '"'+crypto.createHash('sha1').update(data).digest('hex').slice(0,20)+'"';
-    if((req.headers['if-none-match']||'') === etag){ res.writeHead(304,{'ETag':etag,'Cache-Control':'no-cache'}); return res.end(); }
     const ext = path.extname(fp).toLowerCase();
+    /* §embedFrame · ติดเฉพาะเอกสาร HTML · frame-ancestors มีผลกับหน้าที่ถูกฝัง
+       ไม่ใช่กับ .js/.css ที่หน้านั้นโหลดตาม · ต้องติดกับ 304 ด้วย เพราะเบราว์เซอร์
+       ใช้หัวของรอบที่ 304 ตอบมา ไม่ได้ใช้ของที่แคชไว้ทั้งชุด */
+    const sec = ext==='.html' ? {'Content-Security-Policy':FRAME_ANCESTORS} : null;
+    if((req.headers['if-none-match']||'') === etag){ res.writeHead(304,Object.assign({'ETag':etag,'Cache-Control':'no-cache'},sec)); return res.end(); }
     const ctype = MIME[ext]||'application/octet-stream';
     const head=(enc)=>{ const h={'Content-Type':ctype,'ETag':etag,'Cache-Control':'no-cache','Vary':'Accept-Encoding'};
+      if(sec) Object.assign(h,sec);
       if(enc) h['Content-Encoding']=enc; return h; };
     const enc = (GZIP_EXT.has(ext) && data.length > 1024) ? pickEncoding(req) : null;
     if(enc){
