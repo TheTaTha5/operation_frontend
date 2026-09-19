@@ -41,6 +41,12 @@
   var DATE   = qs.get('date')  || '';
   var ROUTE  = qs.get('route') || '';
   var CHROME = qs.get('chrome') === '1';
+  /* §embedRO · ค่าเริ่มต้นของโหมดฝังคือ "ดูอย่างเดียว" ต้องใส่ edit=1 ถึงจะได้ปุ่มลงมือ
+     ตั้งใจให้ default เป็นฝั่งที่ปลอดภัย · คนที่เอาไปแปะคือคนที่อยากให้ "ดู"
+     ⚠ ตรงนี้เป็นแค่การเก็บปุ่ม ไม่ใช่กำแพงสิทธิ์ · กำแพงจริงอยู่ที่บัญชีผู้ใช้
+       (canEdit=false → server ตอบ 403 ที่ /api/save และ /api/v1/_batch ทุกครั้ง)
+       ถ้าบัญชีแก้ได้ เปิด devtools ก็เรียกฟังก์ชันตรง ๆ ได้อยู่ดี */
+  var RO = qs.get('edit') !== '1';
 
   /* หน้าแม่คือใคร · ใช้เป็นปลายทางของ postMessage ที่เราส่งออก
      CSP frame-ancestors (server.js §embedFrame) เป็นตัวกันว่าใครฝังได้จริง
@@ -56,6 +62,7 @@
   var de = document.documentElement;
   de.classList.add('la-embed');
   if(CHROME) de.classList.add('la-embed-chrome');
+  if(RO) de.classList.add('la-embed-ro');
 
   /* ⚠ ทุกกฎที่แย่งกับสกินต้องมี !important · css/02-skins.css ชั้น liquid-glass
      ตั้ง .main{margin-left:274px !important} (ไม่ใช่ var(--sidebar) · 274 ฝังไว้ตรง ๆ)
@@ -70,8 +77,16 @@
     +'html.la-embed:not(.la-embed-chrome) .topbar,'
     +'html.la-embed:not(.la-embed-chrome) .sidebar,'
     +'html.la-embed:not(.la-embed-chrome) .la-navdim,'
-    +'html.la-embed:not(.la-embed-chrome) #la-userbadge,'
-    +'html.la-embed:not(.la-embed-chrome) #la-viewonly{display:none !important}'
+    /* #la-viewonly (ป้าย "👁 ดูอย่างเดียว") ตั้งใจไม่ซ่อน · ถ้าบัญชีเป็นแบบดูอย่างเดียว
+       จริง ป้ายนี้คือสิ่งเดียวที่บอกคนใช้ว่าทำไมกดแล้วไม่มีอะไรเกิดขึ้น
+       ที่ซ่อนคือ #la-userbadge เพราะมีปุ่ม "ผู้ใช้" กับ "ออก" ติดมาด้วย */
+    +'html.la-embed:not(.la-embed-chrome) #la-userbadge{display:none !important}'
+    /* §embedRO · เก็บปุ่มที่ลงมือกับข้อมูล · แถวโหมด Van/Boat/Re-confirm (.bt-c)
+       กับปุ่ม + New booking · ปล่อยชิปเตือนไว้ เพราะมันคือ "ข้อมูล" ที่ CS ต้องเห็น
+       (ยังไม่จัดรถกี่ใบ) แค่กดแล้วไม่เข้าโหมด เพราะฟังก์ชันถูกทับไว้ข้างล่าง */
+    +'html.la-embed-ro .bt-c,'
+    +'html.la-embed-ro .bkv2-newbtn,'
+    +'html.la-embed-ro .bkv2-newbtn2{display:none !important}'
     +'html.la-embed:not(.la-embed-chrome) .app{margin-top:0 !important}'
     +'html.la-embed:not(.la-embed-chrome) .main,'
     +'html.la-embed:not(.la-embed-chrome) body.sb-collapsed .main{'
@@ -113,8 +128,37 @@
     return true;
   }
 
+  /* ── 2.5) §embedRO · ปิดทางเข้าโหมดลงมือ ────────────────────────────────
+     ทับตัวฟังก์ชันแทนที่จะไล่ซ่อนปุ่มด้วย CSS อย่างเดียว เพราะปุ่มที่พาเข้าโหมด
+     Van มีกระจายอยู่หลายที่ · แถวโหมด (.bt-c) · ชิปเตือนหัวตาราง (.t2-hd-warnchip)
+     · ป้าย "↩ กลับคันเดิม" ในแต่ละแถว · ไล่ selector ให้ครบเป็นไปไม่ได้และพังทุกครั้ง
+     ที่หน้าตาเปลี่ยน · ปิดที่ประตูเดียวจบ และทนต่อการแก้ UI ในอนาคต
+
+     ฟังก์ชันพวกนี้ประกาศเป็น function ระดับบนสุดใน 08-app.js จึงอยู่บน window
+     และ onclick= ใน HTML ก็หาเจอผ่าน window ตอนกด · ทับทีหลังได้ ไม่ต้องทับก่อน
+
+     ⚠ ย้ำอีกครั้ง · นี่คือ UX ไม่ใช่ security · ห้ามเอาไปนับเป็นการจำกัดสิทธิ์ */
+  var RO_FNS = ['bkV2ToggleVanMode','bkV2ToggleBoatMode','bkV2ToggleReconfirmMode','bkV2NewBooking'];
+  function roNotice(){
+    var t = document.getElementById('la-embed-ro-t');
+    if(!t){ t = document.createElement('div'); t.id = 'la-embed-ro-t';
+      t.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:100002;'
+        + 'background:#7A4A00;color:#fff;border-radius:20px;padding:8px 16px;opacity:0;transition:opacity .18s;'
+        + 'font:13px/1.35 "DM Sans",-apple-system,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25)';
+      (document.body || de).appendChild(t); }
+    t.textContent = '👁 หน้านี้เปิดไว้สำหรับดูอย่างเดียว';
+    t.style.opacity = '1';
+    clearTimeout(t._h); t._h = setTimeout(function(){ t.style.opacity = '0'; }, 2400);
+  }
+  function roLockDown(){
+    RO_FNS.forEach(function(fn){ if(typeof window[fn] === 'function') window[fn] = roNotice; });
+    // เผื่อโหมดค้างมาจากรอบก่อน · ต้องดับก่อนวาด ไม่งั้นโผล่เป็นตารางโหมดจัดรถ
+    try{ _bkV2.boatAssignMode = false; _bkV2.vanAssignMode = false; _bkV2.reconfirmMode = false; }catch(_){}
+  }
+
   // ── 3) พาไปหน้าที่สั่งมา ────────────────────────────────────────────────
   function applyView(){
+    if(RO) roLockDown();
     if(catchLogin()) return;
 
     var el = document.querySelector('.nav-item[data-view="' + VIEW + '"]');
