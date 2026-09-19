@@ -82,8 +82,11 @@ const draw = async (page) => page.evaluate(() => {
     progClipped: [...host.querySelectorAll('.agi-prog-name')]
       .filter(e=>e.scrollWidth > e.clientWidth + 1).length,
     progNames: host.querySelectorAll('.agi-prog-name').length,
+    /* นับเฉพาะช่องที่โชว์อยู่จริง · ต่ำกว่าจอ 1440 คอลัมน์ช่วงรับจองซ่อนตัวเอง (กว้าง 0)
+       ถ้าเอา 0 มาเทียบด้วย เทสจะฟ้องว่าไม่เท่ากันทุกครั้งที่จอไม่กว้างพอ ซึ่งไม่ใช่ความผิด */
     progDateW: [...new Set([...host.querySelectorAll('.agi-prog-row')].slice(0,1)
       .flatMap(r=>[...r.querySelectorAll('.agi-period-col')])
+      .filter(c=>getComputedStyle(c).display!=='none')
       .map(c=>Math.round(c.getBoundingClientRect().width)))],
     labelWidths: [...new Set([...host.querySelectorAll('.ag-sh .r .k')]
       .map(k=>Math.round(k.getBoundingClientRect().width)))].sort((x,y)=>x-y),

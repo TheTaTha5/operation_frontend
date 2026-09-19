@@ -3164,14 +3164,51 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
    ช่องวันต้องการ 155px พอดีข้อความ · สถานะ 88 · ปุ่ม 40 · ช่องไฟ 4×8
    เหลือให้ชื่อเส้นทาง 310px ซึ่งกว้างกว่าชื่อที่ยาวที่สุดที่ใช้จริง (216px) */
 #view-agents .agi-prog-header,#view-agents .agi-prog-row{
-  grid-template-columns:minmax(0,1fr) 155px 155px 88px 40px;gap:8px}
+  grid-template-columns:minmax(0,1fr) 155px 88px 40px;gap:8px}
+/* ── จอต่ำกว่า 1440 · ช่วงรับจองซ่อนตัวเอง ────────────────────────────────
+   ที่ต่ำกว่านั้นแผงเหลือไม่ถึง 700px · ห้าคอลัมน์เบียดกันจนชื่อเส้นทางเหลือศูนย์
+   ตัดคอลัมน์ที่ให้ข้อมูลน้อยที่สุดออกก่อน · ช่วงรับจองเป็นช่วงของสัญญา
+   ทุกแถวมักเป็นค่าเดียวกัน และหัวข้อด้านบนบอกไว้แล้ว ("contract 01 Oct 25 → 15 May 27")
+   ส่วนช่วงเดินทางกับสถานะต่างกันรายเส้นทาง จึงต้องอยู่เสมอ */
+@media (max-width:1439px){ #view-agents .agi-col-bk{display:none} }
+/* ── จอต่ำกว่า 1200 · แถวพับเป็นสองบรรทัด ─────────────────────────────────
+   แผงเหลือไม่ถึง 500px · ต่อให้ตัดคอลัมน์ช่วงรับจองไปแล้ว ชื่อเส้นทางก็ยังไม่เหลือที่
+   วัดแล้วชื่อจะเริ่มพอที่ตอนจอ ~1241 ขึ้นไป (แผง 523 หักคอลัมน์ที่เหลือ 307 = 216 พอดีชื่อยาวสุด)
+   ต่ำกว่านั้นชื่อหดจนหายไปทั้งแถบโดยที่หน้าไม่ล้มให้เห็น · ปัดเป็น 1280
+   พับชื่อขึ้นบรรทัดของตัวเอง แล้วให้ช่วงเดินทาง/สถานะ/ปุ่ม อยู่บรรทัดล่าง
+   (กติกาเดียวกับจอโทรศัพท์ · ที่นั่นกฎใน 02-skins.css คุมอยู่แล้วด้วย !important) */
+@media (max-width:1279px){
+  #view-agents .agi-prog-header{display:none}
+  #view-agents .agi-prog-row{grid-template-columns:minmax(0,1fr) auto auto;gap:3px 10px;align-items:center}
+  #view-agents .agi-prog-name-wrap{grid-column:1/-1}
+  #view-agents .agi-prog-name{white-space:normal;overflow:visible;text-overflow:clip}
+}
 /* จอกว้าง · ตรึงความกว้างตายตัวแล้วคอลัมน์จะไปกองชิดขวา ที่ว่างทั้งหมดตกเป็นของชื่อเส้นทางคนเดียว
    ให้ช่องวันโตตามไปด้วยเป็นสัดส่วน · ระยะห่างจึงยังเท่ากันเหมือนตอนจอแคบ
-   ขั้นต่ำที่ใส่ไว้คือตัวเลขที่วัดมา (ชื่อยาวสุด 226 · ช่วงวัน 155) และรวมกันพอดีที่ 1200
-   ต่ำกว่านั้นกลับไปใช้กฎข้างบน ซึ่งยอมให้ชื่อหดได้ เพื่อไม่ให้ตารางล้นขอบ */
-@media (min-width:1200px){
+   ขั้นต่ำที่ใส่ไว้คือตัวเลขที่วัดมา (ชื่อยาวสุด 226 · ช่วงวัน 155) รวมทั้งแถวได้ 696px
+   แผงกว้างเท่าจอลบ 718 เสมอ · 696 จึงต้องการจออย่างน้อย 1414 · ตั้งไว้ที่ 1440
+   ต่ำกว่านั้นกลับไปใช้กฎข้างบน ซึ่งยอมให้ชื่อหดได้
+   (ตั้งไว้ต่ำกว่านี้ไม่ได้ · ขั้นต่ำรวมกันเกินกรอบเมื่อไหร่ overflow:hidden ของกรอบจะกินคอลัมน์
+    Status กับปุ่มหายไปเงียบ ๆ โดยหน้าไม่ล้น — ตรวจด้วยตาไม่เจอ) */
+@media (min-width:1440px){
   #view-agents .agi-prog-header,#view-agents .agi-prog-row{
     grid-template-columns:minmax(226px,2fr) minmax(155px,1.1fr) minmax(155px,1.1fr) 88px 40px}
+}
+/* ── ท่าเรือ · คอลัมน์ของตัวเอง ───────────────────────────────────────────
+   ซ่อนไว้ก่อน · display:none ทำให้มันหลุดจากกริดไปเลย ไม่ใช่แค่มองไม่เห็น
+   จำนวนคอลัมน์จึงยังเป็นห้าช่องเท่าเดิมโดยไม่ต้องมีกฎอะไรเพิ่ม
+   กางออกเมื่อจอกว้างพอจริง · แผงนี้กว้างเท่าจอลบ 718px เสมอ (ลิสต์เอเย่นต์ + ขอบ)
+   หกคอลัมน์ต้องการราว 806px จึงต้องมีจออย่างน้อย ~1524 · ตั้งไว้ที่ 1540 เผื่อไว้
+   ต่ำกว่านั้นท่าเรือไปอยู่ใน title ของชื่อเส้นทาง (ชี้แล้วเห็น "ชื่อเส้นทาง · ท่าเรือ") */
+#view-agents .agi-prog-pier-col{display:none}
+@media (min-width:1540px){
+  #view-agents .agi-prog-pier-col{display:flex;align-items:center;min-width:0;
+    font-size:11px;font-weight:400;letter-spacing:.04em;color:var(--ag-ink4);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #view-agents .agi-prog-header .agi-prog-pier-col{color:var(--ag-ink3);font-size:10.5px;
+    font-weight:700;letter-spacing:.06em}
+  #view-agents .agi-prog-header,#view-agents .agi-prog-row{
+    grid-template-columns:minmax(200px,2fr) 88px minmax(155px,1.1fr) minmax(155px,1.1fr) 88px 40px}
 }
 #view-agents .agi-prog-header{margin-top:0;padding:8px 13px;background:var(--ag-soft);
   border-bottom:1px solid var(--ag-line);font-size:10.5px;font-weight:700;letter-spacing:.06em;

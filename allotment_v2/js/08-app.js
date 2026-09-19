@@ -38371,7 +38371,8 @@ function agTabInfo(a){
       <div class="agi-prog-wrap">
       <div class="agi-prog-header">
         <div>Route</div>
-        <div>Booking period</div>
+        <div class="agi-prog-pier-col">Pier</div>
+        <div class="agi-col-bk">Booking period</div>
         <div>Travel period</div>
         <div>Status</div>
         <div></div>
@@ -38404,14 +38405,14 @@ function agTabInfo(a){
           return `
             <div class="agi-prog-row">
               <div class="agi-prog-name-wrap">
-                <!-- §agStd · ท่าเรือย้ายไปอยู่ใน title · วัดแล้วแผงนี้กว้างจริง 696px
-                     ชื่อเส้นทางที่ยาวสุด 216px + ท่าเรือ 76px + ช่องวันสองช่อง 310px + สถานะ 70 + ปุ่ม 40
-                     รวม 752px — เกินมา 56px · อย่างใดอย่างหนึ่งต้องออก
-                     เลือกให้ชื่อเส้นทางอยู่ครบ เพราะเป็นตัวที่คนอ่านตารางนี้มองหา
-                     และเพื่อให้ช่องวันกับสถานะกว้างเท่ากันได้จริงตามแบบที่วางไว้ -->
                 <div class="agi-prog-name" title="${E(r.name)}${pierTag?(' · '+E(pierTag)):''}${E(noteSuffix)}">${r.name}</div>
               </div>
-              <div class="agi-period-col">
+              <!-- §agStd · ท่าเรือเป็นคอลัมน์ของตัวเอง · โผล่เฉพาะจอที่กว้างพอจริง (ดูกฎใน 01-base.css)
+                   จอแคบกว่านั้นมันซ่อนตัวเอง แล้วไปอยู่ใน title ของชื่อเส้นทางแทน
+                   เหตุผลเป็นเรื่องที่วัดได้: แผงนี้กว้างเท่าจอลบ 718px เสมอ (ลิสต์เอเย่นต์ + ขอบ)
+                   คอลัมน์ครบหกช่องต้องการราว 800px · จอ 1440 เหลือแค่ 696px -->
+              <div class="agi-prog-pier-col">${pierTag}</div>
+              <div class="agi-period-col agi-col-bk">
                 <div class="agi-period-lbl book">Booking</div>
                 <div class="agi-period-val">${fmtD(p.bookFrom)} <span class="arrow">→</span> ${fmtD(p.bookTo)}</div>
               </div>

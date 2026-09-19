@@ -222,9 +222,15 @@ const CW = await page.evaluate(() => {
   const r = document.querySelector('#view-agents .agi-prog-row');
   if(!r) return null;
   const w = e => e ? e.getBoundingClientRect().width : 0;
-  const per = [...r.querySelectorAll('.agi-period-col')];
+  const per = [...r.querySelectorAll('.agi-period-col')].filter(e=>getComputedStyle(e).display!=='none');
+  const piers = [...document.querySelectorAll('#view-agents .agi-prog-row .agi-prog-pier-col')];
   return { route: Math.round(w(r.querySelector('.agi-prog-name-wrap'))),
-           date:  Math.round(w(per[0])), date2: Math.round(w(per[1])) };
+           date:  Math.round(w(per[0])), date2: Math.round(w(per[1])),
+           /* ท่าเรือต้องเป็นคอลัมน์ของตัวเอง ไม่ใช่ห้อยท้ายชื่อเส้นทาง · และต้องมีค่าจริงทุกแถว */
+           pierShown: piers.length ? getComputedStyle(piers[0]).display !== 'none' : false,
+           pierRows: piers.length,
+           pierEmpty: piers.filter(e=>!e.textContent.trim()).length,
+           pierInName: !!r.querySelector('.agi-prog-name-wrap .agi-prog-pier') };
 });
 if (!CW) console.log('  ! ไม่มีแถวโปรแกรมให้วัดสัดส่วน · ข้ามข้อนี้');
 else {
@@ -234,6 +240,14 @@ else {
   else if (Math.abs(CW.date - CW.date2) > 2)
     fail('จอ 1680 · ช่องวันสองช่องกว้างไม่เท่ากัน ' + CW.date + ' / ' + CW.date2);
   else ok('จอ 1680 · คอลัมน์แบ่งที่ว่างกันทุกช่อง · ชื่อ:วัน = ' + ratio + ' เท่า');
+
+  if (!CW.pierShown)
+    fail('จอ 1680 · ไม่มีคอลัมน์ท่าเรือ · ท่าเรือต้องแยกออกมาเป็นคอลัมน์ของตัวเองเมื่อจอกว้างพอ');
+  else if (CW.pierInName)
+    fail('ท่าเรือยังห้อยอยู่ท้ายชื่อเส้นทางด้วย · โผล่สองที่ในแถวเดียวกัน');
+  else if (CW.pierEmpty)
+    fail('คอลัมน์ท่าเรือว่าง ' + CW.pierEmpty + ' จาก ' + CW.pierRows + ' แถว');
+  else ok('จอ 1680 · ท่าเรือเป็นคอลัมน์ของตัวเอง · มีค่าครบ ' + CW.pierRows + ' แถว');
 }
 
 const noGo = D.als.filter(x => !x.go || !x.on);
