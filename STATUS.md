@@ -1,6 +1,6 @@
 # LOVE Andaman — Allotment v2 · Project Status
 
-**As of:** 2026-09-18 · branch `lk-inbox` @ `§rtDupCode`
+**As of:** 2026-09-19 · branch `lk-inbox` @ `§agFrame`
 (a merge from GitHub landed at `6aa8cff`, bringing `§vanAssignScroll` from another session —
 this work was re-tested on top of the merged tree, not on the pre-merge one)
 (push from GitHub Desktop — the shell here has no credentials)
@@ -52,6 +52,43 @@ typed doesn't reach the person who needs it.
 
 All measured before and after, all with the regression suite green
 (68 views · 21 value sets unchanged · registry clean).
+
+### 2026-09-19 — the agent panel, split into framed sub-blocks
+
+Asked for the detail inside each numbered band to be divided into smaller boxes. The first attempt
+was clearer but **taller** — 1,978px flat → 2,140px boxed: a frame costs a border, a header and
+padding, and the narrower columns pushed text onto second lines. The fix was not to drop the frames
+but to cut the prose:
+
+| | before | after |
+|---|---|---|
+| Alert row | "Contract v2025-1 ends 27 Sep 26 · renew before it lapses to keep pricing continuous" | `v2025-1 ends 27 Sep 26` |
+| Contract ≠ rate | "The contract names RT - Main 26-27 TH-WW but the bound rate is T1 NYM · contract documents will…" | `contract RT-Mam 26-27 · bound Rt-NYM T1` |
+| Whole panel | **1,978px** | **1,691px** |
+
+Every explanation that got cut moved into a `title=` tooltip, so nothing was lost — it just stopped
+taking vertical space on every view.
+
+Two facts that were being told twice are now told once. The amber *Programs ไม่ตรงกับ Rate Type*
+strip in block 4 said what the *Route with no price* alert in block 1 already says, so it is gone and
+its **+ เติมที่ขาด** button moved onto the band header. The red *No rate type assigned* card was
+duplicating the *Bound rate* box for the same reason.
+
+The three summary values above the programs table (route count, contract window, earliest cutoff)
+moved into the band's own header line, which removed a 60px strip without losing a number.
+
+**Sub-blocks** (`§agFrame`): Commercial → Contract · Credit & payment · Booking channel. Rate → Bound
+rate · In effect today · Contract & season · Sample prices. Company → Company · Contact · Sales owner
+· Signatory · Contract template · Notes. A box whose subject needs attention tints its whole header —
+Contract goes pink at ≤30 days, Signatory goes amber when unsigned — so the eye lands on the box that
+matters before reading a single row.
+
+The header bar is now `position:sticky` like the Dashboard's, which is what it should have been from
+the start; it stays put next to the fixed sidebar. Not on phones, where it wraps to three rows and
+pinning it would cost half the screen.
+
+The contract-version pills were rebuilt for the box. The `.ct-history` component assumes a full-width
+strip; inside a 280px box its text compressed into a vertical column.
 
 ### 2026-09-18 — checked "do new rate types overwrite each other?"
 

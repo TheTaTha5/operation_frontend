@@ -142,8 +142,17 @@ const D = await page.evaluate(() => {
     bands, als,
     alCount: (typeof agAlerts === 'function') ? agAlerts(a).length : -1,
     oldBanner: document.querySelectorAll('#view-agents .ct-banner').length,
-    pillsInBody: !!document.querySelector('#ag-tabbody .ct-history'),
-    pillsAboveTabs: !!document.querySelector('#view-agents .sb-main-hd ~ .ct-history')
+    /* ชิปเวอร์ชันสัญญา · วัดจาก "มีปุ่มเปิดดูใบสัญญา" ไม่ใช่จากคลาสของคอมโพเนนต์
+       คลาสเปลี่ยนได้เมื่อหน้าตาเปลี่ยน · สิ่งที่ต้องไม่หายคือทางเข้าไปดูใบสัญญาเก่า */
+    pillsInBody: /ctViewContract\(/.test((document.getElementById('ag-tabbody')||{}).innerHTML||''),
+    pillsAboveTabs: (function(){
+      const hd = document.querySelector('#view-agents .sb-main-hd');
+      const tabs = document.querySelector('#view-agents .sb-tabs');
+      if(!hd || !tabs) return false;
+      let n = hd.nextElementSibling, found = false;
+      while(n && n !== tabs){ if(/ctViewContract\(/.test(n.innerHTML||'')) found = true; n = n.nextElementSibling; }
+      return found;
+    })()
   };
 });
 console.log('Agent · ' + D.agent);

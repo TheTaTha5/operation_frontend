@@ -2972,7 +2972,10 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
    ทำไมต้องเป็นแถบเดียวกัน · คนทำงานสลับสองหน้านี้ทั้งวัน ถ้าหัวคนละแบบ
    ต้องมองหาปุ่มใหม่ทุกครั้งที่สลับ · เหมือนกันแล้วมือจำที่ได้เอง
    ═══════════════════════════════════════════════════════════════════════════ */
-#view-agents .ag-hd{position:relative;padding:6px 96px 9px 8px;border-radius:14px;margin-bottom:11px;
+/* ตรึงไว้บนสุดเหมือน .dv-hd ของ Dashboard · เลื่อนอ่านข้อมูลยาว ๆ แล้วแถบยังอยู่
+   sidebar เป็น fixed อยู่แล้ว · แถบนี้ sticky จึงอยู่คู่กันตลอด ไม่หายไปทีละอัน
+   top:-1px กันเส้นขาวบาง ๆ ที่โผล่ระหว่างขอบบนกับแถบตอนเลื่อน (sub-pixel) */
+#view-agents .ag-hd{position:sticky;top:-1px;z-index:30;padding:6px 96px 9px 8px;border-radius:14px;margin-bottom:11px;
   background:linear-gradient(160deg, rgba(22,38,92,.96), rgba(12,24,62,.94));
   box-shadow:0 8px 26px rgba(2,10,30,.34), inset 0 1px 0 rgba(255,255,255,.18)}
 #view-agents .ag-hd-top{position:relative;display:flex;align-items:center;gap:13px}
@@ -3031,27 +3034,30 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
 #view-agents .ag-hd-pr.dim .t b{color:#9FB2D4;font-weight:700}
 
 /* ── หัวข้อในแผงของเอเย่นต์ · แถบทึบมีเลขกำกับ เห็นขอบเขตของแต่ละบล็อกชัด ── */
-#view-agents .ag-band{display:flex;align-items:center;gap:10px;margin:18px 0 7px;background:#F2F4F9;
-  border-left:4px solid #16265C;border-radius:0 9px 9px 0;padding:7px 12px}
-#view-agents .ag-band .no{font-family:'DM Mono',ui-monospace,monospace;font-size:10px;font-weight:800;
-  color:#fff;background:#16265C;border-radius:5px;padding:1px 6px;flex:none}
-#view-agents .ag-band .ttl{font-size:11.5px;font-weight:800;letter-spacing:.06em;color:#16265C}
+/* หัวข้อใหญ่ · เข้มกว่ากรอบย่อยหนึ่งระดับเสมอ ไม่งั้นลำดับชั้นพัง
+   พื้นไล่สีจางไปขวาเพื่อให้แถบจบตัวเองได้โดยไม่ต้องมีขอบรอบด้าน */
+#view-agents .ag-band{display:flex;align-items:center;gap:10px;margin:14px 0 6px;
+  background:linear-gradient(90deg,#E6EBF6,#F5F7FC 62%);
+  border-left:5px solid #16265C;border-radius:0 9px 9px 0;padding:6px 12px}
+#view-agents .ag-band .no{font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;font-weight:800;
+  color:#fff;background:#16265C;border-radius:5px;padding:1px 7px;flex:none}
+#view-agents .ag-band .ttl{font-size:13px;font-weight:800;letter-spacing:.02em;color:#16265C}
 #view-agents .ag-band .note{margin-left:auto;font-size:10px;color:#7E8798;text-align:right}
 #view-agents .ag-band .act{margin-left:auto;font-family:inherit;font-size:10px;font-weight:700;color:#16265C;
   background:#fff;border:1px solid #D7DEEB;border-radius:999px;padding:3px 11px;cursor:pointer;white-space:nowrap}
 #view-agents .ag-band .act:hover{background:#E9EEF8}
-#view-agents .ag-band.alert{background:#FCEFED;border-left-color:#C0392B}
+#view-agents .ag-band.alert{background:linear-gradient(90deg,#FBE4E0,#FDF3F1 62%);border-left-color:#C0392B}
 #view-agents .ag-band.alert .no{background:#C0392B}
 #view-agents .ag-band.alert .ttl{color:#A32D2D}
 #view-agents .ag-band.alert .note{color:#A5564C}
-#view-agents .ag-band.clear{background:#E9F6F0;border-left-color:#0F6E56}
+#view-agents .ag-band.clear{background:linear-gradient(90deg,#DFF1E9,#F2FAF6 62%);border-left-color:#0F6E56}
 #view-agents .ag-band.clear .no{background:#0F6E56}
 #view-agents .ag-band.clear .ttl{color:#0F6E56}
 #view-agents .ag-band.clear .note{color:#3F7D68}
 
 /* ── แถบ Alert · เรื่องของเอเย่นต์รายนี้ เรียงตามความด่วน ── */
 #view-agents .ag-als{border:1px solid var(--fd-line);border-radius:10px;overflow:hidden}
-#view-agents .ag-al{display:flex;align-items:center;gap:11px;padding:7px 11px 7px 9px;
+#view-agents .ag-al{display:flex;align-items:center;gap:11px;padding:5px 11px 5px 9px;
   border-left:3px solid;font-size:12px}
 #view-agents .ag-al + .ag-al{border-top:1px solid rgba(0,0,0,.055)}
 #view-agents .ag-al .t{font-weight:700;flex:0 0 168px;display:flex;align-items:center;gap:6px}
@@ -3066,16 +3072,41 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
 #view-agents .ag-ok{display:flex;align-items:center;gap:9px;background:#E7F5EE;border:1px solid #BFE3D4;
   border-radius:10px;padding:9px 12px;font-size:12px;color:#0F6E56;font-weight:600}
 
+/* ── กล่องย่อยในแต่ละหัวข้อ · แยกเรื่องที่ไม่เกี่ยวกันออกจากกันด้วยกรอบ ──
+   แผ่นเดียวยาว ๆ อ่านได้ แต่ไล่ไม่ถูกว่าอะไรอยู่กลุ่มไหน · โดยเฉพาะคอลัมน์ขวาที่ตาต้องกระโดดข้าม
+   กรอบทำให้ "สัญญา" "เครดิต" "ช่องทางจอง" เป็นสามก้อนที่มองปราดเดียวก็แยกออก */
+#view-agents .ag-grp{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:7px;align-items:start}
+/* §agFrame · กรอบต้องอ่านออกว่าเป็นกรอบ และหัวกล่องต้องอ่านออกว่าเป็นหัว
+   ของเดิมขอบจางเท่าเส้นคั่นในตาราง · หัวกล่องเล็กและสีเทาเท่าป้ายกำกับแถว
+   ผลคือมองแวบเดียวแยกไม่ออกว่าอะไรเป็นกรอบ อะไรเป็นเนื้อ
+   แก้ด้วยการทำหัวกล่องเป็นแถบของตัวเอง (พื้นอ่อน + เส้นใต้) แบบหัวตาราง */
+#view-agents .ag-box{border:1px solid #D7DDE9;border-radius:9px;padding:0 0 2px;background:#fff;min-width:0;
+  box-shadow:0 1px 2px rgba(22,38,92,.05)}
+#view-agents .ag-box.wide{grid-column:1/-1}
+#view-agents .ag-box .bh{display:flex;align-items:center;gap:7px;margin:0;padding:5px 10px;
+  background:#F4F6FB;border-bottom:1px solid #E1E6F0;border-radius:8px 8px 0 0;
+  font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#16265C}
+#view-agents .ag-box .bh em{font-style:normal;font-size:9px;font-weight:700;letter-spacing:0;
+  text-transform:none;color:#8A93A6;margin-left:auto}
+#view-agents .ag-box .ag-sh{padding:1px 10px 0}
+#view-agents .ag-box .ag-sh .r:last-child{border-bottom:none}
+#view-agents .ag-box.alert{border-color:#E4B6AF}
+#view-agents .ag-box.alert .bh{background:#FBECE9;border-bottom-color:#E8C9C4;color:#A32D2D}
+#view-agents .ag-box.warn{border-color:#E8CB96}
+#view-agents .ag-box.warn .bh{background:#FDF3E2;border-bottom-color:#EFD9AE;color:#8A5410}
+
 /* ── แถว Sheet · ป้ายเล็กซ้าย ค่าขวา คั่นด้วยเส้นผม ── */
 #view-agents .ag-sh{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 26px}
 #view-agents .ag-sh.one{grid-template-columns:minmax(0,1fr)}
-#view-agents .ag-sh .r{display:flex;gap:10px;align-items:baseline;padding:5px 2px;
+/* แถวเตี้ยที่สุดที่ยังอ่านออก · ป้ายกว้าง 88px พอสำหรับคำที่ยาวที่สุดที่ใช้จริง (BOOKING CHANNEL)
+   ป้ายที่กว้างกว่านี้ไปเบียดค่าจนห่อบรรทัด ซึ่งกินความสูงมากกว่าที่ประหยัดได้ */
+#view-agents .ag-sh .r{display:flex;gap:9px;align-items:baseline;padding:3px 2px;
   border-bottom:1px solid var(--fd-line-soft);min-width:0}
-#view-agents .ag-sh .r .k{flex:0 0 120px;font-size:8.5px;font-weight:700;letter-spacing:.055em;
-  text-transform:uppercase;color:var(--fd-ink-soft)}
+#view-agents .ag-sh .r .k{flex:0 0 88px;font-size:8px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--fd-ink-soft);line-height:1.5}
 #view-agents .ag-sh .r .v{flex:1;min-width:0;font-size:12.5px;font-weight:600;line-height:1.3;
   overflow-wrap:anywhere}
-#view-agents .ag-sh .r .v .sub{display:block;font-size:10px;color:var(--fd-ink-soft);font-weight:400;margin-top:1px}
+#view-agents .ag-sh .r .v .sub{display:block;font-size:9.5px;color:var(--fd-ink-soft);font-weight:400;line-height:1.4}
 #view-agents .ag-bar{display:block;height:5px;border-radius:3px;background:#EEEAE2;overflow:hidden;
   margin-top:4px;max-width:260px}
 #view-agents .ag-bar i{display:block;height:100%}
@@ -3089,7 +3120,9 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
    แถวแท็บห่อสามบรรทัด · แถว Sheet สองคอลัมน์บีบจนค่าห่อมั่ว
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width:900px){
-  #view-agents .ag-hd{padding:8px 10px 10px}
+  /* บนจอโทรศัพท์แถบหัวห่อเป็นสามแถว · ตรึงไว้จะกินจอไปครึ่งหนึ่งตอนเลื่อนอ่าน
+     จอสั้นให้เนื้อหาสำคัญกว่า · เลิกตรึงเฉพาะจอนี้ */
+  #view-agents .ag-hd{position:static;padding:8px 10px 10px}
   #view-agents .ag-hd-top{flex-wrap:wrap;gap:9px}
   #view-agents .ag-hd-kpi{margin-left:0;flex:1 1 100%;justify-content:flex-start}
   #view-agents .ag-hd-g{min-width:0}
@@ -3110,6 +3143,7 @@ select:focus,input:focus{border-color:var(--ocean-mid);box-shadow:0 0 0 3px rgba
   #view-agents .ag-al .t{flex:1 1 auto}
   #view-agents .ag-al .go{margin-left:auto}
   #view-agents .ag-al .d{flex:1 1 100%}
+  #view-agents .ag-grp{grid-template-columns:minmax(0,1fr);gap:8px}
   #view-agents .ag-sh{grid-template-columns:minmax(0,1fr)}
   #view-agents .ag-sh .r{flex-direction:column;gap:1px;padding:6px 2px}
   #view-agents .ag-sh .r .k{flex:none}
