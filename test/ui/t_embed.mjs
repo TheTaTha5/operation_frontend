@@ -60,7 +60,7 @@ const probe = () => page.evaluate(() => {
 // ── 1) ไม่ใส่ ?embed=1 · ต้องเหมือนเดิมเป๊ะ ────────────────────────────────
 console.log('\nปกติ (ไม่มี ?embed=1)');
 await load('');
-let s = await probe();
+var s = await probe();
 ok('__laEmbed ไม่ถูกตั้ง',      s.embed === false, s.embed);
 ok('แถบบนยังอยู่',              s.topbar !== 'none', s.topbar);
 ok('เมนูข้างยังอยู่',            s.sidebar !== 'none', s.sidebar);
@@ -105,6 +105,44 @@ await page.waitForTimeout(700);
 s = await probe();
 ok('วันที่เปลี่ยนเป็น 2026-10-05', s.fdate === '2026-10-05', s.fdate);
 ok('ยังอยู่หน้า booking',          s.active === 'booking', s.active);
+
+// ── 4.5) §embedRO · ค่าเริ่มต้นต้องเป็นดูอย่างเดียว ───────────────────────
+const roProbe = () => page.evaluate(() => {
+  const vis = (sel) => { const e = document.querySelector(sel);
+    return !!(e && getComputedStyle(e).display !== 'none'); };
+  let modes = null;
+  try { modes = { boat: _bkV2.boatAssignMode, van: _bkV2.vanAssignMode, rc: _bkV2.reconfirmMode }; } catch(_) {}
+  return {
+    ro:      document.documentElement.classList.contains('la-embed-ro'),
+    btC:     vis('.bt-c'),                 // แถวโหมด Van / Boat / Re-confirm
+    newBtn:  vis('.bkv2-newbtn2') || vis('.bkv2-newbtn'),
+    // ฟังก์ชันถูกทับแล้วหรือยัง · เทียบกับชื่อเดิมไม่ได้ จึงดูว่าเรียกแล้วโหมดเปลี่ยนไหม
+    vanFn:   typeof window.bkV2ToggleVanMode,
+    modes,
+  };
+});
+
+console.log('\nฝัง · ค่าเริ่มต้น = ดูอย่างเดียว');
+await load('?embed=1&view=booking&tab=bytrip&date=2026-09-20');
+let r = await roProbe();
+ok('ติด class la-embed-ro',        r.ro === true, r.ro);
+ok('ซ่อนแถวโหมด Van/Boat',         r.btC === false, r.btC);
+ok('ซ่อนปุ่ม + New booking',        r.newBtn === false, r.newBtn);
+// กดปุ่มโหมด Van แล้วต้องไม่เข้าโหมด · นี่คือสิ่งที่ผู้ใช้บ่นว่า "cs จัดรถได้"
+await page.evaluate(() => { try { window.bkV2ToggleVanMode(); } catch(_){} });
+await page.waitForTimeout(400);
+r = await roProbe();
+ok('เรียก bkV2ToggleVanMode แล้วไม่เข้าโหมดจัดรถ', r.modes && r.modes.van === false, r.modes);
+
+console.log('\nฝัง · edit=1 · ขอปุ่มกลับมา');
+await load('?embed=1&view=booking&tab=bytrip&date=2026-09-20&edit=1');
+r = await roProbe();
+ok('ไม่ติด class la-embed-ro', r.ro === false, r.ro);
+ok('แถวโหมดกลับมา',           r.btC === true, r.btC);
+await page.evaluate(() => { try { window.bkV2ToggleVanMode(); } catch(_){} });
+await page.waitForTimeout(400);
+r = await roProbe();
+ok('เข้าโหมดจัดรถได้ตามปกติ', r.modes && r.modes.van === true, r.modes);
 
 // ── 5) view ที่ไม่มีจริง · ต้องบอก ไม่ใช่จอขาว ────────────────────────────
 console.log('\nฝัง · view ที่ไม่มีอยู่จริง');

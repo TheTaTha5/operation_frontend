@@ -3378,6 +3378,9 @@ const server = http.createServer((req, res) => {
     const date = qp.get('date');   if(date  && /^\d{4}-\d{2}-\d{2}$/.test(date))   out.push('date='+date);
     const rid  = qp.get('route');  if(rid   && /^[A-Za-z0-9_-]{1,40}$/.test(rid))  out.push('route='+rid);
     if(qp.get('chrome') === '1') out.push('chrome=1');   // ดีบั๊ก · คงแถบเครื่องมือ+เมนูไว้
+    /* §embedRO · ไม่ใส่อะไร = ดูอย่างเดียว · edit=1 คือการขอปุ่มลงมือกลับมา
+       default อยู่ฝั่งปลอดภัย · ลืมใส่แล้วได้หน้าที่แก้ไม่ได้ ดีกว่าลืมใส่แล้วได้หน้าที่จัดรถได้ */
+    if(qp.get('edit') === '1') out.push('edit=1');
     res.writeHead(302,{Location:'/allotment_v2/allotment_v2.html?'+out.join('&'),'Cache-Control':'no-store'});
     return res.end();
   }

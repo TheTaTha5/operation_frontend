@@ -128,6 +128,15 @@ await withServer({}, async (appPort) => {
   r = await hit('/embed/bytrip?date=NOT-A-DATE&route=../../etc/passwd');
   ok('ค่าที่ผิดรูปแบบถูกทิ้ง ไม่ส่งต่อเข้า Location',
      r.status === 302 && !/NOT-A-DATE|passwd/.test(r.loc), r);
+  /* §embedRO · ไม่ใส่ edit = ไม่มี edit=1 ไปถึงหน้าแอป = ดูอย่างเดียว
+     default ต้องอยู่ฝั่งปลอดภัย · ลืมใส่แล้วได้หน้าแก้ไม่ได้ ดีกว่าลืมแล้วจัดรถได้ */
+  r = await hit('/embed/bytrip?date=2026-09-20');
+  ok('ไม่ขอ edit → ไม่มี edit=1 ติดไป', r.status === 302 && !/edit=1/.test(r.loc), r);
+  r = await hit('/embed/bytrip?date=2026-09-20&edit=1');
+  ok('ขอ edit=1 → ส่งต่อให้', r.status === 302 && r.loc.endsWith('&edit=1'), r);
+  r = await hit('/embed/bytrip?edit=yes');
+  ok('edit ที่ไม่ใช่ 1 ถูกทิ้ง', r.status === 302 && !/edit/.test(r.loc), r);
+
   r = await hit('/embed/nope');
   ok('หน้าที่ไม่รู้จัก → 404', r.status === 404, r);
 });
