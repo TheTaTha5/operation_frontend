@@ -390,7 +390,10 @@
     return false;
   }
   // remember the current screen (per-tab · NOT synced) so an auto-refresh returns here instead of Dashboard
-  function _laSaveView(){ try{
+  /* §embed · โหมดฝัง iframe หน้าถูกกำหนดมาจาก URL ไม่ใช่จากที่ผู้ใช้เคยเปิดค้างไว้
+     sessionStorage ยังผูกกับแท็บ ไม่ใช่กับกรอบ · ฝังสองกรอบในหน้าเดียว (ปฏิทิน+
+     By-trip) จะเขียนทับกันเองแล้วสลับหน้ากันมั่ว · โหมดฝังจึงไม่จำและไม่คืนหน้า */
+  function _laSaveView(){ if(window.__laEmbed) return; try{
     var act=document.querySelector('.nav-item.active'); var view=act&&act.dataset?act.dataset.view:''; if(!view) return;
     var st={view:view};
     if(window._bkV2){ st.bk={tab:_bkV2.tab||'', filterDate:_bkV2.filterDate||'', filterRoute:_bkV2.filterRoute||'', detailId:_bkV2.detailId||'', boat:!!_bkV2.boatAssignMode, van:!!_bkV2.vanAssignMode}; if(window._bkV2T2Cursor) st.t2c=_bkV2T2Cursor;
@@ -400,7 +403,8 @@
     sessionStorage.setItem('la_view', JSON.stringify(st));
   }catch(e){} }
   window._laReload=function(){ try{_laSaveView();}catch(e){} location.reload(); };
-  function _laRestoreView(){ try{
+  function _laRestoreView(){ if(window.__laEmbed) return;   /* §embed · ดูเหตุผลที่ _laSaveView */
+   try{
     var raw=sessionStorage.getItem('la_view'); if(!raw) return; var st=JSON.parse(raw); if(!st||!st.view) return;
     if(typeof laAllowed==='function' && !laAllowed(st.view)) return;          // respect role permissions
     var el=document.querySelector('.nav-item[data-view="'+st.view+'"]'); if(!el || el.style.display==='none') return;
