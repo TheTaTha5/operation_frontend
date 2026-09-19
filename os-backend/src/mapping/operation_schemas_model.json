@@ -3311,6 +3311,34 @@
       {
         "name": "originalplanto",
         "type": "text"
+      },
+      {
+        "name": "docs",
+        "type": "text"
+      },
+      {
+        "name": "vendorvisits",
+        "type": "text"
+      },
+      {
+        "name": "phase",
+        "type": "text"
+      },
+      {
+        "name": "holdreason",
+        "type": "text"
+      },
+      {
+        "name": "holdsince",
+        "type": "text"
+      },
+      {
+        "name": "cancelreason",
+        "type": "text"
+      },
+      {
+        "name": "cancelledon",
+        "type": "text"
       }
     ],
     "primary_key": "id",

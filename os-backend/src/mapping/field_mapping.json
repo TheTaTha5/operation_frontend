@@ -3586,6 +3586,41 @@
       "source": "originalPlanTo",
       "kind": "scalar",
       "db_type": "text"
+    },
+    "docs": {
+      "source": "docs",
+      "kind": "json_text",
+      "db_type": "text"
+    },
+    "vendorvisits": {
+      "source": "vendorVisits",
+      "kind": "json_text",
+      "db_type": "text"
+    },
+    "phase": {
+      "source": "phase",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "holdreason": {
+      "source": "holdReason",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "holdsince": {
+      "source": "holdSince",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "cancelreason": {
+      "source": "cancelReason",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "cancelledon": {
+      "source": "cancelledOn",
+      "kind": "scalar",
+      "db_type": "text"
     }
   },
   "fleet_projects__log": {
