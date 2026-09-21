@@ -63718,9 +63718,20 @@ function pjCSS(){
   +H+' .bc .foot button.edit:hover{background:#FBEDD3;border-color:#E3C88F;color:#7A4E00}'
   /* §pjStWin · การ์ดที่มีแผนค้าง · ขอบเตือนแต่ไม่เปลี่ยนสีสถานะ · สถานะยังเป็นซ่อม/ไม่พร้อมตามจริง */
   +H+' .bc.stale{border-color:#E8B4AE;box-shadow:0 0 0 2px rgba(192,39,28,.10)}'
+  /* §pjStaleFit · แถบสถานะสูง 32px ตายตัว และตัดส่วนที่เกินทิ้ง
+     บนการ์ดแคบ (292px ที่จอ 1440) ชิปสถานะ + ชิปเตือน + ปุ่ม ไม่มีทางอยู่ในแถวเดียว
+     เฉพาะใบที่มีโปรแกรมค้างจึงยอมให้แถบนี้ห่อบรรทัดได้ · ใบอื่นสูงเท่าเดิมทุกใบ */
+  +H+' .bc.stale .stbar{height:auto;min-height:32px;padding-top:4px;padding-bottom:4px;flex-wrap:wrap;row-gap:4px}'
+  +H+' .bc.stale .stbar .stw{flex:1 1 100%;flex-wrap:wrap;overflow:visible;row-gap:4px}'
+  +H+' .bc.stale .stbar > .pj-lb{margin-left:auto}'
+  /* §pjStaleFit · ชิปนี้หดตัวได้ · min-width:0 กับ max-width:100% คือสองตัวที่ทำให้มันหดได้จริง
+     (ค่าตั้งต้นของ flex item คือ min-width:auto ซึ่งแปลว่า "ห้ามหดต่ำกว่าเนื้อข้างใน")
+     ตัวที่ยอมให้ตัดคือชื่อเส้นทาง (.t) · ปุ่มเอาออกต้องอยู่เสมอ flex:none */
   +H+' .pj-stale{display:inline-flex;align-items:center;gap:5px;background:#FCEFEE;color:#A0342A;'
-    +'border:1px solid #F0CFCB;border-radius:999px;padding:2px 4px 2px 9px;font-size:10.5px;font-weight:700;white-space:nowrap}'
-  +H+' .pj-stale button{border:none;background:#A0342A;color:#fff;border-radius:999px;'
+    +'border:1px solid #F0CFCB;border-radius:999px;padding:2px 4px 2px 9px;font-size:10.5px;font-weight:700;'
+    +'white-space:nowrap;min-width:0;max-width:100%;overflow:hidden}'
+  +H+' .pj-stale .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+  +H+' .pj-stale button{flex:none;border:none;background:#A0342A;color:#fff;border-radius:999px;'
     +'padding:2px 9px;font:700 10px inherit;font-family:inherit;cursor:pointer}'
   +H+' .pj-stale button:hover{background:#7E2820}'
   +H+' .pj-stq{font-size:9.5px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap}'
@@ -64576,7 +64587,11 @@ function pjCard(B, pier, ro){
      +(ST.stale?('<span class="pj-stale" title="'+poE('วันนี้ยังมีโปรแกรม "'+((rt&&rt.name)||B.rid||'')
           +'" วางไว้บนกระดาน Boat Operation ทั้งที่เรือไม่พร้อม '
           +'· หน้าอื่น (Trip P&L · Dashboard · Departures) ก็ยังอ่านแถวนี้อยู่')+'">'
-        +'&#9888; โปรแกรมค้าง'+((rt&&rt.name)?(' \u00b7 '+poE(rt.name)):'')
+        /* §pjStaleFit · ชื่อเส้นทางอยู่ในสแปนของตัวเอง เพื่อให้มันเป็นตัวที่ถูกตัดเมื่อที่ไม่พอ
+           ไม่ใช่ปุ่ม · ก่อนหน้านี้ทั้งชิปเป็น nowrap ก้อนเดียว ชื่อยาว ๆ จึงดันปุ่ม "เอาออก"
+           ออกไปนอกขอบการ์ด แล้วโดน overflow:hidden ของ .stw กลืนหายไปทั้งปุ่ม
+           ผลคือเห็นคำเตือนแต่กดเอาโปรแกรมออกไม่ได้เลย (วัดที่ 1920 ปุ่มเลยขอบไป 195px) */
+        +'<span class="t">&#9888; โปรแกรมค้าง</span>'   /* ชื่อเส้นทางไม่ต้องพูดซ้ำตรงนี้ · แถบชื่อโปรแกรมอยู่เหนือแถบนี้ขึ้นไปสองบรรทัดเอง */
         +(ro?'':('<button onclick="pjOpDrop(\''+poE(bid)+'\')">เอาออก</button>'))+'</span>'):'')
      /* §pjPierNow · ลำนี้ไม่ใช่ของประจำท่า หรือไม่ได้อยู่ที่ท่า · ต้องบอกให้เห็นตั้งแต่แถบสถานะ */
      +((B._asn && B._asn.toPier===pier && B._asn.fromPier && B._asn.fromPier!==pier)
