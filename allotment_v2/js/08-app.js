@@ -63832,6 +63832,9 @@ function pjCSS(){
      +'padding:3px 22px 3px 7px;font:600 12px inherit;color:#242730;cursor:pointer;text-overflow:ellipsis}'
   +H+' .pj-rw select:hover{border-color:#D9DDE4;background:#fff}'
   +H+' .pj-rw select:focus{border-color:#16265C;background:#fff;outline:none}'
+  +H+' .pj-rw .pj-free{flex:1;min-width:0;border:1px solid transparent;background:transparent;border-radius:7px;padding:3px 7px;font:600 12px inherit;color:#242730;outline:none}'
+  +H+' .pj-rw .pj-free:hover,.pj-rw .pj-free:focus{border-color:#D9DDE4;background:#fff}'
+  +H+' .pj-rw .pj-free::placeholder{color:#CFD4DC;font-weight:400}'
   +H+' .pj-tag{font-size:9px;font-weight:800;border-radius:4px;padding:1px 6px;background:#FFF0D8;color:#B4560A;flex:none}'
   +H+' .pj-lg{display:inline-block;font-size:9px;font-weight:800;border-radius:4px;padding:1px 5px;'
     +'background:#E6F1FB;color:#185FA5;vertical-align:middle}'
@@ -64100,8 +64103,11 @@ function pjSlotRow(pier,bid,kind,slot,defLb,val,subOld,roles,ro,boat){
   var badge='';
   var hp=val?pjHomePier(val):'';
   if(hp && hp!==pier) badge+='<span class="pj-away" title="มาช่วยจาก '+poE((PO_PIERS.filter(function(x){return x.k===hp;})[0]||{}).t||hp)+'">'+poE(pjPierShort(hp))+'</span>';
+  var freeCaptain=slot==='cap' && boat && boat.ownership==='charter';
   var sel=(badge?('<span style="display:inline-flex;flex:none">'+badge+'</span>'):'')
-    +'<select onchange="pjPick(\''+bid+'\',\''+slot+'\',this.value)"'+(ro?' disabled':'')+'>'+pjOpts(pier,val,roles)+'</select>'
+    +(freeCaptain
+      ? '<input class="pj-free" value="'+poE(val)+'" placeholder="พิมพ์ชื่อกัปตัน" onchange="pjFreePick(\''+bid+'\',\''+slot+'\',this)"'+(ro?' disabled':'')+'>'
+      : '<select onchange="pjPick(\''+bid+'\',\''+slot+'\',this.value)"'+(ro?' disabled':'')+'>'+pjOpts(pier,val,roles)+'</select>')
     +((ro||!val)?'':('<button class="pj-rx" onclick="pjSlotDrop(\''+bid+'\',\''+slot+'\')" title="เอาคนออกจากช่องนี้">&#10005;</button>'));
   return '<div class="pj-rw'+(subOld?' sw2':'')+'"><div class="k">'+kHtml+'</div>'+sel
     +(subOld?('<span class="pj-tag">SUB</span><span class="pj-was" title="ปกติคือ '+poE(pjStaffName(subOld))+'">ปกติ '+poE(pjStaffName(subOld))+'</span>'):'')+'</div>';
@@ -64288,6 +64294,10 @@ function pjGdPick(bid, kind, idx, val){
   }
   goAsnSet(_poDate,bid,{g:ids, other:(+A.other||0), sign:(+A.sign||0)});
   renderPierJob();
+}
+function pjFreePick(bid, slot, el){
+  if(!poGuard()) return;
+  pjPick(bid, slot, String(el&&el.value||'').trim());
 }
 function pjPick(bid, slot, val){
   var J=pjOf(_poDate,bid);
