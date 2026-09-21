@@ -22225,6 +22225,17 @@ function tsSlipsForMethod(booking, date, method, saleList){
   });
   return slips;
 }
+function tsProformaPaidDate(b){
+  try{
+    var iv=tsInvSettle(b).inv;
+    if(!iv || typeof SB_PAYMENTS==='undefined') return '';
+    var pays=SB_PAYMENTS.filter(function(p){ return p.invoiceId===iv.id && p.type==='payment' && (+p.amount||0)>0 && p.date; });
+    if(!pays.length) return '';
+    pays.sort(function(a,z){ return String(a.date).localeCompare(String(z.date)); });
+    var d=String(pays[pays.length-1].date).slice(0,10).split('-');
+    return d.length===3 ? d[2]+'/'+d[1]+'/'+d[0] : '';
+  }catch(_){ return ''; }
+}
 function tsPayCell(r, date){
   var b=r.b, e=ckEsc, L=[];
   var m=function(n){ return '฿'+pckNum(n); };   // §pierDecimal · ยอดหน้าท่ามีสตางค์ได้ ต้องโชว์ให้ตรงกับกล่องเก็บเงิน
@@ -22233,7 +22244,11 @@ function tsPayCell(r, date){
   var PT={ invoice:['Invoice','n'], credit:['Invoice','n'], proforma:['Proforma','e'], prepaid:['Proforma','e'],
            cot:['COT','a'], bt:['โอนล่วงหน้า','e'] };
   var pt=PT[M.payType||'']||null;
-  if(pt) L.push('<span class="ts-chip '+pt[1]+'" title="เงื่อนไขการชำระของ agent">'+pt[0]+'</span>');
+  if(pt){
+    var _pfDate=(M.payType==='proforma'||M.payType==='prepaid')?tsProformaPaidDate(b):'';
+    L.push('<span class="ts-chip '+pt[1]+'" title="'+e('เงื่อนไขการชำระของ agent'+(_pfDate?' · ชำระวันที่ '+_pfDate:''))+'">'
+      +pt[0]+(_pfDate?(' · '+e(_pfDate)):'')+'</span>');
+  }
   else if(!b.agentId) L.push('<span class="ts-chip n">Walk-in</span>');
   // §tsInvPaid · เงินที่รับผ่านใบแจ้งหนี้ (หน้า By-trip-date / หน้าบัญชี) · คนละก้อนกับเงินหน้าท่า
   var IV=X.inv||{};
