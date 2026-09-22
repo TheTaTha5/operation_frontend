@@ -8770,10 +8770,23 @@ function vbAreaNm(id){
   return String((bkV2GetArea(id)||{}).name||'').trim();
 }
 function vbPickName(b, sp){ return (sp?vbAreaNm(sp.pickAreaId):'') || String((b&&b.pickupArea)||'').trim(); }
-function vbDropName(b, sp){
+/* §vbDropWhy · คืนทั้งชื่อ และ "ใบนี้ตั้งจุดส่งใหม่จริงหรือเปล่า" มาด้วยกัน
+   ที่มา (2026-09-22) · ของเดิมตัดสินสีตอนวาดด้วยการเทียบสตริงกับจุดรับของ "แถว"
+   แต่แถวหนึ่งรวมหลายใบ · รถไปส่งกรุ๊ปหนึ่งแล้วรับอีกกรุ๊ปกลับ จุดส่งจึงเป็นของกรุ๊ปที่
+   ไม่ได้อยู่ในแถวนั้นตั้งแต่แรก และแทบทุกครั้งก็คือ "ส่งที่เดิม" ของกรุ๊ปนั้นเอง
+   วัดจาก backup_2026-09-17 เดือน ก.ย. · ชิป 24 ตัว ขึ้นม่วง 22 ตัว
+   แต่ที่ลูกค้าตั้งจุดส่งใหม่จริงมีใบเดียว → ป้ายเตือนดังผิด 21 ครั้ง
+   ตัวชี้ขาดต้องเป็นเจตนาบนใบ (bkDropOf บอกเองว่ามีจุดส่งของตัวเองไหม)
+   ไม่ใช่ผลเทียบสตริงข้ามใบ · ชื่อยังขึ้นเหมือนเดิมทุกกรณี เพราะรถวิ่งไปที่นั่นจริง */
+function vbDropInfo(b, sp){
   var d=(typeof bkDropOf==='function')?bkDropOf(b,sp):null;
-  return (d?(String(d.area||'').trim()||String(d.place||'').trim()):'') || vbPickName(b,sp);
+  var nm=d ? (String(d.area||'').trim()||String(d.place||'').trim()) : '';
+  var pk=vbPickName(b, sp);
+  /* ตั้งจุดส่งใหม่ = ใบนี้ (หรือ split นี้) มีจุดส่งเก็บไว้ และไม่ใช่ที่เดียวกับที่รับของใบนั้นเอง
+     ส่งที่เดิม → bkDropOf คืนค่าว่าง → ถอยไปใช้จุดรับของใบนั้น และไม่นับว่าเปลี่ยน */
+  return { nm:(nm||pk), chg:(!!nm && nm!==pk) };
 }
+function vbDropName(b, sp){ return vbDropInfo(b, sp).nm; }
 /* §vbRetLeg · แถวขากลับเก็บเรตคนละช่องกับขาไป · เรตไป-กลับไม่จำเป็นต้องเท่ากัน */
 function vbRowKey(r){ return r.date+'~'+r.routeId+'~'+r.vanId+(r.ret?'~R':''); }
 /* อ่านอย่างเดียว · ห้ามสร้างระเบียนเปล่า ไม่งั้นแค่เปิดดูภาพรวมก็เกิดใบเปล่าทุกเจ้าทุกงวด */
@@ -8821,7 +8834,7 @@ function vbRows(){
         if(!L.vid || !ok[L.vid]) return;
         var k=ds+'~'+(t.routeId||'')+'~'+L.vid;
         if(!map[k]) map[k]={date:ds, routeId:t.routeId||'', vanId:L.vid,
-                            ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, bk:0, areas:{}, drops:{}};
+                            ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, bk:0, retSame:0, areas:{}, drops:{}};
         var r=map[k];
         if(L.pax!=null){ r.pax+=(+L.real||0); r.ad+=(+L.real||0); r.bkPax+=L.pax; }
         else {
@@ -8830,13 +8843,27 @@ function vbRows(){
         }
         r.bk++;
         var a=vbPickName(b, L.sp); if(a) r.areas[a]=1;
+        /* §vbSameVan · "กลับคันเดิม" คือทางกลับทางที่สอง · bkV2SetReturnSameVan เคลียร์
+           vanReturnId ทิ้งตอนติ๊ก (บรรทัด ~7599) ของเดิมจึงอ่านไม่เจอเลยสักใบ
+           ทั้งที่คอมเมนต์ที่ bkV2VanAlert เขียนไว้เองว่ากรณีนี้คือ "รถขาไปพากลับ · ส่งจุดใหม่"
+           วัดจาก backup_2026-09-17 ทั้งไฟล์ · ติ๊กกลับคันเดิม 10 leg · เป็นส่งจุดใหม่จริง 9
+           ทั้งสิบขึ้น "—" มาตลอด = เงียบตรงเคสที่คอลัมน์นี้ถูกสร้างมาจับพอดี
+           ⚠ ไม่แตะ pax / retPax / จำนวนคัน · รถคันเดิม รอบเดิม ใบเดิม ยอดเรียกเก็บต้องไม่ขยับ
+             นับแยกที่ retSame ไว้ติดป้ายอย่างเดียว ไม่ใช่ retBk ซึ่งแปลว่ารับกลับให้ใบอื่น */
+        var rsv=(L.sp && L.sp.returnSameVan!=null) ? !!L.sp.returnSameVan : !!O.returnSameVan;
+        if(rsv){
+          var ds2=vbDropInfo(b, L.sp);
+          r.retSame=(r.retSame||0)+1;
+          if(ds2.nm) r.drops[ds2.nm]=(r.drops[ds2.nm]||0)|(ds2.chg?1:0);
+        }
       });
       /* §vbRetLeg · ขากลับคือรถอีกเที่ยวหนึ่ง · ของเดิมอ่านแต่ ops.vanId
          เจ้าของรถที่รับเฉพาะขากลับจึงไม่เคยขึ้นบิลเลยสักแถว
          (วัดจาก backup_2026-09-14: ตกไป 22 เที่ยว · งวด 11-20 ก.ย. ภูเก็ตล่ำซำ ตก 4)
          ⚠ pax=0 โดยตั้งใจ · เป็นลูกค้ากลุ่มเดิมที่ขายไปแล้วตอนขาไป
            ใส่ pax เมื่อไหร่ ราคาขาย/กำไรเด้งเป็นสองเท่าทันที · คนจริงเก็บไว้ที่ retPax ไว้โชว์เฉย ๆ
-         returnSameVan (กลับคันเดิม) ไม่มี vanReturnId อยู่แล้ว จึงไม่เกิดแถวซ้ำ */
+         returnSameVan (กลับคันเดิม) ไม่มี vanReturnId อยู่แล้ว จึงไม่เกิดแถวซ้ำที่นี่
+         · ทางนั้นไปจบที่ §vbSameVan ข้างบน ซึ่งแปะจุดส่งลงแถวขาไปของคันเดิมโดยไม่เพิ่มแถว */
       var rlegs=(Array.isArray(O.vanSplits)&&O.vanSplits.length)
         ? O.vanSplits.map(function(x){ return {vid:x.vanReturnId, sp:x}; })
         : [{vid:O.vanReturnId, sp:null}];
@@ -8844,7 +8871,8 @@ function vbRows(){
         if(!R.vid || !ok[R.vid]) return;
         /* พักไว้ก่อน · ตอนนี้ยังไม่รู้ว่าคันนี้มีขาไปในวันเดียวกันหรือเปล่า
            (ใบที่จัดขาไปอาจมาทีหลังในลูป) */
-        pendRet.push({ds:ds, rid:t.routeId||'', vid:R.vid, pax:rlN, drop:vbDropName(b, R.sp)});
+        var di=vbDropInfo(b, R.sp);
+        pendRet.push({ds:ds, rid:t.routeId||'', vid:R.vid, pax:rlN, drop:di.nm, chg:di.chg});
       });
     });
   });
@@ -8857,11 +8885,12 @@ function vbRows(){
   pendRet.forEach(function(x){
     var base=x.ds+'~'+x.rid+'~'+x.vid;
     if(map[base]){ map[base].retPax=(map[base].retPax||0)+x.pax; map[base].retBk=(map[base].retBk||0)+1;
-                   if(x.drop) map[base].drops[x.drop]=1; return; }
+                   if(x.drop) map[base].drops[x.drop]=(map[base].drops[x.drop]||0)|(x.chg?1:0); return; }
     var k=base+'~R';
     if(!map[k]) map[k]={date:x.ds, routeId:x.rid, vanId:x.vid, ret:1,
                         ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, retPax:0, bk:0, areas:{}, drops:{}};
-    map[k].retPax+=x.pax; map[k].bk++; if(x.drop) map[k].drops[x.drop]=1;
+    map[k].retPax+=x.pax; map[k].bk++;
+    if(x.drop) map[k].drops[x.drop]=(map[k].drops[x.drop]||0)|(x.chg?1:0);
   });
   return Object.keys(map).sort().map(function(k){ return map[k]; });
 }
@@ -9246,14 +9275,16 @@ function renderVanBill(){
         return '<span class="vb-area'+(vbIsFar(a)?' far':'')+'">'+e(vbArea(a))+'</span>'; }).join('')
       :'<span class="vb-area">—</span>';
     /* §vbDrop · จุดส่งมีค่าเฉพาะแถวที่มีขากลับ · ขาไปทุกคันไปจบที่ท่าเรืออยู่แล้ว
-       จุดที่ไม่ตรงกับจุดรับของแถวนี้ = คนละระยะทาง ต้องสะดุดตา ไม่ใช่กลืนไปกับที่เหลือ */
+       §vbDropWhy · ม่วง = ใบนั้นตั้งจุดส่งใหม่จริง (ธงมาจาก vbDropInfo ตอนอ่านข้อมูล)
+       ไม่ใช่ "ชื่อนี้ไม่อยู่ในจุดรับของแถว" ซึ่งดังผิด 21 จาก 22 ครั้งในเดือน ก.ย. */
     var drops=Object.keys(r.drops||{});
     var dHtml=drops.length?drops.map(function(a){
-        var diff=(areas.indexOf(a)<0), nm=vbArea(a);
-        var cls=diff?' alt':(vbIsFar(a)?' far':'');
-        return '<span class="vb-area'+cls+'" title="'+e(nm)+(diff?' · ส่งคนละที่กับที่รับ':'')+'">'
+        var chg=!!(r.drops[a]), nm=vbArea(a);
+        var cls=chg?' alt':(vbIsFar(a)?' far':'');
+        return '<span class="vb-area'+cls+'" title="'+e(nm)
+            +(chg?' · ใบนี้ตั้งจุดส่งใหม่ ไม่ใช่ส่งกลับที่รับ':' · ส่งกลับที่เดิมของกรุ๊ปนั้น')+'">'
           +e(vbShort(nm))+'</span>'; }).join('')
-      :'<span class="vb-area"'+((!r.ret&&!r.retBk)?' title="ไม่ได้รับขากลับ · จบที่ท่าเรือ"':'')+'>—</span>';
+      :'<span class="vb-area"'+((!r.ret&&!r.retBk&&!r.retSame)?' title="ไม่ได้รับขากลับ · จบที่ท่าเรือ"':'')+'>—</span>';
     return '<tr>'
      +'<td class="l vb-mono">'+e(r.date.slice(8,10)+'/'+(+r.date.slice(5,7))+'/'+r.date.slice(2,4))+'</td>'
      /* §vbRateCode · ติดป้ายท่าเรือไว้ · เหตุผลที่เรตต่างคือรถวิ่งคนละที่ ไม่ใช่ชื่อโปรแกรมคนละชื่อ */
@@ -9262,6 +9293,9 @@ function renderVanBill(){
           return pc?('<span class="vb-pier" style="background:'+pc.bg+';color:'+pc.c+'">'+e(VB_PIER_TH[pr]||pr)+'</span>'):''; })()
        +(r.ret?'<span class="vb-pier" style="background:#FFF1E0;color:#9A5B00">&#8629; ขากลับ</span>':'')
        +((!r.ret&&r.retBk)?('<span class="vb-pier" style="background:#EEF4F9;color:#4A6274" title="คันนี้รับขากลับให้อีก '+r.retBk+' ใบด้วย · เป็นรอบเดียวกัน ไม่คิดเพิ่ม">&#8629; รับกลับด้วย '+(r.retPax||0)+' คน</span>'):'')
+       /* §vbSameVan · ป้ายคนละตัวกับ "รับกลับด้วย" · อันนั้นคือรับกลับให้ใบอื่น
+          อันนี้คือพาคนของตัวเองกลับ · ไม่มีคนเพิ่ม ไม่มีเงินเพิ่ม มีแต่จุดส่ง */
+       +((!r.ret&&r.retSame)?('<span class="vb-pier" style="background:#F1F4F7;color:#5B6570" title="ใบนี้ติ๊ก \'กลับคันเดิม\' '+r.retSame+' ใบ · รถคันเดิมพาคนของตัวเองกลับ ไม่คิดเพิ่ม">&#8629; พากลับเอง</span>'):'')
        +(_vb.van?'':('<div style="font-size:10px;color:#98A2AD;margin-top:2px">'+e((vg(r.vanId).name)||r.vanId)+'</div>'))+'</td>'
      +'<td class="l">'+aHtml+'</td>'
      +'<td class="l">'+dHtml+'</td>'

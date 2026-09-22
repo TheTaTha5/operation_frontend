@@ -29,7 +29,8 @@
     "test:agprog": "node test/ui/t_agprog.mjs",
     "test:rtdup": "node test/ui/t_rtdup.mjs",
     "test:pjstale": "node test/ui/t_pjstale.mjs",
-    "test:flboard": "node test/ui/t_flboard.mjs"
+    "test:flboard": "node test/ui/t_flboard.mjs",
+    "test:vbdrop": "node test/ui/t_vbdrop.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"
