@@ -291,7 +291,7 @@
     var d=computeDiff(BASE,cur); if(!d._changed){ _dirty=false; return; }
     var ops = forceLegacy ? null : laDiffToOps(d, cur);
     var x=new XMLHttpRequest(); x.open('POST', ops?'/api/v1/_batch':'/api/save', true); x.setRequestHeader('Content-Type','application/json');
-    x.onload=function(){ if(x.status===200){ var r={}; try{r=JSON.parse(x.responseText);}catch(e){} VER=r.version||VER; BASE=cur; _laMark(VER); _dirty=false; _laSaveErrClear(); window.__savedAt=Date.now(); badgeTick(); if(r.behind){ _laPending=r; _laTryRefresh(); } }
+    x.onload=function(){ if(x.status===200){ var r={}; try{r=JSON.parse(x.responseText);}catch(e){} VER=r.version||VER; BASE=cur; _laMark(VER); _dirty=false; _laSaveErrClear(); window.__savedAt=Date.now(); badgeTick(); if(r.behind){ _laSetPending(r); _laTryRefresh(); } }
       else if(ops && (x.status===404||x.status===400)){ save(v, true); }   // old server / op the batch can't express → legacy whole-diff save
       else if(x.status===403){ _laSaveErr('บันทึกขึ้นระบบไม่ได้ · บัญชีนี้ไม่มีสิทธิ์แก้ไข (การเปลี่ยนแปลงยังไม่ถูกบันทึก) — กรุณา login ใหม่ หรือติดต่อ admin'); }   // will never succeed → stop retrying, tell the user
       else if(x.status===401){ _laSaveErr('เซสชันหมดอายุ · ข้อมูลยังอยู่ในเครื่อง — กรุณาเข้าสู่ระบบใหม่ แล้วระบบจะเซฟให้อัตโนมัติ','#7A4A00'); }
@@ -340,6 +340,13 @@
   // poll for others' changes → offer refresh (no silent stale, no forced reload mid-edit)
   // ── AUTO-REFRESH when others save · seamless when idle · never interrupts typing/editing ──
   var _laPending=null, _laLastInput=Date.now();
+  /* §ckLive2 · จำว่าของใหม่มารอตั้งแต่เมื่อไหร่ · หน้าเช็คอินใช้ตั้งเพดานเวลารอ
+     ตัวกัน "เพิ่งแตะจอ" เป็นความสุภาพ ไม่ใช่กุญแจล็อก · ถ้าไม่มีเพดาน
+     คนที่ขยับเมาส์/แตะจอถี่กว่าคาบกัน จะกดให้มันเลื่อนออกไปได้ไม่มีที่สิ้นสุด
+     ซึ่งคืออาการ "จับเม้าอยู่ยิ่งไม่อัพเดท" ที่หน้าท่าเจอ */
+  var _laPendAt=0;
+  function _laSetPending(j){ if(!_laPending) _laPendAt=Date.now(); _laPending=j; }
+  function _laClearPending(){ _laPending=null; _laPendAt=0; }
   /* §ckLive · 'wheel' = เลื่อนจออ่าน ไม่ใช่การแก้ข้อมูล · ในหน้าเช็คอินที่รายการยาว
      มันรีเซ็ตนาฬิกา "ยุ่งอยู่" ต่อเนื่องจนไม่เคยว่างพอจะ refresh
      หน้าอื่นยังนับเหมือนเดิม (เลื่อนอ่านรายงานยาว ๆ แล้วโดนวาดใหม่กลางคันก็กวนเหมือนกัน) */
@@ -381,12 +388,25 @@
       if(!(_live && (ae.id==='pck-q' || ae.id==='vck-q'))) return true;
     }
     if(document.querySelector('.la-modal')||document.getElementById('la-umodal')||document.getElementById('la-pmodal')) return true;  // a dialog is open
+    /* §ckLive2 · ลิ้นชัก/กล่องของหน้าเช็คอินก็คือ "กำลังทำอะไรค้างอยู่" เหมือนกัน
+       ของเดิมไม่ได้นับ · คนอื่นเช็คอินเข้ามาตอนกำลังพิมพ์โน้ตหรือรายการอาหาร
+       หน้าถูกวาดใหม่ทั้งหน้า ลิ้นชักหายพร้อมข้อความที่พิมพ์ค้าง */
+    if(_live && (document.getElementById('pck-drawer')||document.getElementById('pck-meal-ov'))) return true;
     if(document.getElementById('dc-panel-docs')) return true;                           // Document-Check drawer open (reading details) → don't interrupt
     try{ if(typeof _agSelected!=='undefined' && _agSelected) return true; }catch(e){}   // Agent detail open (reading/editing) → don't yank back to the list
     if(skipIdle) return false;                                                          // §btLoadNowFix · คลิกเองสั่ง skip: mousedown ของคลิกนี้เองเพิ่ง stamp _laLastInput ไปหมาดๆ
-    /* หน้าเช็คอิน · 700ms พอให้ไม่วาดทับจังหวะที่นิ้วยังอยู่บนปุ่ม แต่ไม่ค้างทั้งกะ
-       หน้าอื่นคงไว้ 2 วิเหมือนเดิม */
-    if(Date.now()-_laLastInput < (_live?700:2000)) return true;
+    /* หน้าเช็คอิน · 300ms พอให้ไม่วาดทับจังหวะที่นิ้วยังอยู่บนปุ่ม
+       §ckLive2 · ลดจาก 700ms · สองเครื่องกดสลับกันตลอดเวลา หน้าต่างยิ่งกว้าง
+       ยิ่งมีโอกาสที่ของใหม่มาถึงตอนไม่ว่างแล้วต้องรอรอบถัดไป
+       ลิ้นชัก/กล่อง/ช่องพิมพ์ยังกันเต็มเหมือนเดิมข้างบน หน้าอื่นคงไว้ 2 วิ
+
+       และมีเพดาน · ของใหม่รอเกิน 800ms เมื่อไหร่ ไม่ต้องรอจังหวะว่างอีกแล้ว
+       (2 วิเคยลองแล้วรวมกับคาบถาม 2 วิ กลายเป็นเกือบ 4 วิ ซึ่งยังช้าไปสำหรับหน้าท่า)
+       ตัวกันนี้คือความสุภาพ ไม่ใช่กุญแจ · คนหน้าท่าขยับมือถี่กว่า 300ms ได้ทั้งกะ
+       ถ้าไม่มีเพดาน หน้าจอนั้นจะไม่อัพเดทเลยตราบใดที่มือยังอยู่บนจอ
+       (ตัวกันของจริง — แก้ค้าง ฟอร์ม ลิ้นชัก ช่องพิมพ์ — อยู่ข้างบนและไม่มีเพดาน) */
+    if(_live && _laPendAt && (Date.now()-_laPendAt) > 800) return false;
+    if(Date.now()-_laLastInput < (_live?300:2000)) return true;
     return false;
   }
   // remember the current screen (per-tab · NOT synced) so an auto-refresh returns here instead of Dashboard
@@ -428,7 +448,7 @@
     x.onload=function(){ try{
       if(x.status!==200) return;                                   // keep pending · retry next idle tick
       var j=JSON.parse(x.responseText);
-      if(typeof j.data!=='string' || j.data.length<2){ _laPending=null; return; }
+      if(typeof j.data!=='string' || j.data.length<2){ _laClearPending(); return; }
       if(_laBusy()) return;                                        // user resumed during fetch → defer
       _orig(LS, j.data);                                           // write WITHOUT triggering a save
       VER=j.version||VER; try{BASE=JSON.parse(j.data);}catch(e){BASE={};} _laMark(VER);
@@ -436,7 +456,7 @@
          และไม่เช็ค updated_by อีกแล้ว · ของเดิมเช็คแล้วใบจองหลุดเงียบ
          เวลามีคนอื่นกดบันทึกคั่นระหว่างที่ผู้ใช้ยุ่งอยู่ */
       var _b2cNew=[]; try{ _b2cNew=_laB2CScan(BASE); }catch(e){}
-      _laPending=null;
+      _laClearPending();
       var ok = window._laReloadData ? window._laReloadData() : false;
       if(!ok){ _laReload(); return; }                             // in-place failed → fall back to full reload
       if(window._laRerender) window._laRerender();
@@ -450,7 +470,59 @@
   window._laSoftRefresh=_laSoftRefresh;   // expose for the banner button's inline onclick
   function _laTryRefresh(){ if(!_laPending) return; if(_laBusy()) showRefresh(_laPending); else _laSoftRefresh(); }
   // poll cloud version
-  setInterval(function(){ var x=new XMLHttpRequest(); x.open('GET',bust('/api/version'),true); x.onload=function(){ if(x.status===200){ var j={}; try{j=JSON.parse(x.responseText);}catch(e){} if((j.version||0)>VER){ _laPending=j; _laTryRefresh(); } try{ _laB2CHealth(j.b2c); }catch(e){} } }; try{x.send();}catch(e){} }, 10000);
+  /* §ckLive2 · ถามเวอร์ชันหนึ่งครั้ง · health=1 คือรอบที่รับผิดชอบรายงานสุขภาพ B2C ด้วย
+     ตัวเร็วของหน้าเช็คอินไม่ต้องรายงาน จะได้ไม่เด้งซ้ำกับรอบ 10 วิ */
+  var _laVerBusy=false;
+  function _laCheckVersion(health){
+    if(_laVerBusy) return;                     /* เน็ตหน้าท่าช้า · อย่าให้คำขอซ้อนกันเป็นพรวน */
+    _laVerBusy=true;
+    var x=new XMLHttpRequest(); x.open('GET',bust('/api/version'),true);
+    x.timeout=8000;
+    var done=function(){ _laVerBusy=false; };
+    x.ontimeout=done; x.onerror=done;
+    x.onload=function(){ done();
+      if(x.status!==200) return;
+      var j={}; try{ j=JSON.parse(x.responseText); }catch(e){}
+      if((j.version||0)>VER){ _laSetPending(j); _laTryRefresh(); }
+      if(health){ try{ _laB2CHealth(j.b2c); }catch(e){} }
+    };
+    try{ x.send(); }catch(e){ done(); }
+  }
+  setInterval(function(){ _laCheckVersion(1); }, 10000);
+  /* ══ §ckLive2 (2026-09-22) · "สองเครื่องทำพร้อมกัน · A กดเช็คอิน จอ B อัพเดทอีก 10 วิ" ══
+     10 วิ คือคาบของ poll ข้างบน ซึ่งเป็น "ตัวสำรอง" ไม่ใช่ทางหลัก
+     ทางหลักคือ SSE ที่ควรถึงใน ~1 วิ · ได้ 10 วิพอดีแปลว่า SSE ของเครื่องนั้นตายไปแล้ว
+     EventSource ต่อเองได้เฉพาะตอนสายหลุดกลางคัน · ถ้าเซิร์ฟเวอร์ตอบไม่ใช่ 200
+     (เช่น 401 ตอน session สะดุดชั่วครู่) สเปกบอกให้เลิกต่อถาวร แล้วไม่มีใครปลุกอีกเลย
+     เน็ตหน้าท่าสะดุดครั้งเดียว = ช้า 10 วิไปทั้งกะ
+     ตรงนี้จึงทำสองชั้น · ปลุก SSE เมื่อมันตาย · และถามเวอร์ชันทุก 2 วิตอนเปิดหน้าเช็คอิน
+     ไม่เช็คก่อนว่า SSE ตายไหมแล้วค่อยถาม · "ตาย" ที่อ่านได้คือสายขาดเท่านั้น
+     สายที่ค้างเปิดแต่ไม่ส่งอะไรเลย (พร็อกซีกลางทางกลืน event) อ่านได้เป็น OPEN ทุกประการ
+     ซึ่งเป็นอาการที่เงียบที่สุด · ถามไปเลยจะได้ไม่ต้องเดา
+     ⚠ ถามถี่ได้เพราะ /api/version เป็นคิวรีแถวเดียว ไม่ใช่ /api/load ซึ่งเป็นก้อนทั้งระบบ ~20MB
+       หยุดเองเมื่อออกจากหน้า หรือแท็บถูกซ่อน · นอกหน้านี้ยังเป็น 10 วิเหมือนเดิม */
+  function _laSSEDead(){
+    try{ var es=window.__laSSE; return !es || es.readyState===2; }catch(e){ return true; }   /* 2 = CLOSED */
+  }
+  function _laSSEKick(){ if(_laSSEDead()) _laStartSSE(); }
+  setInterval(_laSSEKick, 15000);
+  try{
+    document.addEventListener('visibilitychange', function(){
+      if(document.hidden) return;
+      _laSSEKick(); _laCheckVersion(0);        /* กลับมาดูจอ · ต้องเห็นของล่าสุดทันที ไม่ใช่รออีกคาบ */
+    });
+    window.addEventListener('online', function(){ _laSSEKick(); _laCheckVersion(0); });
+  }catch(e){}
+  setInterval(function(){
+    if(!_laLiveView() || document.hidden) return;
+    _laCheckVersion(0);
+  }, 2000);
+  /* ของที่รออยู่ต้องได้ไปทันทีที่ผ่านด่าน · ตัวกลางเดินรอบละ 3 วิ
+     ซึ่งบวกเวลารอฟรี ๆ อีกถึง 3 วิให้หน้าที่ต้องการความสด · ไม่มีคำขอเน็ตถ้าไม่มีอะไรรอ */
+  setInterval(function(){
+    if(!_laLiveView() || document.hidden || !_laPending) return;
+    if(!_laBusy()) _laSoftRefresh();
+  }, 400);
   // §B2C sync-down alert (2026-07-31): a failed B2C sync is non-fatal on the server — it logs and moves
   // on — so without this the app looks perfectly healthy while orders silently stop arriving. Server
   // side only reports a fault after 3 consecutive failed runs (~2 min) or 10 min with no successful
@@ -480,7 +552,7 @@
   }
   window._laB2CHealth=_laB2CHealth;
   // Real-time push via SSE · server notifies instantly on any save (poll above is just a fallback)
-  function _laStartSSE(){ if(typeof EventSource==='undefined') return; try{ if(window.__laSSE) window.__laSSE.close(); var es=new EventSource('/api/events'); es.onmessage=function(e){ try{ var j=JSON.parse(e.data); if((j.version||0)>VER){ _laPending=j; _laTryRefresh(); } }catch(_){} }; window.__laSSE=es; }catch(e){} }
+  function _laStartSSE(){ if(typeof EventSource==='undefined') return; try{ if(window.__laSSE) window.__laSSE.close(); var es=new EventSource('/api/events'); es.onmessage=function(e){ try{ var j=JSON.parse(e.data); if((j.version||0)>VER){ _laSetPending(j); _laTryRefresh(); } }catch(_){} }; window.__laSSE=es; }catch(e){} }
   _laStartSSE();
   // keep the saved screen fresh · once new data is pending, seamlessly refresh the moment the user goes idle
   setInterval(function(){ _laSaveView(); if(_laPending && !_laBusy()) _laSoftRefresh(); }, 3000);

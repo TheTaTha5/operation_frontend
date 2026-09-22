@@ -30,7 +30,8 @@
     "test:rtdup": "node test/ui/t_rtdup.mjs",
     "test:pjstale": "node test/ui/t_pjstale.mjs",
     "test:flboard": "node test/ui/t_flboard.mjs",
-    "test:vbdrop": "node test/ui/t_vbdrop.mjs"
+    "test:vbdrop": "node test/ui/t_vbdrop.mjs",
+    "test:cklive": "node test/ui/t_cklive.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"
