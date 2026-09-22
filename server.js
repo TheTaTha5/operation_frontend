@@ -2438,6 +2438,14 @@ const EMBED_SECRET       = String(process.env.EMBED_TOKEN_SECRET||'');
 const EMBED_TOKEN_AHEAD  = 10*60e3;    // ตั๋วที่อ้างอายุยาวกว่านี้ = ฝั่งโน้นตั้งผิด ไม่รับ
 const EMBED_SESS_MS      = Math.min(24, Math.max(1, Number(process.env.EMBED_SESS_HOURS||12))) * 3600e3;
 const LA_PERM_EXPLICIT   = '*explicit';   // ตรงกับ js/01-auth-sync.js · "เอาตามรายการนี้ ห้ามยกให้เพิ่ม"
+/* §permSeal (2026-09-22) · หมุดต้องรอด cleanPerms ไม่งั้นทั้งกลไกไม่มีผลเลย
+   อาการที่ผู้ใช้เจอ · admin ตั้ง "ท่าเรือ = ไม่มี" ให้คนที่ถือ piercheckin อยู่ แล้วกดบันทึก
+   เซิร์ฟเวอร์เก็บถูกทุกอย่าง (ศูนย์หน้าท่าเรือ) แต่ cleanPerms ตัดหมุดทิ้งเพราะไม่อยู่ใน PERM_KEYS
+   พอไม่มีหมุด laExpandPerms ฝั่งหน้าเว็บถือว่าเป็นข้อมูลแบบเก่า แล้ว laBackfillPier ยกหน้าท่าเรือ
+   คืนให้ทั้งชุด · เปิดกล่องดูอีกทีขึ้นเป็น "ดู" เหมือนไม่เคยกดบันทึก
+   (วัดจริง · ส่งไปมีหมุด true · เก็บจริงมีหมุด false · เปิดใหม่ท่าเรือกลับมาเป็น ดู)
+   นี่คือกับดักเดียวกับ §permSync รอบที่ห้า · ต่างแค่คราวนี้คีย์ที่หายไม่ใช่ชื่อหน้า แต่เป็นหมุด */
+PERM_KEYS.add(LA_PERM_EXPLICIT);
 function embedTokenOk(t){
   if(!EMBED_SECRET || !t) return false;
   try{

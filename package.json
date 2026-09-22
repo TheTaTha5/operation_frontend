@@ -31,7 +31,8 @@
     "test:pjstale": "node test/ui/t_pjstale.mjs",
     "test:flboard": "node test/ui/t_flboard.mjs",
     "test:vbdrop": "node test/ui/t_vbdrop.mjs",
-    "test:cklive": "node test/ui/t_cklive.mjs"
+    "test:cklive": "node test/ui/t_cklive.mjs",
+    "test:perm": "node test/ui/t_perm.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"

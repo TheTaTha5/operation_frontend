@@ -387,7 +387,16 @@
          และ _laRerender คืนโฟกัส+ตำแหน่ง cursor ให้หลังวาดใหม่ */
       if(!(_live && (ae.id==='pck-q' || ae.id==='vck-q'))) return true;
     }
-    if(document.querySelector('.la-modal')||document.getElementById('la-umodal')||document.getElementById('la-pmodal')) return true;  // a dialog is open
+    /* §permWin (2026-09-22) · ชื่อ id ที่ด่านนี้เฝ้าอยู่ ไม่มีอยู่จริงในโค้ดแล้ว
+       หน้าต่างจัดการผู้ใช้ถูกออกแบบใหม่เป็น la-uwin / la-pmask นานแล้ว แต่ด่านยังเฝ้า
+       la-umodal / la-pmodal ซึ่งไม่มีที่ไหนสร้างเลยสักที่ · แปลว่าทั้งกล่องไม่เคยถูกกันเลย
+       ผลคือ admin เปิดกล่องสิทธิ์ค้างไว้ แล้วมีคนอื่นเซฟอะไรเข้ามา
+       ถ้ารอบนั้น _laReloadData คืน false ระบบจะ location.reload() ทับทันที
+       สิทธิ์ที่ติ๊กค้างไว้หายทั้งชุดโดยไม่มีอะไรเตือน
+       เก็บชื่อเก่าไว้ด้วยเผื่อมีของเก่าหลงเหลือ · ไม่มีต้นทุนอะไร */
+    if(document.querySelector('.la-modal')
+       || document.getElementById('la-uwin') || document.getElementById('la-pmask')
+       || document.getElementById('la-umodal') || document.getElementById('la-pmodal')) return true;  // a dialog is open
     /* §ckLive2 · ลิ้นชัก/กล่องของหน้าเช็คอินก็คือ "กำลังทำอะไรค้างอยู่" เหมือนกัน
        ของเดิมไม่ได้นับ · คนอื่นเช็คอินเข้ามาตอนกำลังพิมพ์โน้ตหรือรายการอาหาร
        หน้าถูกวาดใหม่ทั้งหน้า ลิ้นชักหายพร้อมข้อความที่พิมพ์ค้าง */
