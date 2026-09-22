@@ -78,7 +78,7 @@
   //   (เจอจริง 30 ก.ค. 2026 · เซิร์ฟเวอร์ตีกลับ trips 94→0 — ถ้าไม่มีตัวกันฝั่งนั้น ข้อมูลหายเกลี้ยง)
   _SP.removeItem=function(k){ if(_isLS(this)&&k===LS){ _mem=null; _dirty=false; try{ clearTimeout(_t); }catch(e){} return; } _oDel.call(this,k); };
   _SP.setItem=function(k,v){ if(!_isLS(this)||k!==LS){ return _oSet.call(this,k,v); } _mem=v;   // state blob → memory only (no quota)
-    if(_syncReady && typeof laCanEdit==='function' && laCanEdit()){ _dirty=true; clearTimeout(_t); _t=setTimeout(function(){ save(v); },1000); } };   // view-only users never sync
+    if(_syncReady && typeof laCanEdit==='function' && laCanEdit()){ _dirty=true; _laEditSeq++; clearTimeout(_t); _t=setTimeout(function(){ save(v); },1000); } };   // view-only users never sync
   // Reclaim quota on devices poisoned by the broken shim: the pre-mem-store ~6MB blob still sitting
   // in real localStorage, the junk 'setItem'/'getItem'/'removeItem' items WebKit created from the old
   // instance assignments, and any oversized _snap_ full copies. All dead weight — SQL is the store.
@@ -339,6 +339,19 @@
     return {sets:sets,cols:cols,objs:objs,_changed:ch}; }
   // poll for others' changes → offer refresh (no silent stale, no forced reload mid-edit)
   // ── AUTO-REFRESH when others save · seamless when idle · never interrupts typing/editing ──
+  /* ══ §ckStale (2026-09-22) · "กดขึ้นเช็คอิน แล้วก็หาย แล้วก็กลับมา" ═══════
+     ไม่ใช่เรื่องจังหวะรีเฟรช แต่เป็นคำตอบที่ "ออกเดินทางก่อนการกดของเรา"
+     ลำดับที่เกิดจริงบนเน็ตหน้าท่าซึ่งช้าเป็นวินาที
+       t0    เริ่มดึงข้อมูล (ตอนนั้นยังไม่มีใครกดอะไร ด่านจึงปล่อยผ่าน)
+       t0+.1 คนหน้าท่ากดเช็คอิน · เขียนลงเครื่อง · ตั้งคิวเซฟอีก 1 วิ
+       t0+1.3 เซฟขึ้นเซิร์ฟเวอร์เสร็จ · _dirty กลับเป็น false
+       t0+1.4 คำตอบจาก t0 เพิ่งมาถึง · ด่านเช็ค _dirty ตอนนี้ได้ false → เอามาทับ
+              ข้อมูลชุดนั้นถ่ายไว้ตั้งแต่ก่อนกด · ติ๊กเลยหาย
+       แล้วพอมีเวอร์ชันใหม่เข้ามาอีกรอบ จึงค่อยดึงของที่มีติ๊กมา · ติ๊กกลับมาเอง
+     ด่าน _dirty ถามว่า "ตอนนี้มีอะไรค้างไหม" ซึ่งตอบไม่ได้ว่า "ระหว่างที่รออยู่มีใครแก้หรือเปล่า"
+     ตัวนับนี้ตอบข้อนั้น · ถ่ายเลขไว้ก่อนยิง เทียบตอนคำตอบมาถึง ต่างเมื่อไหร่ = ทิ้งคำตอบนั้น
+     ⚠ ทิ้งแล้วไม่ต้องไปดึงก้อนเต็มแทน · ของก้อนนั้นเก่าพอกัน · ปล่อยให้รอบถัดไปดึงใหม่ */
+  var _laEditSeq=0;
   var _laPending=null, _laLastInput=Date.now();
   /* §ckLive2 · จำว่าของใหม่มารอตั้งแต่เมื่อไหร่ · หน้าเช็คอินใช้ตั้งเพดานเวลารอ
      ตัวกัน "เพิ่งแตะจอ" เป็นความสุภาพ ไม่ใช่กุญแจล็อก · ถ้าไม่มีเพดาน
@@ -453,11 +466,16 @@
   // SEAMLESS in-place refresh · pulls latest cloud data + re-renders current view · NO page reload (no Dashboard flash)
   function _laSoftRefresh(force){
     if(_laBusy(force)){ if(_laPending) showRefresh(_laPending); return; }
+    var seq0=_laEditSeq;                       /* §ckStale · ดูคอมเมนต์ที่ _laEditSeq */
     var x=new XMLHttpRequest(); x.open('GET',bust('/api/load'),true);
     x.onload=function(){ try{
       if(x.status!==200) return;                                   // keep pending · retry next idle tick
       var j=JSON.parse(x.responseText);
       if(typeof j.data!=='string' || j.data.length<2){ _laClearPending(); return; }
+      /* §ckStale · ก้อนนี้ถ่ายไว้ก่อนที่จะมีคนแก้อะไรในเครื่อง · เอามาทับแล้วงานที่เพิ่งทำหาย
+         ไม่ล้าง _laPending · รอบถัดไปจะดึงใหม่ด้วยข้อมูลสด */
+      if(_laEditSeq!==seq0) return;
+      if((j.version||0) < VER) return;                             /* เวอร์ชันถอยหลัง · ไม่เอา */
       if(_laBusy()) return;                                        // user resumed during fetch → defer
       _orig(LS, j.data);                                           // write WITHOUT triggering a save
       VER=j.version||VER; try{BASE=JSON.parse(j.data);}catch(e){BASE={};} _laMark(VER);
@@ -510,6 +528,7 @@
     if(_laCkBusy) return cb(true);   /* มีคำขอแคบค้างอยู่ · ข้ามรอบนี้ ไม่ใช่ยกระดับไปดึงก้อนเต็ม */
     _laCkBusy=true;
     var fin=function(v){ _laCkBusy=false; cb(v); };
+    var seq0=_laEditSeq;                       /* §ckStale · เลขการแก้ ณ ตอนออกเดินทาง */
     var x=new XMLHttpRequest(); x.open('GET', bust('/api/ck?date='+encodeURIComponent(date)), true);
     x.timeout=9000;
     x.ontimeout=function(){ fin(false); };
@@ -518,6 +537,11 @@
       if(x.status!==200) return fin(false);          /* 501 โหมด blob · 404 เซิร์ฟเวอร์เก่า → ทางเดิม */
       var j=null; try{ j=JSON.parse(x.responseText); }catch(e){}
       if(!j || !Array.isArray(j.bookings) || j.date!==date) return fin(false);
+      /* §ckStale · มีคนแก้อะไรในเครื่องระหว่างที่คำตอบนี้เดินทางอยู่ = คำตอบนี้เก่ากว่าของในเครื่อง
+         คืน true แปลว่า "จัดการแล้ว ข้ามรอบนี้" · ไม่ยกระดับไปดึงก้อนเต็มซึ่งเก่าพอกัน
+         _laPending ยังอยู่ · ตัวลองใหม่ 400ms จะยิงใหม่ด้วยข้อมูลสด */
+      if(_laEditSeq!==seq0) return fin(true);
+      if((j.version||0) < VER) return fin(true);     /* เวอร์ชันเก่ากว่าที่เรามีแล้ว · ไม่ถอยหลัง */
       if(_laBusy()) return fin(false);               /* คนกลับมาทำงานระหว่างรอ · ไว้รอบหน้า */
       /* BASE ก่อนเสมอ · ถ้าขั้นนี้ไม่ผ่าน ห้ามแตะข้อมูลในเครื่องเลย */
       try{

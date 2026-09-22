@@ -48,9 +48,11 @@ const S = {
   sseRefuse: false,     // true = ตอบ 401 ให้ EventSource (จำลอง session สะดุด)
   ckHits: 0, ckBytes: 0, ckDown: false, ckExtra: false,
   saves: 0, lastSave: '',
+  ckDelay: 0,           // หน่วงคำตอบ · จำลองเน็ตหน้าท่าที่ช้าเป็นวินาที
   blob: null            // ก้อนข้อมูลแบบ object · ใช้ตอบ /api/ck และแก้เพื่อจำลองว่าอีกเครื่องเช็คอิน
 };
 S.blob = JSON.parse(S.data);
+S.applySave = null;
 function bump(by){ S.version++; return { version:S.version, updated_by:by||'เครื่อง A' }; }
 function push(by){ const m=bump(by); const t='data: '+JSON.stringify(m)+'\n\n';
   S.sse.forEach(r=>{ try{ r.write(t); }catch(_){} }); return m; }
@@ -62,8 +64,12 @@ const srv = http.createServer((req, res) => {
   if (u === '/api/me') return J(200, { username:'test', name:'ทดสอบ', role:'admin', canEdit:true });
   if (u === '/api/version'){ S.verHits++; return J(200, { version:S.version, updated_by:'เครื่อง A',
     updated_at:new Date().toISOString() }); }
-  if (u === '/api/load'){ S.loads++; return J(200, { version:S.version, data:JSON.stringify(S.blob),
-    updated_by:'เครื่อง A', updated_at:new Date().toISOString() }); }
+  if (u === '/api/load'){ S.loads++;
+    /* ถ่ายข้อมูล ณ ตอนคำขอมาถึง แล้วค่อยตอบช้า ๆ · นี่คือพฤติกรรมจริงของเน็ตช้า
+       คำตอบที่ได้จึงเป็นภาพของ "ก่อนกด" ทั้งที่มาถึงหลังกด */
+    const snap = { version:S.version, data:JSON.stringify(S.blob),
+      updated_by:'เครื่อง A', updated_at:new Date().toISOString() };
+    return setTimeout(()=>J(200, snap), S.ckDelay); }
   if (u === '/api/ck'){
     S.ckHits++;
     if (S.ckDown) return J(501, { error:'ck off' });          /* จำลองเซิร์ฟเวอร์รุ่นเก่า/โหมด blob */
@@ -71,7 +77,8 @@ const srv = http.createServer((req, res) => {
     const recs = (S.blob.sb_bookings||[]).filter(b => (b.trips||[]).some(x => x && x.date === date));
     if (S.ckExtra) recs.push({ id:'__ผี__', trips:[{ date, routeId:'x', pax:{} }] });  /* ชุด id ไม่ตรง */
     S.ckBytes += JSON.stringify(recs).length;
-    return J(200, { date, version:S.version, bookings:recs });
+    const snap = { date, version:S.version, bookings:JSON.parse(JSON.stringify(recs)) };
+    return setTimeout(()=>J(200, snap), S.ckDelay);
   }
   if (u === '/api/events'){
     S.sseOpens++;
@@ -86,7 +93,9 @@ const srv = http.createServer((req, res) => {
   if (u === '/api/save' || u === '/api/v1/_batch'){
     S.saves++;
     let body = ''; req.on('data', c => body += c);
-    return req.on('end', () => { S.lastSave = body; J(200, { ok:true, version:++S.version }); });
+    return req.on('end', () => { S.lastSave = body;
+      try{ if(S.applySave) S.applySave(); }catch(_){}    /* ของจริงเอา ops ลงฐาน · mock ทำเท่าที่เทสต้องใช้ */
+      J(200, { ok:true, version:++S.version }); });
   }
   if (u.startsWith('/api/')) return J(200, {});
   const rel = decodeURIComponent(u).replace(/^\/+/, '') || 'allotment_v2.html';
@@ -304,6 +313,47 @@ else {
   await sleep(2600);
   if (S.saves > saves0) fail('\u0e14\u0e36\u0e07\u0e41\u0e04\u0e1a\u0e41\u0e25\u0e49\u0e27\u0e40\u0e0b\u0e1f\u0e04\u0e23\u0e31\u0e49\u0e07\u0e16\u0e31\u0e14\u0e44\u0e1b\u0e14\u0e31\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e01\u0e25\u0e31\u0e1a\u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b ' + (S.saves - saves0) + ' \u0e04\u0e23\u0e31\u0e49\u0e07 . BASE \u0e44\u0e21\u0e48\u0e16\u0e39\u0e01\u0e2d\u0e31\u0e1b\u0e40\u0e14\u0e17');
   else ok('\u0e14\u0e36\u0e07\u0e41\u0e04\u0e1a\u0e41\u0e25\u0e49\u0e27\u0e40\u0e0b\u0e1f . diff \u0e40\u0e1b\u0e47\u0e19\u0e28\u0e39\u0e19\u0e22\u0e4c \u0e44\u0e21\u0e48\u0e14\u0e31\u0e19\u0e02\u0e2d\u0e07\u0e04\u0e19\u0e2d\u0e37\u0e48\u0e19\u0e01\u0e25\u0e31\u0e1a\u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b');
+}
+
+/* == 11 . \u0e01\u0e14\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19\u0e41\u0e25\u0e49\u0e27\u0e15\u0e34\u0e4a\u0e01\u0e15\u0e49\u0e2d\u0e07\u0e44\u0e21\u0e48\u0e2b\u0e32\u0e22 ==============================
+   \u00a7ckStale . "\u0e01\u0e14\u0e02\u0e36\u0e49\u0e19\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19 \u0e41\u0e25\u0e49\u0e27\u0e01\u0e47\u0e2b\u0e32\u0e22 \u0e41\u0e25\u0e49\u0e27\u0e01\u0e47\u0e01\u0e25\u0e31\u0e1a\u0e21\u0e32"
+   \u0e40\u0e23\u0e35\u0e22\u0e07\u0e43\u0e2b\u0e49\u0e04\u0e33\u0e02\u0e2d\u0e2d\u0e2d\u0e01\u0e40\u0e14\u0e34\u0e19\u0e17\u0e32\u0e07\u0e01\u0e48\u0e2d\u0e19\u0e01\u0e14 \u0e41\u0e25\u0e30\u0e43\u0e2b\u0e49\u0e04\u0e33\u0e15\u0e2d\u0e1a\u0e21\u0e32\u0e16\u0e36\u0e07\u0e2b\u0e25\u0e31\u0e07\u0e40\u0e0b\u0e1f\u0e40\u0e2a\u0e23\u0e47\u0e08 */
+await page.evaluate(() => { const el = document.querySelector('.nav-item[data-view="piercheckin"]'); if (el) nav(el); });
+await sleep(1200);
+const tg = await page.evaluate(() => {
+  const b = [].slice.call(document.querySelectorAll('#piercheckin-host .pck-ok')).find(x => /off/.test(x.className));
+  if (!b) return null;
+  const m = /ckToggle\('([^']+)','([^']+)','([^']+)'/.exec(b.getAttribute('onclick') || '');
+  return m ? { id:m[1], date:m[2], kind:m[3] } : null;
+});
+if (!tg) console.log('  ! \u0e27\u0e31\u0e19\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e43\u0e1a\u0e17\u0e35\u0e48\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19 . \u0e02\u0e49\u0e32\u0e21\u0e02\u0e49\u0e2d\u0e19\u0e35\u0e49');
+else {
+  S.ckDelay = 2500;                       /* \u0e40\u0e19\u0e47\u0e15\u0e2b\u0e19\u0e49\u0e32\u0e17\u0e48\u0e32\u0e0a\u0e49\u0e32 . \u0e04\u0e33\u0e15\u0e2d\u0e1a\u0e43\u0e0a\u0e49\u0e40\u0e27\u0e25\u0e32\u0e2b\u0e25\u0e32\u0e22\u0e27\u0e34\u0e19\u0e32\u0e17\u0e35 */
+  S.applySave = () => { const rec = (S.blob.sb_bookings||[]).find(b => b && b.id === tg.id);
+    if (rec){ rec.ops = rec.ops || {}; rec.ops.pierCheckin =
+      { at:new Date().toISOString(), by:'PIER', actualPax:1, noShow:0, expected:1, events:[] }; } };
+  push();                                 /* \u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19\u0e43\u0e2b\u0e21\u0e48\u0e21\u0e32\u0e01\u0e48\u0e2d\u0e19 . \u0e04\u0e33\u0e02\u0e2d\u0e40\u0e23\u0e34\u0e48\u0e21\u0e40\u0e14\u0e34\u0e19\u0e17\u0e32\u0e07 */
+  await sleep(300);
+  await page.evaluate(t => {
+    const b = [].slice.call(document.querySelectorAll('#piercheckin-host .pck-ok'))
+      .find(x => (x.getAttribute('onclick')||'').indexOf("'"+t.id+"'") >= 0);
+    if (b) b.click();
+  }, tg);
+  const seen = [];
+  for (let i = 0; i < 55; i++){
+    await sleep(100);
+    seen.push(await page.evaluate(t => {
+      const b = (SB_BOOKINGS||[]).find(x => x && x.id === t.id);
+      const ck = (b && typeof ckRead === 'function') ? ckRead(b, t.date, t.kind) : null;
+      return !!(ck && ck.at);
+    }, tg));
+  }
+  S.ckDelay = 0;
+  const first = seen.indexOf(true);
+  const lost  = first >= 0 && seen.slice(first).some(x => !x);
+  if (first < 0) fail('\u0e01\u0e14\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19\u0e41\u0e25\u0e49\u0e27\u0e15\u0e34\u0e4a\u0e01\u0e44\u0e21\u0e48\u0e02\u0e36\u0e49\u0e19\u0e40\u0e25\u0e22');
+  else if (lost) fail('\u0e15\u0e34\u0e4a\u0e01\u0e41\u0e25\u0e49\u0e27\u0e2b\u0e32\u0e22 . \u0e04\u0e33\u0e15\u0e2d\u0e1a\u0e17\u0e35\u0e48\u0e16\u0e48\u0e32\u0e22\u0e44\u0e27\u0e49\u0e01\u0e48\u0e2d\u0e19\u0e01\u0e14\u0e21\u0e32\u0e17\u0e31\u0e1a\u0e02\u0e2d\u0e07\u0e17\u0e35\u0e48\u0e40\u0e1e\u0e34\u0e48\u0e07\u0e01\u0e14 (\u0e2d\u0e32\u0e01\u0e32\u0e23\u0e17\u0e35\u0e48\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e40\u0e08\u0e2d)');
+  else ok('\u0e40\u0e19\u0e47\u0e15\u0e0a\u0e49\u0e32 2.5 \u0e27\u0e34 . \u0e01\u0e14\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19\u0e41\u0e25\u0e49\u0e27\u0e15\u0e34\u0e4a\u0e01\u0e2d\u0e22\u0e39\u0e48\u0e15\u0e25\u0e2d\u0e14 \u0e44\u0e21\u0e48\u0e2b\u0e32\u0e22\u0e01\u0e25\u0e32\u0e07\u0e04\u0e31\u0e19');
 }
 
 console.log(bad ? ('\nพัง ' + bad) : '\nพัง 0');
