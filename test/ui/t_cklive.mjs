@@ -17,6 +17,7 @@
 //   4 กำลังเลื่อนจอ/แตะจออยู่ ก็ยังต้องอัพเดท
 //   5 ลิ้นชักเปิดค้างอยู่ ห้ามถูกวาดทับ (ของที่พิมพ์ค้างต้องไม่หาย)
 //   6 ออกจากหน้านี้แล้ว ต้องเลิกถามถี่ · ไม่ใช่ยิงทุก 2 วิทั้งวันทุกหน้า
+//   7 หน้าเช็คอินรถก็ต้องเร็วเท่าหน้าท่า · และต้องดึง "วันของหน้าตัวเอง" (§ckVan)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,6 +50,7 @@ const S = {
   ckHits: 0, ckBytes: 0, ckDown: false, ckExtra: false,
   saves: 0, lastSave: '',
   ckDelay: 0,           // หน่วงคำตอบ · จำลองเน็ตหน้าท่าที่ช้าเป็นวินาที
+  lastCkDate: '',       // วันที่ถูกขอมาล่าสุด · ใช้พิสูจน์ว่าถามวันของหน้าที่เปิดอยู่จริง
   blob: null            // ก้อนข้อมูลแบบ object · ใช้ตอบ /api/ck และแก้เพื่อจำลองว่าอีกเครื่องเช็คอิน
 };
 S.blob = JSON.parse(S.data);
@@ -72,6 +74,7 @@ const srv = http.createServer((req, res) => {
     return setTimeout(()=>J(200, snap), S.ckDelay); }
   if (u === '/api/ck'){
     S.ckHits++;
+    S.lastCkDate = new URLSearchParams(req.url.split('?')[1]||'').get('date')||'';
     if (S.ckDown) return J(501, { error:'ck off' });          /* จำลองเซิร์ฟเวอร์รุ่นเก่า/โหมด blob */
     const date = new URLSearchParams(req.url.split('?')[1]||'').get('date')||'';
     const recs = (S.blob.sb_bookings||[]).filter(b => (b.trips||[]).some(x => x && x.date === date));
@@ -110,7 +113,16 @@ const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport:{ width:1600, height:950 } });
 const page = await ctx.newPage();
 page.on('dialog', d => d.accept());
-await page.goto(`http://127.0.0.1:${port}/allotment_v2.html`);
+/* §ckVan · เทสต้องไม่ออกเน็ตจริง · หน้านี้ดึงฟอนต์ Google กับ xlsx จาก CDN
+   บนเครื่องที่ออกเน็ตไม่ได้ สองตัวนี้ค้าง → หน้าโหลดไม่จบสักที
+   ตัดทิ้งไป · ทั้งสองอย่างไม่เกี่ยวกับสิ่งที่เทสนี้วัด และทำให้เทสขึ้นกับเน็ตของเครื่องที่รัน */
+await ctx.route('**/*', r => {
+  const u = r.request().url();
+  return u.startsWith(`http://127.0.0.1:${port}/`) ? r.continue() : r.abort();
+});
+/* §ckVan · สาย SSE ที่เปิดค้างตลอดทำให้ goto รอจนหมดเวลา
+   จึงรอแค่นาวิเกตติดหน้า · ด้านล่างมี waitForFunction รอของที่ต้องใช้จริงอยู่แล้ว */
+await page.goto(`http://127.0.0.1:${port}/allotment_v2.html`, { waitUntil:'commit', timeout:60000 });
 await page.waitForFunction(() => typeof window.nav === 'function'
   && document.querySelectorAll('.nav-item[data-view]').length > 0, null, { timeout:25000 });
 await page.waitForTimeout(1200);
@@ -354,6 +366,97 @@ else {
   if (first < 0) fail('\u0e01\u0e14\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19\u0e41\u0e25\u0e49\u0e27\u0e15\u0e34\u0e4a\u0e01\u0e44\u0e21\u0e48\u0e02\u0e36\u0e49\u0e19\u0e40\u0e25\u0e22');
   else if (lost) fail('\u0e15\u0e34\u0e4a\u0e01\u0e41\u0e25\u0e49\u0e27\u0e2b\u0e32\u0e22 . \u0e04\u0e33\u0e15\u0e2d\u0e1a\u0e17\u0e35\u0e48\u0e16\u0e48\u0e32\u0e22\u0e44\u0e27\u0e49\u0e01\u0e48\u0e2d\u0e19\u0e01\u0e14\u0e21\u0e32\u0e17\u0e31\u0e1a\u0e02\u0e2d\u0e07\u0e17\u0e35\u0e48\u0e40\u0e1e\u0e34\u0e48\u0e07\u0e01\u0e14 (\u0e2d\u0e32\u0e01\u0e32\u0e23\u0e17\u0e35\u0e48\u0e1c\u0e39\u0e49\u0e43\u0e0a\u0e49\u0e40\u0e08\u0e2d)');
   else ok('\u0e40\u0e19\u0e47\u0e15\u0e0a\u0e49\u0e32 2.5 \u0e27\u0e34 . \u0e01\u0e14\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19\u0e41\u0e25\u0e49\u0e27\u0e15\u0e34\u0e4a\u0e01\u0e2d\u0e22\u0e39\u0e48\u0e15\u0e25\u0e2d\u0e14 \u0e44\u0e21\u0e48\u0e2b\u0e32\u0e22\u0e01\u0e25\u0e32\u0e07\u0e04\u0e31\u0e19');
+}
+
+/* == 12 . หน้าเช็คอินรถต้องเห็นของอีกเครื่องเร็วเท่าหน้าท่า ==================
+   §ckVan . "Transfer02 ทดสอบเช็คอิน แต่ของเรามาขึ้นช้ามาก"
+   ทางแคบถูกเปิดให้ทั้งสองหน้า แต่ตัวที่วาดใหม่คือ renderPierCheckin() ตัวเดียว
+   อยู่หน้าเช็คอินรถ . ข้อมูลเข้าเครื่องแล้ว แต่หน้าที่วาดคือหน้าท่าซึ่งซ่อนอยู่
+   แล้วยังคืน true . ชั้น sync ปักธงว่าตามทันแล้ว ไม่ดึงซ้ำอีก
+   ตารางรถบนจอจึงค้างจนกว่าตัววาดทุก 60 วิจะมาถึง
+   ⚠ วัดจากเลข "ขึ้นรถ N/M" บนหัวคันซึ่งอ่านจาก DOM . ไม่ได้ถามฟังก์ชันของหน้าเอง
+   ⚠ วันที่ใช้ทดสอบเลือกจากข้อมูลดิบเอง ไม่ใช่วันนี้ . ชุดข้อมูลแต่ละชุดมีวันไม่เท่ากัน */
+S.applySave = null;
+S.ckDelay = 0;
+
+/* หาวันที่มีใบ "จัดรถแล้ว แต่ยังไม่เช็คอินรถ" . คำนวณจาก S.blob ตรง ๆ */
+const vpick = (() => {
+  const by = {};
+  (S.blob.sb_bookings||[]).forEach(b => {
+    const o = b && b.ops;
+    if (!o || !o.vanId) return;                       /* เอาเฉพาะใบที่ ops แบน . เขียนทับง่าย */
+    if (o.vanCheckin && o.vanCheckin.at) return;      /* เช็คอินไปแล้ว ไม่ทำให้เลขขยับ */
+    (b.trips||[]).forEach(t => { if (t && t.date){ (by[t.date] = by[t.date] || []).push(b); } });
+  });
+  const d = Object.keys(by).sort((a, z) => by[z].length - by[a].length)[0];
+  return d ? { date:d, list:by[d] } : null;
+})();
+
+await page.evaluate(() => { const el = document.querySelector('.nav-item[data-view="vancheckin"]'); if (el) nav(el); });
+await sleep(1200);
+const vanOn = await page.evaluate(() => {
+  const a = document.querySelector('.nav-item.active');
+  return a && a.dataset ? a.dataset.view : '';
+});
+if (vanOn !== 'vancheckin') fail('เปิดหน้าเช็คอินรถไม่ได้ . อยู่ที่ ' + vanOn);
+else if (!vpick) console.log('  ! ชุดข้อมูลนี้ไม่มีใบที่จัดรถแล้วและยังไม่เช็คอินรถ . ข้ามข้อ 12');
+else {
+  await page.evaluate(d => { try{ vckPickDay(d); }catch(_){} }, vpick.date);
+  await sleep(1200);
+  const vday = await page.evaluate(() => (typeof _vanCkDate === 'string' ? _vanCkDate : ''));
+  const pday = await page.evaluate(() => (typeof _pckDate === 'string' ? _pckDate : ''));
+  if (vday !== vpick.date) fail('เปิดวัน ' + vpick.date + ' บนหน้ารถไม่ได้ . ได้ ' + vday);
+  else {
+    ok('อยู่หน้าเช็คอินรถ วันที่ ' + vday + ' (หน้าท่าอยู่วัน ' + pday + ')');
+    /* นับจาก DOM . ผลรวมของเลขซ้ายในทุก "ขึ้นรถ N/M" บนหัวคัน */
+    const vanChecked = () => page.evaluate(() => {
+      const h = document.getElementById('vancheckin-host');
+      if (!h) return -1;
+      let n = 0, m;
+      const re = /\u0e02\u0e36\u0e49\u0e19\u0e23\u0e16 (\d+)\/(\d+)/g;
+      const t = h.textContent || '';
+      while ((m = re.exec(t))) n += Number(m[1]);
+      return n;
+    });
+    const before = await vanChecked();
+    const target = vpick.list[0];
+    if (before < 0) fail('ไม่พบกล่องหน้าเช็คอินรถ');
+    else {
+      const ck0 = S.ckHits, loads0 = S.loads;
+      /* อีกเครื่อง (Transfer02) กดขึ้นรถให้ใบนี้ */
+      target.ops.vanCheckin = { at:new Date().toISOString(), by:'Transfer02',
+        actualPax:1, noShow:0, expected:1, events:[], reasonCode:'', reasonNote:'', reasonAt:'' };
+      push();
+      let t12 = -1, after = before;
+      for (let i = 0; i < 30; i++){
+        await sleep(100);
+        after = await vanChecked();
+        if (after > before){ t12 = (i + 1) * 100; break; }
+      }
+      const ckUsed = S.ckHits - ck0, fullUsed = S.loads - loads0;
+      if (t12 < 0) fail('อีกเครื่องกดขึ้นรถแล้ว . ตารางรถบนจอไม่ขยับเลยใน 3 วิ (อาการที่ผู้ใช้เจอ)');
+      else if (t12 > 2600) fail('ตารางรถขยับช้า ' + t12 + 'ms (ควร ≤ ~2 วิ)');
+      else ok('อีกเครื่องกดขึ้นรถ . ตารางรถบนจอขึ้นเอง ' + before + '→' + after + ' ใน ' + t12
+              + 'ms . ดึงแคบ ' + ckUsed + ' ครั้ง ก้อนเต็ม ' + fullUsed + ' ครั้ง');
+    }
+
+    /* == 12b . ต้องดึง "วันของหน้ารถ" ไม่ใช่วันของหน้าท่า ==================
+       ข้อนี้แยกจาก 12a โดยตั้งใจ . 12a ผ่านได้ด้วยทางถอย (ดึงก้อนเต็มแล้ววาดใหม่ทั้งหน้า)
+       ซึ่งช้าและกินแบนด์วิดท์ . ข้อนี้จึงถามตรง ๆ ว่าไปขอวันไหนมา */
+    S.lastCkDate = '';
+    const ck1 = S.ckHits;
+    push();
+    let got = '';
+    for (let i = 0; i < 30; i++){
+      await sleep(100);
+      if (S.ckHits > ck1){ got = S.lastCkDate; break; }
+    }
+    if (!got) fail('หน้ารถไม่ได้ใช้ทางแคบเลย . ตกไปดึงก้อนเต็มทุกครั้งที่มีคนเช็คอิน');
+    else if (got !== vday) fail('อยู่หน้ารถวัน ' + vday + ' แต่ไปดึงวัน ' + got
+            + ' (วันของหน้าท่า) . วันบนจอไม่เคยถูกดึงเลย');
+    else ok('หน้ารถเปิดวัน ' + vday + ' . ดึงวันเดียวกัน ไม่ใช่วันของหน้าท่า (' + pday + ')');
+  }
+  await page.evaluate(() => { try{ vanCkToday(); }catch(_){} });
 }
 
 console.log(bad ? ('\nพัง ' + bad) : '\nพัง 0');

@@ -4005,6 +4005,21 @@ window._laCkApply=function(date, recs){
   try{
     if(!date || !Array.isArray(recs)) return false;
     if(typeof SB_BOOKINGS==='undefined' || !Array.isArray(SB_BOOKINGS)) return false;
+    /* ══ §ckVan (2026-09-22) · วาดหน้าที่เปิดอยู่จริง ไม่ใช่หน้าท่าเสมอ ════
+       ของเดิมเรียก renderPierCheckin() ท่าเดียว แต่ทางแคบเปิดให้สองหน้า
+       คนที่นั่งหน้าเช็คอินรถจึงเจออย่างนี้ · ข้อมูลเข้าเครื่องแล้วจริง
+       แต่หน้าที่ถูกวาดใหม่คือหน้าท่าซึ่งซ่อนอยู่ · ตารางรถบนจอเลยไม่ขยับ
+       แล้วตัวนี้คืน true · ชั้น sync ปักธงว่าตามทันแล้ว ไม่ดึงซ้ำอีก
+       ที่เหลือคือตัววาดทุก 60 วิของ ckStartTick → หน้ารถช้าได้ถึงนาที */
+    var _ckv=(function(){ try{ var a=document.querySelector('.nav-item.active');
+      return (a&&a.dataset)?a.dataset.view:''; }catch(_){ return ''; } })();
+    var _ckfn=(_ckv==='vancheckin')?window.renderVanCheckin
+             :(_ckv==='piercheckin')?window.renderPierCheckin:null;
+    if(typeof _ckfn!=='function') return false;
+    /* วันที่ขอไป กับ วันที่หน้ากำลังแสดงอยู่ตอนนี้ ต้องเป็นวันเดียวกัน
+       คนกดเปลี่ยนวันระหว่างรอคำตอบ = คำตอบนี้เป็นของคนละวันกับจอ · ห้ามแปะ */
+    var _ckShown=(_ckv==='vancheckin')?window._vanCkDate:window._pckDate;
+    if(_ckShown!==date) return false;
     var onDay=function(b){
       return !!(b && Array.isArray(b.trips) && b.trips.some(function(t){ return t && t.date===date; }));
     };
@@ -4031,7 +4046,23 @@ window._laCkApply=function(date, recs){
       laBlobSave();
     }catch(e){}
     try{ if(typeof baChMemoClear==='function') baChMemoClear(); }catch(_){}
-    try{ if(typeof renderPierCheckin==='function') renderPierCheckin(); }catch(_){ return false; }
+    /* §ckVan · วาดใหม่ทั้งหน้า · ต้องคืนที่เลื่อนค้างไว้และช่องที่พิมพ์ค้างไว้ด้วย
+       ตารางหน้าท่า/หน้ารถยาวกว่าจอ และกล่องตารางมี scroll ของตัวเอง
+       ถ้าไม่คืน ทุกครั้งที่คนอื่นเช็คอิน หน้าจะเด้งกลับขึ้นหัวตาราง ช่วงเร่งคือทุกไม่กี่วิ */
+    try{
+      var _snap=(typeof _laScrollSnap==='function')?_laScrollSnap():null;
+      var _fid='', _fsel=null;
+      try{ var _ae=document.activeElement;
+        if(_ae && _ae.id && (_ae.tagName==='INPUT'||_ae.tagName==='TEXTAREA')){
+          _fid=_ae.id;
+          if(_ae.setSelectionRange) _fsel=[_ae.selectionStart, _ae.selectionEnd];
+        } }catch(_){}
+      _ckfn();
+      if(_fid){ try{ var _fe=document.getElementById(_fid);
+        if(_fe && _fe.focus){ _fe.focus();
+          if(_fsel && _fe.setSelectionRange) _fe.setSelectionRange(_fsel[0], _fsel[1]); } }catch(_){} }
+      if(_snap && typeof _laScrollBack==='function') _laScrollBack(_snap);
+    }catch(_){ return false; }
     return true;
   }catch(e){ try{ console.warn('[ckDay] apply failed', e && e.message); }catch(_){} return false; }
 };

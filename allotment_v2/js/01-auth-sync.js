@@ -413,7 +413,11 @@
     /* §ckLive2 · ลิ้นชัก/กล่องของหน้าเช็คอินก็คือ "กำลังทำอะไรค้างอยู่" เหมือนกัน
        ของเดิมไม่ได้นับ · คนอื่นเช็คอินเข้ามาตอนกำลังพิมพ์โน้ตหรือรายการอาหาร
        หน้าถูกวาดใหม่ทั้งหน้า ลิ้นชักหายพร้อมข้อความที่พิมพ์ค้าง */
-    if(_live && (document.getElementById('pck-drawer')||document.getElementById('pck-meal-ov'))) return true;
+    /* §ckVan · ck-reason-ov คือกล่องเหตุผลที่ใช้ร่วมกันทั้งสองหน้า
+       ตัววาดทุก 60 วิ กันกล่องนี้มาตั้งนานแล้ว แต่ด่านนี้ไม่เคยกัน
+       คนกำลังเลือกเหตุผล No-show แล้วมีคนเช็คอินเข้ามา กล่องหายทั้งที่ยังไม่ได้เลือก */
+    if(_live && (document.getElementById('pck-drawer')||document.getElementById('pck-meal-ov')
+                 ||document.getElementById('ck-reason-ov'))) return true;
     if(document.getElementById('dc-panel-docs')) return true;                           // Document-Check drawer open (reading details) → don't interrupt
     try{ if(typeof _agSelected!=='undefined' && _agSelected) return true; }catch(e){}   // Agent detail open (reading/editing) → don't yank back to the list
     if(skipIdle) return false;                                                          // §btLoadNowFix · คลิกเองสั่ง skip: mousedown ของคลิกนี้เองเพิ่ง stamp _laLastInput ไปหมาดๆ
@@ -512,9 +516,26 @@
        เป็น "การแก้ของเรา" แล้วดันค่าเก่ากลับขึ้นไปทับ */
   var _laCkSeen=0, _laCkFullAt=Date.now(), _laCkBusy=false;
   var LA_CK_FULL_MS=300000;               /* ก้อนเต็มอย่างช้าทุก 5 นาที ระหว่างอยู่หน้านี้ */
+  /* ══ §ckVan (2026-09-22) · "ทดสอบเช็คอิน แต่ของเรามาขึ้นช้ามาก" ═════
+     หน้าเช็คอินมีสองหน้า · เช็คอินหน้าท่า กับ เช็คอินรถ
+     ทางแคบถูกเปิดให้ทั้งสองหน้า (_laLiveView คืน true ทั้งคู่)
+     แต่ตัวอ่านวันอ่านของหน้าท่าอย่างเดียว สองหน้านี้ถือวันคนละตัวแปร
+       หน้าท่า _pckDate · หน้ารถ _vanCkDate
+     อยู่หน้ารถแล้วเปิดวันอื่น = ไปดึงวันของหน้าท่ามาแทน
+     แล้วปักธงว่า "ตามทันแล้ว" ทั้งที่วันบนจอไม่ได้ถูกดึงเลย */
+  function _laCkView(){
+    try{
+      var act=document.querySelector('.nav-item.active');
+      var v=(act&&act.dataset)?act.dataset.view:'';
+      return (v==='piercheckin'||v==='vancheckin')?v:'';
+    }catch(e){ return ''; }
+  }
   function _laCkDate(){
-    try{ var d=window._pckDate; return (typeof d==='string' && /^\d{4}-\d{2}-\d{2}$/.test(d))?d:''; }
-    catch(e){ return ''; }
+    try{
+      var v=_laCkView(); if(!v) return '';
+      var d=(v==='vancheckin')?window._vanCkDate:window._pckDate;
+      return (typeof d==='string' && /^\d{4}-\d{2}-\d{2}$/.test(d))?d:'';
+    }catch(e){ return ''; }
   }
   function _laCkCanNarrow(){
     if(!_laLiveView() || typeof window._laCkApply!=='function') return false;
@@ -544,10 +565,19 @@
       if((j.version||0) < VER) return fin(true);     /* เวอร์ชันเก่ากว่าที่เรามีแล้ว · ไม่ถอยหลัง */
       if(_laBusy()) return fin(false);               /* คนกลับมาทำงานระหว่างรอ · ไว้รอบหน้า */
       /* BASE ก่อนเสมอ · ถ้าขั้นนี้ไม่ผ่าน ห้ามแตะข้อมูลในเครื่องเลย */
+      /* ══ §ckOwn (2026-09-22) · BASE ต้องเป็น "สำเนา" ไม่ใช่ของชิ้นเดียวกัน ═════
+         ของเดิมยัดตัว b ตัวเดียวกันนี้ลง BASE แล้วส่งต่อให้ _laCkApply
+         ไปลง SB_BOOKINGS อีกที่ · สองที่จึงชี้ไปที่ก้อนเดียวกัน
+         พอคนหน้าท่ากดเช็คอินหลังจากนั้น การแก้ลงทั้ง SB_BOOKINGS และ BASE พร้อมกัน
+         computeDiff(BASE, cur) จึงได้ "ไม่มีอะไรเปลี่ยน" → _dirty=false โดยไม่เซฟอะไรเลย
+         ติ๊กขึ้นบนจอ แต่ไม่เคยออกจากเครื่อง · รอบดึงถัดไปจึงลบทิ้ง = "กดแล้วหาย"
+         สำเนาลึกแก้ไขเรื่องนี้จบ · ที่ตั้งใจคือ BASE ต้องไม่ขยับเมื่อมีคนแก้ของในเครื่อง
+         ซึ่งยังคงเดิมทุกอย่าง (เทสข้อ 10 ยังกันข้อนั้นอยู่) */
       try{
         if(BASE && Array.isArray(BASE.sb_bookings)){
           var at={}; BASE.sb_bookings.forEach(function(b,i){ if(b&&b.id) at[b.id]=i; });
-          j.bookings.forEach(function(b){ if(b&&b.id&&at[b.id]!=null) BASE.sb_bookings[at[b.id]]=b; });
+          j.bookings.forEach(function(b){ if(b&&b.id&&at[b.id]!=null)
+            BASE.sb_bookings[at[b.id]]=JSON.parse(JSON.stringify(b)); });
         }
       }catch(e){ return fin(false); }
       var okApplied=false;

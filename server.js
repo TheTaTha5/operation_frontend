@@ -3043,11 +3043,16 @@ const server = http.createServer((req, res) => {
     const T='sb_bookings', TRIPS='sb_bookings__trips';
     if(!REST_PLAN[T] || !REST_PLAN[TRIPS]) return J(res,501,{error:'schema has no bookings/trips'});
     const fk=REST_PLAN[TRIPS].fkCol;
-    pool.query(`SELECT DISTINCT ${qic(fk)} AS id FROM ${fqt(TRIPS)} WHERE "date"=$1`, [date])
-      .then(async r=>{
-        const ids=r.rows.map(x=>x.id).filter(v=>v!=null);
-        const vr=await pool.query('SELECT version FROM app_state WHERE id=$1',[STATE_KEY]);
+    /* §ckVan · อ่านเวอร์ชัน "ก่อน" อ่านข้อมูลเสมอ
+       ไคลเอนต์เอาเลขนี้ไปปักธงว่า "ตามทันถึงเวอร์ชันนี้แล้ว"
+       อ่านทีหลัง → เลขที่คืนไปใหม่กว่าข้อมูลที่คืนไปจริง
+       ใบที่เกิดระหว่างสองคำสั่งจะหายเงียบ ๆ จนกว่าจะมีคนแก้อะไรอีก
+       อ่านก่อน → เลขเก่ากว่าข้อมูล · อย่างมากคือดึงซ้ำอีกรอบ ซึ่งไม่หาย */
+    pool.query('SELECT version FROM app_state WHERE id=$1',[STATE_KEY])
+      .then(async vr=>{
         const version=(vr.rows[0]&&vr.rows[0].version)||0;
+        const r=await pool.query(`SELECT DISTINCT ${qic(fk)} AS id FROM ${fqt(TRIPS)} WHERE "date"=$1`, [date]);
+        const ids=r.rows.map(x=>x.id).filter(v=>v!=null);
         if(!ids.length) return J(res,200,{date, version, bookings:[]});
         const blob=osRepo.assembleBlob(await restLoadMany(T, ids));
         const arr=Array.isArray(blob[REST_PLAN[T].appKey])?blob[REST_PLAN[T].appKey]:[];
