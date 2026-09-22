@@ -28,7 +28,8 @@
     "test:aghd": "node test/ui/t_aghd.mjs",
     "test:agprog": "node test/ui/t_agprog.mjs",
     "test:rtdup": "node test/ui/t_rtdup.mjs",
-    "test:pjstale": "node test/ui/t_pjstale.mjs"
+    "test:pjstale": "node test/ui/t_pjstale.mjs",
+    "test:flboard": "node test/ui/t_flboard.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"

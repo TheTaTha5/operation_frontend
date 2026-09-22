@@ -7369,6 +7369,343 @@ function flCanvasInit(){
   if(zout) zout.onclick=function(){ zoomAt(0.87); };
   if(zfit) zfit.onclick=function(){ tx=0; ty=0; sc=1; apply(); redraw(); };
 }
+/* ══ §flBoard · บอร์ดงานเรือ · อยู่บนหัว Fleet Dashboard แทนแถบตัวเลขชุดเดิม ═══
+   ที่มา (2026-09-22) · "งานเยอะจนไม่รู้จะตามอะไรก่อน"
+     นับของจริงแล้ว ใบซ่อมเปิดค้าง 36 ใบ · 28 ใบอายุเกิน 90 วัน · 20 ใบไม่มีใครบันทึกอะไร
+     เกิน 60 วัน แต่สถานะเป็น inprogress เหมือนกันหมด → รายการไม่ได้เรียงอะไรเลย
+     และเรือบริษัทจอดอยู่ 9 จาก 15 ลำ โดยตัวที่กั้นคือใบที่ไม่มีใครขยับมาหลายเดือน
+
+   แถบเดิมตรงนี้ตอบว่า "มีเท่าไหร่" (จำนวนเรือ · น้ำมัน · จำนวนใบ) ซึ่งอ่านแล้วทำอะไรต่อไม่ได้
+   บอร์ดนี้ตอบว่า "ต้องทำอะไรต่อ" · ตัวเลขที่ยังต้องใช้ถูกยกขึ้นไปอยู่บนหัวบอร์ดบรรทัดเดียว
+
+   เลนทั้งสี่คิดจากของที่มีอยู่แล้ว ไม่ต้องกรอกเพิ่ม (ดู flBoardLane)
+   สิ่งที่เพิ่มเข้ามาในข้อมูลมีสามช่อง · owner · dueDate · parked
+
+   ⚠ การปิดใบไม่ได้เขียนเองที่นี่ · เรียก flMaintOpenCloseModal ของหน้า Maintenance
+     การปิดใบมีผลต่อสถานะเรือ · memo · ใบวางบิล ถ้าเขียนทางปิดที่สองไว้ตรงนี้
+     วันหนึ่งสองทางจะทำไม่เหมือนกัน (อ่านที่เดียว ใช้สองที่)
+   ═══════════════════════════════════════════════════════════════════════════ */
+var FL_BOARD_LANES = [
+  {id:'decide', t:'ต้องตัดสินใจ',         c:'#A32D2D', d:'เปิดใบแล้วไม่มีบันทึกอีกเลย'},
+  {id:'wait',   t:'รออะไหล่ / ผู้รับเหมา', c:'#8A5410', d:'บันทึกล่าสุดบอกว่ารอของ รอคาน หรือรออนุมัติ'},
+  {id:'doing',  t:'กำลังทำ',              c:'#0F6E56', d:'มีบันทึกใน 30 วัน'},
+  {id:'close',  t:'รอปิด',                c:'#175CD3', d:'เรือวิ่งได้แล้ว แต่ใบยังเปิดค้าง'}
+];
+/* คำที่แปลว่า "ของยังไม่มา / ยังไม่ถึงคิวเรา" · ใช้จับเลน รออะไหล่ จากบันทึกล่าสุด
+   เป็นคำที่ช่างพิมพ์เองอยู่แล้วในบันทึก ไม่ได้บังคับให้ใครมาเลือกสถานะเพิ่ม */
+var FL_BOARD_WAIT_RE = /รอ|สั่ง|อะไหล่|คาน|ผู้รับเหมา|อนุมัติ|เคลม|ประกัน|memo|order|quote/i;
+
+function flBoardCanEdit(){
+  try{ return !(typeof window.laCanEditArea==='function' && !window.laCanEditArea('fleet')); }catch(_){ return true; }
+}
+/* ใบที่ยังต้องทำ · ไม่รวมใบที่ปิดแล้วและใบที่พักไว้ */
+function flBoardJobs(){
+  try{ return (typeof FL_MAINT!=='undefined'?FL_MAINT:[]).filter(function(m){
+    return m && m.status!=='done' && !m.parked; }); }catch(_){ return []; }
+}
+/* วันที่ของบันทึกล่าสุด · ไม่มีบันทึกเลยก็ถือวันเปิดใบ */
+function flBoardLastDate(m){
+  var L=(m&&m.progressLog)||[], d=String((m&&m.startDate)||'');
+  L.forEach(function(e){ var x=String((e&&e.date)||''); if(x>d) d=x; });
+  return d;
+}
+function flBoardDaysTo(d){
+  if(!d) return 0;
+  try{ var A=String(d).slice(0,10).split('-'), B=TODAY_STR.split('-');
+    return Math.round((Date.UTC(+B[0],+B[1]-1,+B[2]) - Date.UTC(+A[0],+A[1]-1,+A[2]))/86400000); }
+  catch(_){ return 0; }
+}
+/* เงียบมากี่วัน = วันตั้งแต่บันทึกล่าสุด */
+function flBoardSilent(m){ return Math.max(0, flBoardDaysTo(flBoardLastDate(m))); }
+/* ใบนี้กั้นเรือไม่ให้ออกวิ่งอยู่หรือเปล่า · อ่านสถานะรายวันของเรือ ไม่ได้เดาจากตัวใบ
+   ตัวตัดสินตัวเดียวกับที่หน้า Boat Status และใบงานเรือใช้ (getCurStatus) */
+function flBoardBlocks(m){
+  try{
+    var b=(typeof getBoat==='function')?getBoat(m&&m.boatId):null; if(!b) return false;
+    var s=(typeof getCurStatus==='function')?(getCurStatus(b,TODAY_STR)||{}).s:'';
+    return s==='fixing' || s==='unavailable';
+  }catch(_){ return false; }
+}
+/* เลนของใบนี้ · ลำดับการตัดสินสำคัญกว่าตัวกติกาเอง
+   1 คนลากไว้เอง = ถือว่าคนรู้ดีกว่าสูตร
+   2 เรือวิ่งได้แล้ว = ใบนี้ไม่ได้ขวางใคร ไปอยู่กองรอปิด
+   3 ขยับใน 30 วัน = กำลังทำ
+   4 บันทึกล่าสุดบอกว่ารอของ = รออะไหล่
+   5 ที่เหลือ = ต้องตัดสินใจ */
+function flBoardLane(m){
+  if(!m) return 'decide';
+  if(m.boardLane && FL_BOARD_LANES.some(function(L){ return L.id===m.boardLane; })) return m.boardLane;
+  if(!flBoardBlocks(m)) return 'close';
+  if(flBoardSilent(m) <= 30) return 'doing';
+  var L=(m.progressLog||[]);
+  var last=L.length ? String(L[L.length-1].text||'') : '';
+  if(last && FL_BOARD_WAIT_RE.test(last)) return 'wait';
+  return 'decide';
+}
+/* ตัวเลขบนหัวบอร์ด · อ่านครั้งเดียว ใช้ทั้งแถว */
+function flBoardScan(){
+  var J=flBoardJobs(), blocked=J.filter(flBoardBlocks);
+  var boats={};
+  blocked.forEach(function(m){ if(m.boatId) boats[m.boatId]=1; });
+  var fleet=0;
+  try{ fleet=(typeof BOATS!=='undefined'?BOATS:[]).filter(function(b){ return b && b.ownership!=='charter' && !b.retired; }).length; }catch(_){}
+  var money=0;
+  blocked.forEach(function(m){
+    money += (typeof flMaintCalcCost==='function') ? (flMaintCalcCost(m.id)||0) : (m.cost||0); });
+  return { jobs:J.length, down:Object.keys(boats).length, fleet:fleet, money:Math.round(money),
+           silent:J.filter(function(m){ return flBoardSilent(m)>60; }).length,
+           noOwner:J.filter(function(m){ return !String(m.owner||'').trim(); }).length,
+           parked:(typeof FL_MAINT!=='undefined'?FL_MAINT:[]).filter(function(m){ return m && m.parked && m.status!=='done'; }).length };
+}
+function flBoardEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+function flBoardCSS(){
+  var H='#fl-board';
+  return '<style>'
+  +H+'{background:#fff;border:1px solid #E7E3DC;border-radius:16px;overflow:hidden;margin-bottom:14px}'
+  +H+' .bh{display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid #F2F0EB;flex-wrap:wrap}'
+  +H+' .bh h3{margin:0;font-size:14px;font-weight:700;color:#1A1A1A}'
+  +H+' .bh .s{font-size:12px;color:#8E9299}'
+  +H+' .bh .nums{margin-left:auto;display:flex;align-items:center;flex-wrap:wrap}'
+  +H+' .nm{padding:0 14px;border-left:1px solid #F2F0EB;text-align:right}'
+  +H+' .nm:first-child{border-left:none}'
+  +H+' .nm i{display:block;font-style:normal;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#B4B8BE}'
+  +H+' .nm b{display:block;font-family:\'DM Mono\',ui-monospace,monospace;font-size:15.5px;font-weight:500;margin-top:1px;color:#1A1A1A}'
+  +H+' .nm.warn b{color:#A32D2D}'
+  +H+' .bh .more{margin-left:12px;font-size:12px;font-weight:600;border-radius:9px;padding:7px 13px;cursor:pointer;'
+    +'border:1px solid #1A1A1A;background:#1A1A1A;color:#fff}'
+  +H+' .lanes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:#F2F0EB}'
+  +H+' .lane{background:#FCFBF9;min-width:0;display:flex;flex-direction:column}'
+  +H+' .lane.drop{background:#F2EEFB}'
+  +H+' .lh{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid #F2F0EB;background:#fff}'
+  +H+' .lh em{width:6px;height:6px;border-radius:50%;flex:none}'
+  +H+' .lh .t{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}'
+  +H+' .lh .c{margin-left:auto;font-family:\'DM Mono\',ui-monospace,monospace;font-size:12px;color:#8E9299}'
+  +H+' .lb{padding:9px;display:flex;flex-direction:column;gap:7px;min-height:236px;max-height:330px;overflow:auto}'
+  +H+' .kd{background:#fff;border:1px solid #E7E3DC;border-radius:11px;padding:8px 10px;cursor:pointer}'
+  +H+' .kd:hover{border-color:#CFC9BF}'
+  +H+' .kd.blk{box-shadow:inset 3px 0 0 #A32D2D}'
+  +H+' .kd.drag{opacity:.4}'
+  +H+' .kd .tp{display:flex;align-items:center;gap:7px;margin-bottom:3px}'
+  +H+' .kd .av{width:20px;height:20px;border-radius:6px;color:#fff;font-size:8.5px;font-weight:700;flex:none;'
+    +'display:flex;align-items:center;justify-content:center}'
+  +H+' .kd .bn{font-size:12px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1A1A1A}'
+  +H+' .kd .no{margin-left:auto;font-family:\'DM Mono\',ui-monospace,monospace;font-size:10.5px;color:#B4B8BE}'
+  +H+' .kd .tt{font-size:12px;color:#5F6368;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'
+  +H+' .kd .mt{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}'
+  +H+' .kd .tg{display:inline-flex;align-items:center;font-size:10px;font-weight:700;border-radius:6px;padding:1px 6px;'
+    +'white-space:nowrap;border:1px solid #E7E3DC;background:#FAF9F7;color:#8E9299}'
+  +H+' .kd .tg.red{background:#FCEFEE;border-color:#F0CFCB;color:#A32D2D}'
+  +H+' .kd .tg.amb{background:#FDF5E7;border-color:#EEDCBB;color:#8A5410}'
+  +H+' .kd .tg.grn{background:#E9F5F0;border-color:#C6E4D9;color:#0F6E56}'
+  +H+' .kd .ow{font-size:10.5px;color:#B4B8BE;margin-left:auto;max-width:48%;overflow:hidden;'
+    +'text-overflow:ellipsis;white-space:nowrap}'
+  +H+' .kd .ow.set{color:#0F6E56}'
+  +H+' .mtpy{font-size:11.5px;color:#B4B8BE;text-align:center;padding:16px 8px}'
+  /* กล่องสั่งงานบนการ์ด */
+  +'#fl-board-pop{position:fixed;z-index:9000;background:#fff;border:1px solid #E7E3DC;border-radius:12px;'
+    +'box-shadow:0 12px 32px rgba(0,0,0,.16);padding:9px;width:286px;display:none}'
+  +'#fl-board-pop.on{display:block}'
+  +'#fl-board-pop h5{margin:0 0 7px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#8E9299}'
+  +'#fl-board-pop .rw{display:flex;gap:6px;margin-bottom:6px}'
+  +'#fl-board-pop input{flex:1;min-width:0;border:1px solid #E7E3DC;border-radius:8px;padding:6px 9px;'
+    +'font-size:12px;font-family:inherit;outline:none;background:#fff;color:#1A1A1A}'
+  +'#fl-board-pop .ac{display:flex;gap:6px}'
+  +'#fl-board-pop button{flex:1;font-size:11.5px;font-weight:600;border-radius:8px;padding:6px 8px;cursor:pointer;'
+    +'border:1px solid #E7E3DC;background:#fff;color:#5F6368;font-family:inherit}'
+  +'#fl-board-pop button.pri{background:#1A1A1A;border-color:#1A1A1A;color:#fff}'
+  +'#fl-board-pop .hn{font-size:11px;color:#B4B8BE;padding-top:7px;line-height:1.5}'
+  +'@media (max-width:1200px){'+H+' .lanes{grid-template-columns:repeat(2,minmax(0,1fr))}}'
+  +'@media (max-width:760px){'+H+' .lanes{grid-template-columns:minmax(0,1fr)}'+H+' .bh .nums{margin-left:0}}'
+  +'</style>';
+}
+
+function flBoardCard(m){
+  var b=(typeof getBoat==='function')?getBoat(m.boatId):null;
+  var nm=(b&&b.name)||m.boatId||'—';
+  var col='#8E9299';
+  try{ if(typeof getBoatColor==='function'){ var g=getBoatColor(m.boatId); if(g&&g.text) col=g.text; } }catch(_){}
+  var sil=flBoardSilent(m), tone=sil>90?'red':(sil>30?'amb':'grn');
+  var cost=(typeof flMaintCalcCost==='function')?(flMaintCalcCost(m.id)||0):(m.cost||0);
+  var own=String(m.owner||'').trim();
+  var due=String(m.dueDate||'');
+  var dueLate=due && flBoardDaysTo(due)>0;
+  return '<div class="kd'+(flBoardBlocks(m)?' blk':'')+'" draggable="true" data-mj="'+flBoardEsc(m.id)+'"'
+    +' ondragstart="flBoardDragStart(event,\''+flBoardEsc(m.id)+'\')" ondragend="this.classList.remove(\'drag\')"'
+    +' onclick="flBoardPop(event,\''+flBoardEsc(m.id)+'\')">'
+    +'<div class="tp"><span class="av" style="background:'+col+'">'+flBoardEsc(nm.slice(0,2).toUpperCase())+'</span>'
+      +'<span class="bn">'+flBoardEsc(nm)+'</span><span class="no">'+flBoardEsc(m.no||'')+'</span></div>'
+    +'<div class="tt">'+flBoardEsc(m.title||'')+'</div>'
+    +'<div class="mt"><span class="tg '+tone+'">เงียบ '+sil+' วัน</span>'
+      +(cost?('<span class="tg">฿'+Math.round(cost).toLocaleString()+'</span>'):'')
+      +(due?('<span class="tg'+(dueLate?' red':'')+'">ตอบ '+flBoardEsc(due.slice(5))+'</span>'):'')
+      +'<span class="ow'+(own?' set':'')+'">'+flBoardEsc(own||'ยังไม่มีคนรับ')+'</span></div>'
+    +'</div>';
+}
+
+function flBoardHTML(){
+  var S=flBoardScan(), J=flBoardJobs(), ro=!flBoardCanEdit();
+  /* เรียงในเลน · ใบที่กั้นเรืออยู่ก่อน แล้วค่อยเรียงตามความเงียบ */
+  var byLane={};
+  FL_BOARD_LANES.forEach(function(L){ byLane[L.id]=[]; });
+  J.forEach(function(m){ var k=flBoardLane(m); (byLane[k]||byLane.decide).push(m); });
+  Object.keys(byLane).forEach(function(k){
+    byLane[k].sort(function(a,b){
+      var ab=flBoardBlocks(a)?1:0, bb=flBoardBlocks(b)?1:0;
+      if(ab!==bb) return bb-ab;
+      return flBoardSilent(b)-flBoardSilent(a);
+    });
+  });
+  var num=function(k,v,w){ return '<span class="nm'+(w?' warn':'')+'"><i>'+k+'</i><b>'+v+'</b></span>'; };
+  return flBoardCSS()
+  +'<div id="fl-board">'
+    +'<div class="bh"><div><h3>บอร์ดงานเรือ</h3>'
+      +'<div class="s">'+(ro?'ดูอย่างเดียว · ไม่มีสิทธิ์แก้งานฝั่ง Fleet'
+         :'ลากการ์ดข้ามเลนเพื่อเปลี่ยนสถานะ · กดการ์ดเพื่อมอบหมาย ตั้งวันตอบ หรือบันทึกความคืบหน้า')+'</div></div>'
+      +'<div class="nums">'
+        +num('เรือจอด', S.down+' / '+S.fleet, S.down>0)
+        +num('เงินที่ผูกอยู่', '฿'+S.money.toLocaleString(), S.money>0)
+        +num('ใบที่เปิด', S.jobs)
+        +num('เงียบ &gt; 60 วัน', S.silent, S.silent>0)
+        +num('ยังไม่มีคนรับ', S.noOwner)
+        +(S.parked?num('พักไว้', S.parked):'')
+        +'<button class="more" onclick="nav(document.querySelector(\'[data-view=fl-maintenance]\'))">ดูใบทั้งหมด &rarr;</button>'
+      +'</div></div>'
+    +'<div class="lanes">'
+      +FL_BOARD_LANES.map(function(L){
+        var cs=byLane[L.id]||[];
+        return '<div class="lane" data-lane="'+L.id+'" ondragover="flBoardOver(event,this)"'
+          +' ondragleave="this.classList.remove(\'drop\')" ondrop="flBoardDrop(event,this)">'
+          +'<div class="lh"><em style="background:'+L.c+'"></em>'
+            +'<span class="t" style="color:'+L.c+'" title="'+flBoardEsc(L.d)+'">'+L.t+'</span>'
+            +'<span class="c">'+cs.length+'</span></div>'
+          +'<div class="lb">'+(cs.length?cs.map(flBoardCard).join(''):'<div class="mtpy">ไม่มีใบในเลนนี้</div>')+'</div>'
+        +'</div>'; }).join('')
+    +'</div>'
+  +'</div>';
+}
+
+/* ── ลากการ์ดข้ามเลน ─────────────────────────────────────────────────────
+   การลากเขียน boardLane ลงใบจริง ไม่ใช่จำไว้บนหน้าจอ · รีเฟรชแล้วต้องอยู่ที่เดิม
+   และลง progressLog ไว้ด้วย เพราะ "ใครย้ายเมื่อไหร่" เป็นสิ่งที่ต้องตอบได้ย้อนหลัง */
+var _flBoardDrag='';
+function flBoardDragStart(ev,id){
+  if(!flBoardCanEdit()){ ev.preventDefault(); return; }
+  _flBoardDrag=id;
+  try{ ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',id); }catch(_){}
+  setTimeout(function(){ var el=document.querySelector('#fl-board .kd[data-mj="'+id+'"]'); if(el) el.classList.add('drag'); },0);
+}
+function flBoardOver(ev,el){ if(!flBoardCanEdit()) return; ev.preventDefault(); el.classList.add('drop'); }
+function flBoardDrop(ev,el){
+  ev.preventDefault(); el.classList.remove('drop');
+  if(!flBoardCanEdit()) return;
+  var id=_flBoardDrag || (ev.dataTransfer?ev.dataTransfer.getData('text/plain'):'');
+  var m=(typeof FL_MAINT!=='undefined'?FL_MAINT:[]).filter(function(x){ return x.id===id; })[0];
+  if(!m) return;
+  var to=el.getAttribute('data-lane'); if(!to || flBoardLane(m)===to) return;
+  var L=FL_BOARD_LANES.filter(function(x){ return x.id===to; })[0];
+  m.boardLane=to;
+  flBoardLog(m, 'ย้ายไปเลน "'+(L?L.t:to)+'"');
+  flSave(); flBoardRefresh();
+  if(typeof flShowToast==='function') flShowToast((m.no||'')+' → '+(L?L.t:to));
+}
+/* บันทึกลงใบ · และส่งต่อไปที่ Incident ที่ผูกอยู่ด้วย ทางเดียวกับ flMaintAddLog */
+function flBoardLog(m, text){
+  if(!m.progressLog) m.progressLog=[];
+  m.progressLog.push({date:TODAY_STR, text:text, by:'บอร์ดงานเรือ'});
+  try{ if(typeof flPushLog==='function') flPushLog(m.id, text, 'บอร์ดงานเรือ', TODAY_STR); }catch(_){}
+}
+
+/* ── กล่องสั่งงานบนการ์ด ── */
+var _flBoardPopId='';
+function flBoardPop(ev,id){
+  if(ev) ev.stopPropagation();
+  var m=(typeof FL_MAINT!=='undefined'?FL_MAINT:[]).filter(function(x){ return x.id===id; })[0];
+  if(!m) return;
+  var p=document.getElementById('fl-board-pop');
+  if(!p){ p=document.createElement('div'); p.id='fl-board-pop'; document.body.appendChild(p);
+    p.addEventListener('click', function(e){ e.stopPropagation(); }); }
+  _flBoardPopId=id;
+  var b=(typeof getBoat==='function')?getBoat(m.boatId):null;
+  var ro=!flBoardCanEdit();
+  var owners={};
+  (typeof FL_MAINT!=='undefined'?FL_MAINT:[]).forEach(function(x){ var o=String(x.owner||'').trim(); if(o) owners[o]=1; });
+  p.innerHTML='<h5>'+flBoardEsc(m.no||'')+' · '+flBoardEsc((b&&b.name)||'')+'</h5>'
+    +'<div class="rw"><input id="fl-bd-own" list="fl-bd-owners" placeholder="ผู้รับผิดชอบ" value="'+flBoardEsc(m.owner||'')+'"'+(ro?' disabled':'')+'>'
+      +'<datalist id="fl-bd-owners">'+Object.keys(owners).map(function(o){ return '<option value="'+flBoardEsc(o)+'">'; }).join('')+'</datalist></div>'
+    +'<div class="rw"><input id="fl-bd-due" type="date" value="'+flBoardEsc(m.dueDate||'')+'"'+(ro?' disabled':'')+'>'
+      +'<input id="fl-bd-note" type="text" placeholder="บันทึกความคืบหน้า"'+(ro?' disabled':'')+'></div>'
+    +(ro?'':'<div class="ac"><button class="pri" onclick="flBoardSaveCard()">บันทึก</button>'
+      +'<button onclick="flBoardPark()">พักไว้</button>'
+      +'<button onclick="flBoardCloseJob()">ปิดใบ</button></div>')
+    +'<div class="hn">'+(flBoardBlocks(m)
+        ? ('ใบนี้กั้น '+flBoardEsc((b&&b.name)||'เรือลำนี้')+' ไม่ให้ออกวิ่ง')
+        : 'ใบนี้ไม่ได้กั้นเรือ · เรือลำนี้วิ่งได้ตามปกติ')
+      +' · <span style="cursor:pointer;text-decoration:underline" onclick="flBoardOpenJob()">เปิดใบเต็ม</span></div>';
+  p.classList.add('on');
+  var r=(ev&&ev.currentTarget&&ev.currentTarget.getBoundingClientRect)?ev.currentTarget.getBoundingClientRect():{left:60,bottom:60};
+  p.style.left=Math.max(8, Math.min(window.innerWidth-296, r.left))+'px';
+  p.style.top =Math.max(8, Math.min(window.innerHeight-230, r.bottom+6))+'px';
+  if(!window._flBoardPopBound){
+    window._flBoardPopBound=1;
+    document.addEventListener('click', function(){ flBoardPopClose(); });
+  }
+}
+function flBoardPopClose(){ var p=document.getElementById('fl-board-pop'); if(p) p.classList.remove('on'); _flBoardPopId=''; }
+function _flBoardCur(){
+  return (typeof FL_MAINT!=='undefined'?FL_MAINT:[]).filter(function(x){ return x.id===_flBoardPopId; })[0]||null;
+}
+function flBoardSaveCard(){
+  var m=_flBoardCur(); if(!m || !flBoardCanEdit()) return;
+  var own=(document.getElementById('fl-bd-own')||{}).value||'';
+  var due=(document.getElementById('fl-bd-due')||{}).value||'';
+  var nt =((document.getElementById('fl-bd-note')||{}).value||'').trim();
+  var chg=[];
+  if(String(m.owner||'')!==String(own)){ m.owner=own.trim(); chg.push('ผู้รับผิดชอบ '+(m.owner||'—')); }
+  if(String(m.dueDate||'')!==String(due)){ m.dueDate=due; chg.push('ตอบภายใน '+(due||'—')); }
+  if(nt){
+    flBoardLog(m, nt);
+    /* มีบันทึกใหม่ = งานเดินแล้ว · ปลดเลนที่ถูกลากค้างไว้ ให้กลับไปคิดตามข้อมูลจริง */
+    if(m.boardLane==='decide' || m.boardLane==='wait') delete m.boardLane;
+  } else if(chg.length){ flBoardLog(m, chg.join(' · ')); }
+  else { flBoardPopClose(); return; }
+  flSave(); flBoardPopClose(); flBoardRefresh();
+  if(typeof flShowToast==='function') flShowToast(nt?((m.no||'')+' · บันทึกแล้ว'):((m.no||'')+' · อัปเดตแล้ว'));
+}
+function flBoardPark(){
+  var m=_flBoardCur(); if(!m || !flBoardCanEdit()) return;
+  m.parked=TODAY_STR;
+  flBoardLog(m, 'พักไว้ · ยังไม่ถึงคิว');
+  flSave(); flBoardPopClose(); flBoardRefresh();
+  if(typeof flShowToast==='function') flShowToast((m.no||'')+' · พักไว้แล้ว · ไม่นับในบอร์ด');
+}
+function flBoardCloseJob(){
+  var m=_flBoardCur(); if(!m) return;
+  flBoardPopClose();
+  /* ปิดใบต้องไปทางเดิมของหน้า Maintenance · ที่นั่นจัดการสถานะเรือ memo และใบวางบิลให้ครบ */
+  if(typeof flMaintOpenCloseModal==='function') flMaintOpenCloseModal(m.id);
+  else if(typeof flShowToast==='function') flShowToast('Open the Maintenance page to close this job');
+}
+function flBoardOpenJob(){
+  var m=_flBoardCur(); if(!m) return;
+  flBoardPopClose();
+  try{
+    var el=document.querySelector('[data-view=fl-maintenance]');
+    if(el && typeof nav==='function') nav(el);
+    if(typeof flRenderMaintDetail==='function') setTimeout(function(){ flRenderMaintDetail(m.id); },80);
+  }catch(_){}
+}
+/* วาดใหม่เฉพาะบอร์ด · ไม่ต้องวาดทั้งหน้า Dashboard ซึ่งมี canvas ที่ต้อง init ใหม่ */
+function flBoardRefresh(){
+  var host=document.getElementById('fl-board');
+  if(!host){ if(typeof flRenderDashboard==='function') flRenderDashboard(); return; }
+  var tmp=document.createElement('div');
+  tmp.innerHTML=flBoardHTML();
+  var nb=tmp.querySelector('#fl-board');
+  if(nb) host.replaceWith(nb);
+}
+
 function flRenderDashboard(){
   const dateEl=document.getElementById('fl-dash-date');
   if(!dateEl.value) dateEl.value=TODAY_STR;
@@ -7408,7 +7745,6 @@ function flRenderDashboard(){
   let todayFuel=0,todayPAX=0;
   Object.values(FL_DAILY[ds]||{}).forEach(bd=>{if(bd.fuel)todayFuel+=bd.fuel;});
   Object.values((typeof TRIPS!=='undefined'?TRIPS[ds]:null)||{}).forEach(op=>{if(op.booked)todayPAX+=op.booked;});
-  const lPerPax=todayPAX>0?(todayFuel/todayPAX).toFixed(2):'—';
 
   // Maintenance
   const maintOpen=FL_MAINT.filter(m=>m.status!=='done');
@@ -7435,13 +7771,8 @@ function flRenderDashboard(){
     return a.name.localeCompare(b.name);
   });
 
-  // High alert boat: most pending issues = open incidents + open maint
-  const alertScore={};
-  incOpen.forEach(i=>{alertScore[i.boatId]=(alertScore[i.boatId]||0)+(i.severity==='major'?3:1);});
-  maintOpen.forEach(m=>{alertScore[m.boatId]=(alertScore[m.boatId]||0)+2;});
-  const alertBoatId=Object.entries(alertScore).sort((a,b)=>b[1]-a[1])[0]?.[0];
-  const alertBoat=alertBoatId?BOATS.find(b=>b.id===alertBoatId):null;
-  const alertReason=alertBoat?(maintOpen.filter(m=>m.boatId===alertBoatId).length?`${maintOpen.filter(m=>m.boatId===alertBoatId).length} job${maintOpen.filter(m=>m.boatId===alertBoatId).length>1?'s':''} open`:`${incOpen.filter(i=>i.boatId===alertBoatId).length} incident open`):'';
+  /* §flBoard · ตัวนับ "High alert boat" ถูกถอด · การ์ดที่ใช้มันไม่มีแล้ว
+     และมันตอบได้แค่ลำเดียว ทั้งที่ของจริงจอดอยู่พร้อมกันเก้าลำ · บอร์ดตอบครบทุกลำแทน */
 
   // Date label English
   const MONTHS_EN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -7480,88 +7811,15 @@ function flRenderDashboard(){
     </div>
   </div>`;
 
-  // Projects KPI for Dashboard tile
+  /* §flBoard · ตัวนับ Projects ของการ์ดบนแถบเดิมถูกถอดไปพร้อมการ์ด
+     _projAll ยังอยู่ เพราะการ์ดด้านล่างในหน้านี้ยังใช้ */
   const _projAll = (typeof FL_PROJECTS!=='undefined' && FL_PROJECTS) ? FL_PROJECTS : [];
-  const projActive = _projAll.filter(p=>p.status==='inprogress').length;
-  const projOnHold = _projAll.filter(p=>p.status==='on_hold').length;
-  const projPlanned = _projAll.filter(p=>p.status==='planned').length;
-  const _projYr = new Date(TODAY_STR).getFullYear();
-  const projYtdSpend = _projAll
-    .filter(p=>p.status==='completed' && (p.actualFrom||p.planFrom||'').startsWith(String(_projYr)))
-    .reduce((s,p)=>s + (typeof flProjCalcCost==='function'?flProjCalcCost(p.id):0), 0);
-  const projActiveBoats = new Set(_projAll.filter(p=>(p.status==='inprogress'||p.status==='on_hold')&&p.boatId).map(p=>p.boatId)).size;
 
-  // KPI strip
-  const kpiStrip=`<div style="display:grid;grid-template-columns:1.5fr 0.9fr 0.8fr 0.85fr 0.85fr 0.85fr;gap:8px;margin-bottom:14px;align-items:stretch">
-    <div style="grid-column:1;align-self:end;padding-bottom:6px">
-      <div style="font-size:13px;font-weight:500;color:${dim.ink4};margin-bottom:2px">Fleet</div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-        <span style="font-size:42px;font-weight:700;letter-spacing:-1.5px;line-height:1">${totalBoats}</span>
-        <span style="font-size:18px;color:${dim.ink3};font-weight:500">boats</span>
-        <span style="display:inline-flex;align-items:center;background:${SVG_PINK.accent};color:white;padding:3px 10px;border-radius:14px;font-size:11px;font-weight:600">▴ ${avail} available</span>
-        ${fixing?`<span style="display:inline-flex;align-items:center;background:${SVG_PINK.soft};color:${SVG_PINK.text};padding:3px 10px;border-radius:14px;font-size:11px;font-weight:600">${fixing} fixing</span>`:''}
-        ${unavail?`<span style="display:inline-flex;align-items:center;background:#FCEBEB;color:#A32D2D;padding:3px 10px;border-radius:14px;font-size:11px;font-weight:600">${unavail} unavail</span>`:''}
-      </div>
-      <div style="font-size:11px;color:${dim.ink3}">${totalEng} engines · ${totalGb} gearboxes · ${totalProp} propellers · ${totalSpare} spares</div>
-    </div>
-
-    <div onclick="nav(document.querySelector('[data-view=fl-dailyreport]'))" style="grid-column:2;background:white;border-radius:14px;padding:11px 13px;border:1px solid ${dim.line};position:relative;cursor:pointer">
-      <div style="font-size:10px;color:${dim.ink3}">Total fuel used</div>
-      <div style="display:flex;align-items:baseline;gap:3px;margin-top:2px"><span style="font-size:18px;font-weight:700;line-height:1.2">${todayFuel?todayFuel.toLocaleString():'—'}</span><span style="font-size:11px;color:${dim.ink3};font-weight:500">L</span></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-        <div style="display:flex;align-items:center;gap:4px"><span style="font-size:11px;color:${dim.ink2}">Avg</span><span style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace">${lPerPax}</span><span style="font-size:10px;color:${dim.ink3}">L / PAX</span></div>
-      </div>
-      <span style="position:absolute;bottom:11px;right:11px;color:${dim.ink5};font-size:14px">›</span>
-    </div>
-
-    <div ${alertBoat?`onclick="flGoToAsset('boats','${alertBoat.id}')"`:''} style="grid-column:3;background:${dim.ink};color:white;border-radius:14px;padding:11px 13px;position:relative;${alertBoat?'cursor:pointer':''}">
-      <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:10px;color:#aaa">High alert</span><span style="color:#666;font-size:12px">⚠</span></div>
-      <div style="font-size:18px;font-weight:700;line-height:1.2;margin-top:2px">${alertBoat?alertBoat.name:'—'}</div>
-      <div style="font-size:11px;color:#aaa;margin-top:6px">${alertReason||'no alerts'}</div>
-      <span style="position:absolute;bottom:11px;right:11px;color:#666;font-size:14px">›</span>
-    </div>
-
-    <div onclick="nav(document.querySelector('[data-view=fl-maintenance]'))" style="grid-column:4;background:white;border-radius:14px;padding:11px 13px;border:2px solid ${SVG_PINK.accent};cursor:pointer">
-      <div style="font-size:10px;color:${dim.ink3}">Maintenance</div>
-      <div style="display:flex;align-items:baseline;gap:4px;margin-top:2px"><span style="background:${SVG_PINK.accent};color:white;padding:2px 9px;border-radius:14px;font-size:14px;font-weight:700">${maintOpen.length}</span><span style="font-size:11px;color:${dim.ink3};margin-left:2px">open / ${maintTotal}</span></div>
-      <div style="display:flex;align-items:center;gap:3px;margin-top:7px"><span style="color:${SVG_PINK.text};font-size:11px;font-weight:600">฿${maintCost.toLocaleString()}</span></div>
-    </div>
-
-    <div onclick="nav(document.querySelector('[data-view=fl-projects]'))" style="grid-column:5;background:white;border-radius:14px;padding:11px 13px;border:2px solid #1B2A4E;cursor:pointer">
-      <div style="font-size:10px;color:${dim.ink3}">Projects</div>
-      <div style="display:flex;align-items:baseline;gap:4px;margin-top:2px"><span style="background:#1B2A4E;color:white;padding:2px 9px;border-radius:14px;font-size:14px;font-weight:700">${projActive}</span><span style="font-size:11px;color:${dim.ink3};margin-left:2px">active${projOnHold?` · ${projOnHold} hold`:''}</span></div>
-      <div style="display:flex;align-items:center;gap:3px;margin-top:7px"><span style="color:#1B2A4E;font-size:11px;font-weight:600">${projActiveBoats} boat${projActiveBoats===1?'':'s'} off-line${projYtdSpend?` · YTD ฿${(projYtdSpend/1000).toFixed(0)}K`:''}</span></div>
-    </div>
-
-    <div onclick="nav(document.querySelector('[data-view=fl-incident]'))" style="grid-column:6;background:white;border-radius:14px;padding:11px 13px;border:1px solid ${dim.line};cursor:pointer">
-      <div style="font-size:10px;color:${dim.ink3}">Incidents</div>
-      <div style="display:flex;align-items:baseline;gap:4px;margin-top:2px"><span style="background:${dim.bg};color:${dim.ink};padding:2px 9px;border-radius:14px;font-size:14px;font-weight:700">${incOpen.length}</span><span style="font-size:11px;color:${dim.ink3};margin-left:2px">open</span></div>
-      <div style="display:flex;align-items:center;gap:3px;margin-top:7px"><span style="color:#A32D2D;font-size:11px;font-weight:600">${incMajor} major · ${incMinor} minor</span></div>
-    </div>
-  </div>`;
-
-  // Pill row
-  const pillRow=`<div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
-    <div style="flex:1;min-width:160px;background:white;border-radius:24px;padding:7px 14px;display:flex;align-items:center;gap:10px;border:1px solid ${dim.line}">
-      <div style="width:24px;height:24px;border-radius:50%;background:#185FA5;color:white;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">HN</div>
-      <span style="font-size:12px;font-weight:600">Honda</span>
-      <span style="margin-left:auto;font-size:11px;font-weight:500">${hondaCnt} engines</span>
-      <span style="font-size:11px;color:${dim.ink3}">${totalEng?((hondaCnt/totalEng)*100).toFixed(1):0}%</span>
-    </div>
-    <div style="flex:1;min-width:160px;background:white;border-radius:24px;padding:7px 14px;display:flex;align-items:center;gap:10px;border:1px solid ${dim.line}">
-      <div style="width:24px;height:24px;border-radius:50%;background:#A32D2D;color:white;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">SZ</div>
-      <span style="font-size:12px;font-weight:600">Suzuki</span>
-      <span style="margin-left:auto;font-size:11px;font-weight:500">${suzukiCnt} engines</span>
-      <span style="font-size:11px;color:${dim.ink3}">${totalEng?((suzukiCnt/totalEng)*100).toFixed(1):0}%</span>
-    </div>
-    <div onclick="nav(document.querySelector('[data-view=fl-asset]'))" style="flex:1;min-width:180px;background:white;border-radius:24px;padding:7px 14px;display:flex;align-items:center;gap:10px;border:1px solid ${dim.line};cursor:pointer">
-      <div style="width:24px;height:24px;border-radius:50%;background:${SVG_PINK.accent};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">📦</div>
-      <span style="font-size:12px;font-weight:600">Spares on board</span>
-      <span style="margin-left:auto;font-size:11px;font-weight:500">${sparesOnBoats} items</span>
-      <span style="font-size:11px;color:${dim.ink3}">${boatsCarrying} boats</span>
-    </div>
-    <div onclick="nav(document.querySelector('[data-view=fl-asset]'))" style="background:${dim.ink};color:white;border-radius:24px;padding:8px 22px;font-size:12px;font-weight:600;cursor:pointer">Details</div>
-  </div>`;
+  /* §flBoard · แถบ KPI กับแถวยี่ห้อเครื่องที่เคยอยู่ตรงนี้ถูกแทนด้วยบอร์ดงานเรือ
+     ของเดิมตอบว่า "มีเท่าไหร่" (จำนวนเรือ · น้ำมัน · จำนวนใบ · จำนวนเครื่อง) ซึ่งอ่านแล้วทำอะไรต่อไม่ได้
+     ตัวเลขที่ยังต้องใช้ถูกยกขึ้นไปอยู่บนหัวบอร์ดบรรทัดเดียว (เรือจอด · เงินที่ผูกอยู่ · ใบที่เปิด ·
+     เงียบเกิน 60 วัน · ยังไม่มีคนรับ) ที่เหลือยังอยู่ครบในการ์ดด้านล่างและหน้าของมันเอง
+     น้ำมันอยู่หน้า Fuel · จำนวนเครื่อง/อะไหล่อยู่หน้า Company Asset · Projects กับ Incidents มีหน้าของตัวเอง */
 
   // Boat Status card — heatmap status bar + per-pier list (Variant C)
   const PIER_META={
@@ -8115,8 +8373,7 @@ function flRenderDashboard(){
   // Wrap in pink theme container
   const html=`<div style="background:${dim.bg};margin:-16px -16px 0;padding:18px 20px 22px;border-radius:0">
     ${headerBar}
-    ${kpiStrip}
-    ${pillRow}
+    ${flBoardHTML()}
     ${midGrid}
     ${extraGrid}
   </div>`;
