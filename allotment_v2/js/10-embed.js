@@ -36,8 +36,30 @@
 
   window.__laEmbed = true;
 
+  /* §embedTabNorm (2026-09-22) · ชื่อแท็บของหน้าแม่ ≠ ชื่อแท็บข้างใน
+     /embed/calendar ถูกแปลงเป็น tab=cal ที่ server.js §embedRoute อยู่แล้ว
+     แต่ตอนหน้าแม่สั่งเปลี่ยนแท็บผ่าน postMessage มันส่ง 'calendar' มาดิบ ๆ
+     ไม่มีใครแปลงให้ · _bkV2.tab จึงกลายเป็น 'calendar' ซึ่งไม่ตรงสักกิ่ง
+     แล้ว bkV2RenderTabBody ตกไป else = โชว์ "All bookings" แทนปฏิทิน
+     (ไม่ได้จอขาว แต่ผิดหน้า ซึ่งแย่กว่าเพราะดูไม่ออกว่าพัง)
+
+     แก้ที่ฝั่งนี้ไม่ใช่ฝั่งโน้น เพราะ (1) ไม่ต้องรอ deploy ของอีกทีม
+     (2) ค่าที่มาจากนอกบ้านไม่ควรถูกยัดลง state ดิบ ๆ ตั้งแต่แรก
+     ชื่อที่ยอมรับ = ปุ่มบนแถบแท็บจริง (08-app.js bkV2SwitchTab) เท่านั้น
+     ชื่อแปลกปลอม = ทิ้ง แล้วคงแท็บเดิมไว้ ดีกว่าเด้งไปหน้าที่ไม่ได้ขอ */
+  var TAB_OK    = ['cal','bytrip','all','locks','approvals','cancel'];
+  var TAB_ALIAS = { calendar:'cal', trip:'bytrip', bytrip:'bytrip', cancellations:'cancel' };
+  function normTab(t){
+    t = String(t || '').trim().toLowerCase();
+    if(!t) return '';
+    t = TAB_ALIAS[t] || t;
+    if(TAB_OK.indexOf(t) >= 0) return t;
+    try{ console.warn('[embed] unknown tab: ' + t + ' · keeping current'); }catch(_){}
+    return '';
+  }
+
   var VIEW   = qs.get('view')  || 'booking';
-  var TAB    = qs.get('tab')   || '';
+  var TAB    = normTab(qs.get('tab'));
   var DATE   = qs.get('date')  || '';
   var ROUTE  = qs.get('route') || '';
   var CHROME = qs.get('chrome') === '1';
@@ -205,8 +227,16 @@
     var m = e.data;
     if(!m || m.type !== 'la-embed') return;
     if(m.view)  VIEW  = String(m.view);
-    if('tab'   in m) TAB   = m.tab   ? String(m.tab)   : '';
-    if('date'  in m) DATE  = m.date  ? String(m.date)  : '';
+    /* §embedTabNorm · ผ่านตัวแปลงชื่อ/ตัวกรองเดียวกับตอนอ่านจาก URL
+       ชื่อไม่รู้จัก → '' → applyView ไม่แตะ _bkV2.tab = คงแท็บเดิม */
+    if('tab'   in m) TAB   = normTab(m.tab);
+    /* §embedTabNorm · วันที่จาก URL ถูก server.js ตรวจ regex มาแล้ว แต่ทาง
+       postMessage ไม่มีใครตรวจ · ค่าเพี้ยนลง _bkV2.filterDate และ
+       _bkV2T2Cursor = DATE.slice(0,7) ทำปฏิทินเพี้ยนตาม · ตรวจรูปแบบเดียวกัน */
+    if('date'  in m){
+      var _d = m.date ? String(m.date) : '';
+      DATE = (!_d || /^\d{4}-\d{2}-\d{2}$/.test(_d)) ? _d : DATE;
+    }
     if('route' in m) ROUTE = m.route ? String(m.route) : '';
     applyView();
   });
