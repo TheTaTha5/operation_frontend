@@ -8708,6 +8708,7 @@ function vbArea(a){
   try{ if(typeof VANJOB_AREA_TH!=='undefined' && VANJOB_AREA_TH[k]) return VANJOB_AREA_TH[k]; }catch(_){}
   return k;
 }
+function vbShort(a, n){ a=String(a||''); n=n||20; return a.length>n ? (a.slice(0,n-1)+'…') : a; }
 function vbIsFar(a){ return !!VB_FAR[String(a||'').trim().toLowerCase()] || !!VB_FAR[String(a||'').trim()]; }
 function vbVans(){
   var V=(typeof SB_VEHICLES!=='undefined'&&Array.isArray(SB_VEHICLES))?SB_VEHICLES:
@@ -8759,6 +8760,20 @@ function vbCodesIn(rows){
   out.sort(function(a,b){ return b.n-a.n; });
   return out;
 }
+/* ── §vbDrop · จุดส่ง (2026-09-22) ───────────────────────────────────────
+   เรตต่อคันขึ้นกับ "รถวิ่งไปไหน" ไม่ใช่แค่ "รับที่ไหน" · ขากลับที่ส่งสนามบิน/เขาหลัก
+   เป็นคนละระยะทางกับส่งกลับโรงแรมเดิม แต่บนใบวางบิลเดิมมองไม่เห็นเลย
+   จุดส่งของ split เองมาก่อน (แยกส่งรายคน §altDrop) แล้วถอยไปใช้ของทั้งใบ
+   ส่งที่เดิม = ไม่มีอะไรเก็บไว้ จึงถอยไปใช้จุดรับของแถวนั้นเป็นคำตอบ */
+function vbAreaNm(id){
+  if(!id || typeof bkV2GetArea!=='function') return '';
+  return String((bkV2GetArea(id)||{}).name||'').trim();
+}
+function vbPickName(b, sp){ return (sp?vbAreaNm(sp.pickAreaId):'') || String((b&&b.pickupArea)||'').trim(); }
+function vbDropName(b, sp){
+  var d=(typeof bkDropOf==='function')?bkDropOf(b,sp):null;
+  return (d?(String(d.area||'').trim()||String(d.place||'').trim()):'') || vbPickName(b,sp);
+}
 /* §vbRetLeg · แถวขากลับเก็บเรตคนละช่องกับขาไป · เรตไป-กลับไม่จำเป็นต้องเท่ากัน */
 function vbRowKey(r){ return r.date+'~'+r.routeId+'~'+r.vanId+(r.ret?'~R':''); }
 /* อ่านอย่างเดียว · ห้ามสร้างระเบียนเปล่า ไม่งั้นแค่เปิดดูภาพรวมก็เกิดใบเปล่าทุกเจ้าทุกงวด */
@@ -8789,8 +8804,8 @@ function vbRows(){
       var rlN=real.ad+real.chd+real.inf+real.foc;
       /* รถหลายคันในใบเดียว · แยกตามที่จัดไว้ */
       var legs=(Array.isArray(O.vanSplits)&&O.vanSplits.length)
-        ? O.vanSplits.map(function(x){ return {vid:x.vanId, pax:+x.pax||0}; })
-        : [{vid:O.vanId, pax:null}];
+        ? O.vanSplits.map(function(x){ return {vid:x.vanId, pax:+x.pax||0, sp:x}; })
+        : [{vid:O.vanId, pax:null, sp:null}];
       /* คนที่ไม่ได้ไปเป็นของทั้งใบ ระบุไม่ได้ว่าหายจากคันไหน · เกลี่ยตามสัดส่วนที่จัดไว้
          แล้วโยนเศษให้คันสุดท้าย ผลรวมของทุกคันจะได้เท่ากับยอดจริงของใบเป๊ะ */
       if(legs.length && legs[0].pax!=null){
@@ -8806,7 +8821,7 @@ function vbRows(){
         if(!L.vid || !ok[L.vid]) return;
         var k=ds+'~'+(t.routeId||'')+'~'+L.vid;
         if(!map[k]) map[k]={date:ds, routeId:t.routeId||'', vanId:L.vid,
-                            ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, bk:0, areas:{}};
+                            ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, bk:0, areas:{}, drops:{}};
         var r=map[k];
         if(L.pax!=null){ r.pax+=(+L.real||0); r.ad+=(+L.real||0); r.bkPax+=L.pax; }
         else {
@@ -8814,7 +8829,7 @@ function vbRows(){
           r.pax+=rlN; r.bkPax+=bkN;
         }
         r.bk++;
-        var a=String(b.pickupArea||'').trim(); if(a) r.areas[a]=1;
+        var a=vbPickName(b, L.sp); if(a) r.areas[a]=1;
       });
       /* §vbRetLeg · ขากลับคือรถอีกเที่ยวหนึ่ง · ของเดิมอ่านแต่ ops.vanId
          เจ้าของรถที่รับเฉพาะขากลับจึงไม่เคยขึ้นบิลเลยสักแถว
@@ -8823,13 +8838,13 @@ function vbRows(){
            ใส่ pax เมื่อไหร่ ราคาขาย/กำไรเด้งเป็นสองเท่าทันที · คนจริงเก็บไว้ที่ retPax ไว้โชว์เฉย ๆ
          returnSameVan (กลับคันเดิม) ไม่มี vanReturnId อยู่แล้ว จึงไม่เกิดแถวซ้ำ */
       var rlegs=(Array.isArray(O.vanSplits)&&O.vanSplits.length)
-        ? O.vanSplits.map(function(x){ return x.vanReturnId; })
-        : [O.vanReturnId];
-      rlegs.forEach(function(vid){
-        if(!vid || !ok[vid]) return;
+        ? O.vanSplits.map(function(x){ return {vid:x.vanReturnId, sp:x}; })
+        : [{vid:O.vanReturnId, sp:null}];
+      rlegs.forEach(function(R){
+        if(!R.vid || !ok[R.vid]) return;
         /* พักไว้ก่อน · ตอนนี้ยังไม่รู้ว่าคันนี้มีขาไปในวันเดียวกันหรือเปล่า
            (ใบที่จัดขาไปอาจมาทีหลังในลูป) */
-        pendRet.push({ds:ds, rid:t.routeId||'', vid:vid, pax:rlN});
+        pendRet.push({ds:ds, rid:t.routeId||'', vid:R.vid, pax:rlN, drop:vbDropName(b, R.sp)});
       });
     });
   });
@@ -8841,11 +8856,12 @@ function vbRows(){
        ไม่มีขาไป = คันนั้นมารับกลับอย่างเดียว ต้องมีแถวของตัวเอง (เช่น VAN3 14/9) */
   pendRet.forEach(function(x){
     var base=x.ds+'~'+x.rid+'~'+x.vid;
-    if(map[base]){ map[base].retPax=(map[base].retPax||0)+x.pax; map[base].retBk=(map[base].retBk||0)+1; return; }
+    if(map[base]){ map[base].retPax=(map[base].retPax||0)+x.pax; map[base].retBk=(map[base].retBk||0)+1;
+                   if(x.drop) map[base].drops[x.drop]=1; return; }
     var k=base+'~R';
     if(!map[k]) map[k]={date:x.ds, routeId:x.rid, vanId:x.vid, ret:1,
-                        ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, retPax:0, bk:0, areas:{}};
-    map[k].retPax+=x.pax; map[k].bk++;
+                        ad:0,chd:0,inf:0,foc:0, pax:0, bkPax:0, retPax:0, bk:0, areas:{}, drops:{}};
+    map[k].retPax+=x.pax; map[k].bk++; if(x.drop) map[k].drops[x.drop]=1;
   });
   return Object.keys(map).sort().map(function(k){ return map[k]; });
 }
@@ -9229,6 +9245,15 @@ function renderVanBill(){
     var aHtml=areas.length?areas.map(function(a){
         return '<span class="vb-area'+(vbIsFar(a)?' far':'')+'">'+e(vbArea(a))+'</span>'; }).join('')
       :'<span class="vb-area">—</span>';
+    /* §vbDrop · จุดส่งมีค่าเฉพาะแถวที่มีขากลับ · ขาไปทุกคันไปจบที่ท่าเรืออยู่แล้ว
+       จุดที่ไม่ตรงกับจุดรับของแถวนี้ = คนละระยะทาง ต้องสะดุดตา ไม่ใช่กลืนไปกับที่เหลือ */
+    var drops=Object.keys(r.drops||{});
+    var dHtml=drops.length?drops.map(function(a){
+        var diff=(areas.indexOf(a)<0), nm=vbArea(a);
+        var cls=diff?' alt':(vbIsFar(a)?' far':'');
+        return '<span class="vb-area'+cls+'" title="'+e(nm)+(diff?' · ส่งคนละที่กับที่รับ':'')+'">'
+          +e(vbShort(nm))+'</span>'; }).join('')
+      :'<span class="vb-area"'+((!r.ret&&!r.retBk)?' title="ไม่ได้รับขากลับ · จบที่ท่าเรือ"':'')+'>—</span>';
     return '<tr>'
      +'<td class="l vb-mono">'+e(r.date.slice(8,10)+'/'+(+r.date.slice(5,7))+'/'+r.date.slice(2,4))+'</td>'
      /* §vbRateCode · ติดป้ายท่าเรือไว้ · เหตุผลที่เรตต่างคือรถวิ่งคนละที่ ไม่ใช่ชื่อโปรแกรมคนละชื่อ */
@@ -9239,6 +9264,7 @@ function renderVanBill(){
        +((!r.ret&&r.retBk)?('<span class="vb-pier" style="background:#EEF4F9;color:#4A6274" title="คันนี้รับขากลับให้อีก '+r.retBk+' ใบด้วย · เป็นรอบเดียวกัน ไม่คิดเพิ่ม">&#8629; รับกลับด้วย '+(r.retPax||0)+' คน</span>'):'')
        +(_vb.van?'':('<div style="font-size:10px;color:#98A2AD;margin-top:2px">'+e((vg(r.vanId).name)||r.vanId)+'</div>'))+'</td>'
      +'<td class="l">'+aHtml+'</td>'
+     +'<td class="l">'+dHtml+'</td>'
      +'<td><b>'+r.ad+'</b></td><td>'+(r.chd||'<span class="vb-mut">·</span>')+'</td>'
      +'<td>'+(r.inf||'<span class="vb-mut">·</span>')+'</td><td>'+(r.foc||'<span class="vb-mut">·</span>')+'</td>'
      +'<td><b>1</b></td>'
@@ -9265,7 +9291,7 @@ function renderVanBill(){
     return '<tr class="vb-ex">'
      +'<td class="l">'+((ED||_vb.open['x'+x.id+'|date'])?('<input type="date" value="'+e(x.date||'')+'" onchange="vbSetExtra(\''+x.id+'\',\'date\',this.value)" class="vb-din">')
         :('<span class="vb-mono">'+e(x.date?(x.date.slice(8,10)+'/'+(+x.date.slice(5,7))+'/'+x.date.slice(2,4)):'—')+'</span>'))+'</td>'
-     +'<td class="l" colspan="2">'+((ED||_vb.open['x'+x.id+'|note'])?('<input value="'+e(x.note||'')+'" onchange="vbSetExtra(\''+x.id+'\',\'note\',this.value)" class="vb-tin" placeholder="รถนอก · งานที่ไม่ได้ผ่านใบงาน">')
+     +'<td class="l" colspan="3">'+((ED||_vb.open['x'+x.id+'|note'])?('<input value="'+e(x.note||'')+'" onchange="vbSetExtra(\''+x.id+'\',\'note\',this.value)" class="vb-tin" placeholder="รถนอก · งานที่ไม่ได้ผ่านใบงาน">')
         :('<span class="vb-rn">'+e(x.note||'รถนอก')+'</span>'))+'</td>'
      +'<td colspan="4" class="vb-mut">กรอกเอง</td>'
      +'<td>'+IN("vbSetExtra('"+x.id+"','van',this.value)", x.van||'', 40, 0, 'x'+x.id+'|van')+'</td>'
@@ -9339,14 +9365,15 @@ function renderVanBill(){
    +'<div class="vb-card"><table class="vb-t"><thead><tr>'
      +'<th class="l" style="width:78px">วันที่</th><th class="l" style="min-width:200px">เส้นทาง</th>'
      +'<th class="l" style="min-width:120px">จุดรับ</th>'
+     +'<th class="l" style="min-width:110px">จุดส่ง</th>'
      +'<th>AD</th><th>CHD</th><th>INF</th><th>FOC</th><th>คัน</th><th>คน</th>'
      +'<th class="man">เรต/คัน</th><th class="man">EXTRA</th><th class="man">หัก</th>'
      +'<th style="width:92px">ราคาเรียกเก็บ</th><th class="man">ขาย/คน</th>'
      +'<th style="width:86px">ราคาขาย</th><th style="width:92px">กำไร/ขาดทุน</th></tr></thead>'
-   +'<tbody>'+(body||'<tr><td colspan="16" style="padding:26px;text-align:center;color:#98A2AD">ไม่มีงานของเจ้านี้ในรอบบิลนี้</td></tr>')+exBody
-   +'<tr><td colspan="16" class="l" style="padding:9px 8px;background:#F7F8FB">'
+   +'<tbody>'+(body||'<tr><td colspan="17" style="padding:26px;text-align:center;color:#98A2AD">ไม่มีงานของเจ้านี้ในรอบบิลนี้</td></tr>')+exBody
+   +'<tr><td colspan="17" class="l" style="padding:9px 8px;background:#F7F8FB">'
      +'<a onclick="vbAddExtra()" style="font-size:11.5px;color:#0E6AA8;font-weight:700;cursor:pointer">+ เพิ่มแถว (รถนอก · งานที่ไม่ได้ผ่านใบงาน)</a></td></tr></tbody>'
-   +'<tfoot><tr><td class="l" colspan="3">รวม '+T.van+' เที่ยว</td>'
+   +'<tfoot><tr><td class="l" colspan="4">รวม '+T.van+' เที่ยว</td>'
      +'<td>'+T.ad+'</td><td>'+T.chd+'</td><td>'+T.inf+'</td><td>'+T.foc+'</td>'
      +'<td>'+T.van+'</td>'
      +'<td>'+T.pax+(T.bkPax>T.pax?('<div class="vb-cxl" style="color:#FFD79A">จอง '+T.bkPax+' · −'+(T.bkPax-T.pax)+'</div>'):'')+'</td>'
@@ -9426,6 +9453,7 @@ function vbCss(){
   +'.vb-rn{font-size:11.5px;color:#4A5058}'
   +'.vb-area{display:inline-block;font-size:10.5px;font-weight:700;background:#F1F4F7;color:#6B7280;border:1px solid #E1E5EA;border-radius:7px;padding:2px 8px;margin:1px 3px 1px 0;white-space:nowrap}'
   +'.vb-area.far{background:#FBF3E6;color:#8A5B00;border-color:#EEDCBE}'
+  +'.vb-area.alt{background:#F3EDFB;color:#5B289A;border-color:#E0D3F2}'
   +'.vb-sub{font-size:9.5px;color:#9AA0A6;font-weight:500}'
   +'.vb-mut{color:#B6BCC3}'
   +'.vb-t tr.vb-ex td{background:#F8FAFD}'
