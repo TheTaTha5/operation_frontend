@@ -3994,6 +3994,47 @@ function laBlob(){
   _laBlobRaw=raw;
   return _laBlob;
 }
+/* ══ §ckDay (2026-09-22) · รับของวันเดียวจาก /api/ck มาแปะ ═══════════════════
+   ชั้น sync เป็นคนดึงและเป็นคนอัปเดต BASE · ตรงนี้รับหน้าที่แปะลงข้อมูลที่หน้าจอใช้
+   อยู่ไฟล์นี้เพราะที่นี่คือที่ที่รู้ว่า SB_BOOKINGS กับก้อนใน localStorage ผูกกันยังไง
+
+   คืน false เมื่อไม่มั่นใจ · ผู้เรียกจะถอยไปดึงก้อนเต็มแทน
+   เงื่อนไขที่ทำให้ไม่มั่นใจคือ "ชุดใบของวันนั้นสองฝั่งไม่ตรงกัน"
+   แปลว่ามีใบเกิดใหม่ ย้ายวัน หรือถูกยกเลิก ซึ่งเดาเองไม่ได้ว่าต้องทำอะไรกับใบที่หายไป */
+window._laCkApply=function(date, recs){
+  try{
+    if(!date || !Array.isArray(recs)) return false;
+    if(typeof SB_BOOKINGS==='undefined' || !Array.isArray(SB_BOOKINGS)) return false;
+    var onDay=function(b){
+      return !!(b && Array.isArray(b.trips) && b.trips.some(function(t){ return t && t.date===date; }));
+    };
+    var srv={}, sn=0;
+    recs.forEach(function(b){ if(b && b.id){ srv[b.id]=b; sn++; } });
+    var loc={}, ln=0;
+    SB_BOOKINGS.forEach(function(b){ if(b && b.id && onDay(b)){ loc[b.id]=1; ln++; } });
+    if(sn!==ln) return false;
+    for(var k in srv){ if(!loc[k]) return false; }
+    /* แปะทั้งสองที่ · SB_BOOKINGS คือของที่หน้าจออ่าน · ก้อนคือของที่รีเฟรชแล้วยังอยู่
+       สองตัวนี้อาจเป็นคนละ array กัน (คนละรอบ parse) จึงต้องแปะแยก ไม่ใช่แปะที่เดียวแล้วหวัง */
+    var at={}; SB_BOOKINGS.forEach(function(b,i){ if(b&&b.id) at[b.id]=i; });
+    var n=0;
+    for(var id in srv){ if(at[id]!=null){ SB_BOOKINGS[at[id]]=srv[id]; n++; } }
+    if(!n) return false;
+    try{
+      var blob=laBlob();
+      if(blob && Array.isArray(blob.sb_bookings) && blob.sb_bookings!==SB_BOOKINGS){
+        var bat={}; blob.sb_bookings.forEach(function(b,i){ if(b&&b.id) bat[b.id]=i; });
+        for(var id2 in srv){ if(bat[id2]!=null) blob.sb_bookings[bat[id2]]=srv[id2]; }
+      }
+      /* BASE ถูกอัปเดตไปแล้วก่อนถึงตรงนี้ · การเซฟที่ตามมาจึงเห็น diff เป็นศูนย์
+         ไม่ดันค่าของคนอื่นกลับขึ้นไปทับ */
+      laBlobSave();
+    }catch(e){}
+    try{ if(typeof baChMemoClear==='function') baChMemoClear(); }catch(_){}
+    try{ if(typeof renderPierCheckin==='function') renderPierCheckin(); }catch(_){ return false; }
+    return true;
+  }catch(e){ try{ console.warn('[ckDay] apply failed', e && e.message); }catch(_){} return false; }
+};
 function laBlobSave(){
   try{
     var str=JSON.stringify(_laBlob||{});

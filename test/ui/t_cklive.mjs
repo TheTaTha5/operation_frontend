@@ -45,8 +45,12 @@ const S = {
   sseOpens: 0,          // นับจำนวนครั้งที่ไคลเอนต์มาเปิดสาย · ใช้พิสูจน์ว่ามีคนปลุก
   verHits: 0,           // นับจำนวนครั้งที่ถูกถามเวอร์ชัน · ใช้พิสูจน์ว่าหยุดถามเมื่อออกจากหน้า
   loads: 0,
-  sseRefuse: false      // true = ตอบ 401 ให้ EventSource (จำลอง session สะดุด)
+  sseRefuse: false,     // true = ตอบ 401 ให้ EventSource (จำลอง session สะดุด)
+  ckHits: 0, ckBytes: 0, ckDown: false, ckExtra: false,
+  saves: 0, lastSave: '',
+  blob: null            // ก้อนข้อมูลแบบ object · ใช้ตอบ /api/ck และแก้เพื่อจำลองว่าอีกเครื่องเช็คอิน
 };
+S.blob = JSON.parse(S.data);
 function bump(by){ S.version++; return { version:S.version, updated_by:by||'เครื่อง A' }; }
 function push(by){ const m=bump(by); const t='data: '+JSON.stringify(m)+'\n\n';
   S.sse.forEach(r=>{ try{ r.write(t); }catch(_){} }); return m; }
@@ -58,8 +62,17 @@ const srv = http.createServer((req, res) => {
   if (u === '/api/me') return J(200, { username:'test', name:'ทดสอบ', role:'admin', canEdit:true });
   if (u === '/api/version'){ S.verHits++; return J(200, { version:S.version, updated_by:'เครื่อง A',
     updated_at:new Date().toISOString() }); }
-  if (u === '/api/load'){ S.loads++; return J(200, { version:S.version, data:S.data,
+  if (u === '/api/load'){ S.loads++; return J(200, { version:S.version, data:JSON.stringify(S.blob),
     updated_by:'เครื่อง A', updated_at:new Date().toISOString() }); }
+  if (u === '/api/ck'){
+    S.ckHits++;
+    if (S.ckDown) return J(501, { error:'ck off' });          /* จำลองเซิร์ฟเวอร์รุ่นเก่า/โหมด blob */
+    const date = new URLSearchParams(req.url.split('?')[1]||'').get('date')||'';
+    const recs = (S.blob.sb_bookings||[]).filter(b => (b.trips||[]).some(x => x && x.date === date));
+    if (S.ckExtra) recs.push({ id:'__ผี__', trips:[{ date, routeId:'x', pax:{} }] });  /* ชุด id ไม่ตรง */
+    S.ckBytes += JSON.stringify(recs).length;
+    return J(200, { date, version:S.version, bookings:recs });
+  }
   if (u === '/api/events'){
     S.sseOpens++;
     if (S.sseRefuse){ res.writeHead(401); return res.end(); }
@@ -71,8 +84,9 @@ const srv = http.createServer((req, res) => {
     return;
   }
   if (u === '/api/save' || u === '/api/v1/_batch'){
-    let n = 0; req.on('data', c => n += c.length);
-    return req.on('end', () => J(200, { ok:true, version:++S.version }));
+    S.saves++;
+    let body = ''; req.on('data', c => body += c);
+    return req.on('end', () => { S.lastSave = body; J(200, { ok:true, version:++S.version }); });
   }
   if (u.startsWith('/api/')) return J(200, {});
   const rel = decodeURIComponent(u).replace(/^\/+/, '') || 'allotment_v2.html';
@@ -111,7 +125,17 @@ else ok('อยู่บนหน้าเช็คอินหน้าท่�
 
 /* "ไคลเอนต์รู้ตัวแล้ว" วัดจากฝั่งเซิร์ฟเวอร์ · มันจะมาดึง /api/load เมื่อเห็นว่าเวอร์ชันขยับ
    VER อยู่ใน closure ของชั้น sync อ่านจากหน้าไม่ได้ และไม่ควรเปิดออกมาแค่เพื่อเทส */
+function pulls(){ return S.loads + S.ckHits; }
 async function waitLoad(limitMs){
+  const base = pulls(), t0 = Date.now();
+  while (Date.now() - t0 < limitMs){
+    if (pulls() > base) return Date.now() - t0;
+    await sleep(80);
+  }
+  return -1;
+}
+/* เฉพาะก้อนเต็ม · ใช้ตอนต้องพิสูจน์ว่า "ถอยไปทางเดิม" จริง */
+async function waitFull(limitMs){
   const base = S.loads, t0 = Date.now();
   while (Date.now() - t0 < limitMs){
     if (S.loads > base) return Date.now() - t0;
@@ -196,7 +220,7 @@ await page.evaluate(() => {
   d.innerHTML = '<textarea id="pck-note-tx">พิมพ์ค้างไว้</textarea>';
   document.body.appendChild(d);
 });
-const loads0 = S.loads;
+const loads0 = pulls();
 bump();
 await sleep(3000);
 const kept = await page.evaluate(() => {
@@ -205,7 +229,7 @@ const kept = await page.evaluate(() => {
   return { open: !!d, text: t ? t.value : '' };
 });
 if (!kept.open || kept.text !== 'พิมพ์ค้างไว้') fail('ลิ้นชักเปิดค้างอยู่แต่โดนวาดทับ · ของที่พิมพ์หาย');
-else if (S.loads > loads0) fail('ลิ้นชักเปิดอยู่แต่ยังดึงข้อมูลมาทับ ' + (S.loads - loads0) + ' ครั้ง');
+else if (pulls() > loads0) fail('ลิ้นชักเปิดอยู่แต่ยังดึงข้อมูลมาทับ ' + (pulls() - loads0) + ' ครั้ง');
 else ok('ลิ้นชักเปิดค้าง · ไม่ถูกวาดทับ และยังไม่ดึงข้อมูลมาทับ');
 await page.evaluate(() => { const d = document.getElementById('pck-drawer'); if (d) d.remove(); });
 const t5 = await waitLoad(5000);          /* ปิดลิ้นชักแล้วต้องตามทันเอง ไม่ใช่ค้างตลอดไป */
@@ -221,6 +245,66 @@ await sleep(8000);
 const hits = S.verHits - h0;
 if (hits > 2) fail('ออกจากหน้าเช็คอินแล้วยังถามถี่ · ' + hits + ' ครั้งใน 8 วิ (คาบปกติ 10 วิ ควรได้ไม่เกิน 1)');
 else ok('ออกจากหน้าเช็คอินแล้วกลับไปถามตามคาบปกติ · ' + hits + ' ครั้งใน 8 วิ');
+
+/* == 7 . ดึงเฉพาะของวันนั้น ไม่ใช่ก้อนทั้งระบบ ============================
+   หัวใจของชั้นสอง . อีกเครื่องเช็คอิน เครื่องนี้ต้องเห็น โดยไม่ต้องโหลด 20MB */
+await page.evaluate(() => { const el = document.querySelector('.nav-item[data-view="piercheckin"]'); if (el) nav(el); });
+await sleep(1200);
+let saves0 = S.saves;   /* นับการเซฟตั้งแต่ก่อนแปะของคนอื่น · การดันกลับเกิดทันทีที่แปะ */
+const day = await page.evaluate(() => (typeof _pckDate === 'string' ? _pckDate : ''));
+const pick = S.blob.sb_bookings.find(b => (b.trips||[]).some(x => x && x.date === day));
+if (!day || !pick) console.log('  ! \u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e40\u0e1b\u0e34\u0e14\u0e2d\u0e22\u0e39\u0e48\u0e44\u0e21\u0e48\u0e21\u0e35\u0e43\u0e1a\u0e08\u0e2d\u0e07 . \u0e02\u0e49\u0e32\u0e21\u0e02\u0e49\u0e2d\u0e14\u0e36\u0e07\u0e41\u0e04\u0e1a');
+else {
+  const loads0 = S.loads, ck0 = S.ckHits;
+  saves0 = S.saves;
+  /* \u0e2d\u0e35\u0e01\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19\u0e43\u0e1a\u0e19\u0e35\u0e49 */
+  pick.ops = pick.ops || {};
+  pick.ops.pierCheckin = { at:new Date().toISOString(), by:'\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07 A', actualPax:1, noShow:0, expected:1, events:[] };
+  push();
+  await sleep(2500);
+  const ckUsed = S.ckHits - ck0, fullUsed = S.loads - loads0;
+  const got = await page.evaluate(id => {
+    const b = (SB_BOOKINGS||[]).find(x => x && x.id === id);
+    return !!(b && b.ops && b.ops.pierCheckin && b.ops.pierCheckin.at);
+  }, pick.id);
+  if (!got) fail('\u0e14\u0e36\u0e07\u0e41\u0e04\u0e1a\u0e41\u0e25\u0e49\u0e27\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e44\u0e21\u0e48\u0e40\u0e02\u0e49\u0e32\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07');
+  else if (!ckUsed) fail('\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e43\u0e0a\u0e49 /api/ck \u0e40\u0e25\u0e22');
+  else if (fullUsed) fail('\u0e43\u0e0a\u0e49 /api/ck \u0e41\u0e25\u0e49\u0e27\u0e22\u0e31\u0e07\u0e14\u0e36\u0e07\u0e01\u0e49\u0e2d\u0e19\u0e40\u0e15\u0e47\u0e21\u0e0b\u0e49\u0e33\u0e2d\u0e35\u0e01 ' + fullUsed + ' \u0e04\u0e23\u0e31\u0e49\u0e07');
+  else ok('\u0e40\u0e2b\u0e47\u0e19\u0e01\u0e32\u0e23\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19\u0e02\u0e2d\u0e07\u0e2d\u0e35\u0e01\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07 . \u0e14\u0e36\u0e07\u0e41\u0e04\u0e1a ' + ckUsed + ' \u0e04\u0e23\u0e31\u0e49\u0e07 (' + Math.round(S.ckBytes/1024) + 'KB) \u0e44\u0e21\u0e48\u0e41\u0e15\u0e30\u0e01\u0e49\u0e2d\u0e19\u0e40\u0e15\u0e47\u0e21\u0e40\u0e25\u0e22');
+}
+
+/* == 8 . \u0e0a\u0e38\u0e14 id \u0e02\u0e2d\u0e07\u0e27\u0e31\u0e19\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07 \u0e15\u0e49\u0e2d\u0e07\u0e16\u0e2d\u0e22\u0e44\u0e1b\u0e14\u0e36\u0e07\u0e40\u0e15\u0e47\u0e21 ==================== */
+{
+  const loads0 = S.loads;
+  S.ckExtra = true;                        /* \u0e40\u0e0b\u0e34\u0e23\u0e4c\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e21\u0e35\u0e43\u0e1a\u0e17\u0e35\u0e48\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e23\u0e39\u0e49\u0e08\u0e31\u0e01 */
+  push();
+  const t8 = await waitFull(6000);
+  S.ckExtra = false;
+  if (t8 < 0) fail('\u0e0a\u0e38\u0e14 id \u0e44\u0e21\u0e48\u0e15\u0e23\u0e07\u0e41\u0e25\u0e49\u0e27\u0e44\u0e21\u0e48\u0e16\u0e2d\u0e22\u0e44\u0e1b\u0e14\u0e36\u0e07\u0e40\u0e15\u0e47\u0e21 . \u0e43\u0e1a\u0e17\u0e35\u0e48\u0e40\u0e1e\u0e34\u0e48\u0e07\u0e40\u0e01\u0e34\u0e14\u0e08\u0e30\u0e44\u0e21\u0e48\u0e42\u0e1c\u0e25\u0e48\u0e40\u0e25\u0e22');
+  else ok('\u0e0a\u0e38\u0e14 id \u0e02\u0e2d\u0e07\u0e27\u0e31\u0e19\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07 . \u0e16\u0e2d\u0e22\u0e44\u0e1b\u0e14\u0e36\u0e07\u0e01\u0e49\u0e2d\u0e19\u0e40\u0e15\u0e47\u0e21\u0e43\u0e19 ' + t8 + 'ms');
+}
+
+/* == 9 . \u0e40\u0e0b\u0e34\u0e23\u0e4c\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e44\u0e21\u0e48\u0e23\u0e39\u0e49\u0e08\u0e31\u0e01 /api/ck \u0e15\u0e49\u0e2d\u0e07\u0e17\u0e33\u0e07\u0e32\u0e19\u0e15\u0e48\u0e2d\u0e44\u0e14\u0e49 ======== */
+{
+  const loads0 = S.loads;
+  S.ckDown = true;
+  push();
+  const t9 = await waitFull(6000);
+  S.ckDown = false;
+  if (t9 < 0) fail('/api/ck \u0e43\u0e0a\u0e49\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49\u0e41\u0e25\u0e49\u0e27\u0e2b\u0e19\u0e49\u0e32\u0e04\u0e49\u0e32\u0e07\u0e44\u0e1b\u0e40\u0e25\u0e22 . \u0e40\u0e14\u0e1b\u0e25\u0e2d\u0e22\u0e44\u0e04\u0e25\u0e40\u0e2d\u0e19\u0e15\u0e4c\u0e01\u0e48\u0e2d\u0e19\u0e40\u0e0b\u0e34\u0e23\u0e4c\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e08\u0e30\u0e1e\u0e31\u0e07');
+  else ok('/api/ck \u0e43\u0e0a\u0e49\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49 . \u0e16\u0e2d\u0e22\u0e44\u0e1b\u0e17\u0e32\u0e07\u0e40\u0e14\u0e34\u0e21\u0e43\u0e19 ' + t9 + 'ms');
+}
+
+/* == 10 . \u0e14\u0e36\u0e07\u0e41\u0e04\u0e1a\u0e41\u0e25\u0e49\u0e27\u0e2b\u0e49\u0e32\u0e21\u0e14\u0e31\u0e19\u0e02\u0e2d\u0e07\u0e04\u0e19\u0e2d\u0e37\u0e48\u0e19\u0e01\u0e25\u0e31\u0e1a\u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b\u0e17\u0e31\u0e1a ===========
+   \u0e02\u0e49\u0e2d\u0e17\u0e35\u0e48\u0e2d\u0e31\u0e19\u0e15\u0e23\u0e32\u0e22\u0e17\u0e35\u0e48\u0e2a\u0e38\u0e14\u0e02\u0e2d\u0e07\u0e17\u0e32\u0e07\u0e41\u0e04\u0e1a . BASE \u0e04\u0e37\u0e2d\u0e20\u0e32\u0e1e\u0e02\u0e2d\u0e07\u0e40\u0e0b\u0e34\u0e23\u0e4c\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e17\u0e35\u0e48\u0e43\u0e0a\u0e49\u0e04\u0e34\u0e14 diff
+   \u0e16\u0e49\u0e32\u0e41\u0e1b\u0e30\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e43\u0e19\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07\u0e42\u0e14\u0e22\u0e44\u0e21\u0e48\u0e41\u0e1b\u0e30 BASE \u0e01\u0e32\u0e23\u0e40\u0e0b\u0e1f\u0e04\u0e23\u0e31\u0e49\u0e07\u0e16\u0e31\u0e14\u0e44\u0e1b\u0e08\u0e30\u0e40\u0e2b\u0e47\u0e19
+   \u0e02\u0e2d\u0e07\u0e04\u0e19\u0e2d\u0e37\u0e48\u0e19\u0e40\u0e1b\u0e47\u0e19 "\u0e01\u0e32\u0e23\u0e41\u0e01\u0e49\u0e02\u0e2d\u0e07\u0e40\u0e23\u0e32" \u0e41\u0e25\u0e49\u0e27\u0e14\u0e31\u0e19\u0e04\u0e48\u0e32\u0e40\u0e01\u0e48\u0e32\u0e01\u0e25\u0e31\u0e1a\u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b\u0e17\u0e31\u0e1a\u0e02\u0e2d\u0e07\u0e08\u0e23\u0e34\u0e07 */
+{
+  await page.evaluate(() => { try{ laBlobSave(); }catch(_){} });
+  await sleep(2600);
+  if (S.saves > saves0) fail('\u0e14\u0e36\u0e07\u0e41\u0e04\u0e1a\u0e41\u0e25\u0e49\u0e27\u0e40\u0e0b\u0e1f\u0e04\u0e23\u0e31\u0e49\u0e07\u0e16\u0e31\u0e14\u0e44\u0e1b\u0e14\u0e31\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e01\u0e25\u0e31\u0e1a\u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b ' + (S.saves - saves0) + ' \u0e04\u0e23\u0e31\u0e49\u0e07 . BASE \u0e44\u0e21\u0e48\u0e16\u0e39\u0e01\u0e2d\u0e31\u0e1b\u0e40\u0e14\u0e17');
+  else ok('\u0e14\u0e36\u0e07\u0e41\u0e04\u0e1a\u0e41\u0e25\u0e49\u0e27\u0e40\u0e0b\u0e1f . diff \u0e40\u0e1b\u0e47\u0e19\u0e28\u0e39\u0e19\u0e22\u0e4c \u0e44\u0e21\u0e48\u0e14\u0e31\u0e19\u0e02\u0e2d\u0e07\u0e04\u0e19\u0e2d\u0e37\u0e48\u0e19\u0e01\u0e25\u0e31\u0e1a\u0e02\u0e36\u0e49\u0e19\u0e44\u0e1b');
+}
 
 console.log(bad ? ('\nพัง ' + bad) : '\nพัง 0');
 await browser.close(); srv.close();

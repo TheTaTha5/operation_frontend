@@ -2669,6 +2669,27 @@ async function restLoad(table, id, db){
   await kids(table, data[table].map(r => r[pkc]).filter(v => v != null));
   return data;
 }
+/* ══ §ckDay (2026-09-22) · โหลดเฉพาะใบของวันเดียว ═══════════════════════════
+   restLoad รับได้ทีละใบ · หน้าเช็คอินต้องการทั้งวัน (ราว 30-60 ใบ)
+   ยิงทีละใบ 60 คำขอไม่ไหว · ตัวนี้คือ restLoad ที่รับเป็นชุด id
+   โครงเหมือนกันทุกบรรทัด ต่างแค่ WHERE pk = ANY($1) */
+async function restLoadMany(table, ids, db){
+  db = db || pool;
+  const pl = REST_PLAN[table], pkc = pl.pkCol || pl.keyCol, data = {};
+  const pr = await db.query(`SELECT * FROM ${fqt(table)} WHERE ${qic(pkc)} = ANY($1)`, [ids]);
+  data[table] = pr.rows;
+  async function kids(t, pkvals){
+    if (!pkvals.length) return;
+    for (const c of (REST_KIDS[t]||[])){
+      const cp = REST_PLAN[c];
+      const r = await db.query(`SELECT * FROM ${fqt(c)} WHERE ${qic(cp.fkCol)} = ANY($1)`, [pkvals]);
+      data[c] = (data[c]||[]).concat(r.rows);
+      await kids(c, r.rows.map(x => x[cp.rowPkCol != null ? cp.rowPkCol : cp.pkCol]).filter(v => v != null));
+    }
+  }
+  await kids(table, data[table].map(r => r[pkc]).filter(v => v != null));
+  return data;
+}
 async function restGet(res, resName, id){
   const R = REST_RES[resName]; if (!R) return J(res, 404, { error: 'unknown resource: ' + resName });
   const { table, container } = R, appKey = REST_PLAN[table].appKey;
@@ -2992,6 +3013,39 @@ const server = http.createServer((req, res) => {
     sseClients.add(res);
     const hb=setInterval(()=>{ try{ res.write(':hb\n\n'); }catch(e){} }, 25000);
     req.on('close', ()=>{ clearInterval(hb); sseClients.delete(res); });
+    return;
+  }
+  /* ══ §ckDay · สถานะเช็คอินของวันเดียว ════════════════════════════════════
+     ที่มา · หน้าเช็คอินหน้าท่าสองเครื่องทำพร้อมกัน · ทุกครั้งที่อีกเครื่องกดเช็คอิน
+     เครื่องนี้ต้องดึง /api/load ซึ่งเป็นก้อนทั้งระบบ ~20MB เพื่อดูสถานะไม่กี่แถว
+     เช้าหนึ่งเช็คอินร้อยคน = สองกิกะไบต์ต่อเครื่อง บนเน็ตหน้าท่า
+     ตัวนี้คืนเฉพาะใบที่มีทริปวันนั้น (ราว 30-60 ใบ · หลักแสนไบต์)
+
+     ⚠ คืน "ใบเต็ม" ไม่ใช่เฉพาะช่องเช็คอิน · ใบที่เพิ่งเกิดใหม่ต้องมีข้อมูลพอจะวาดแถวได้
+       และไคลเอนต์ต้องเทียบชุด id ได้ว่าวันนั้นมีใบอะไรบ้าง ตรงกับของตัวเองไหม
+       ไม่ตรงเมื่อไหร่ (ใบเกิด/ย้ายวัน/ยกเลิก) ไคลเอนต์จะถอยไปดึงก้อนเต็มเอง
+     ⚠ โหมด blob ตอบ 501 · ไคลเอนต์ถือเป็น "ทางนี้ใช้ไม่ได้" แล้วถอยไปทางเดิม
+       ปล่อยให้ deploy ไคลเอนต์ก่อนเซิร์ฟเวอร์ได้โดยไม่พัง */
+  if(u === '/api/ck'){
+    const s=session(req); if(!s) return J(res,401,{error:'login required'});
+    if(!pool) return J(res,503,{error:'no database'});
+    if(DATA_BACKEND!=='relational') return J(res,501,{error:'ck needs DATA_BACKEND=relational'});
+    const date=String(new URLSearchParams(q).get('date')||'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return J(res,400,{error:'date=YYYY-MM-DD required'});
+    const T='sb_bookings', TRIPS='sb_bookings__trips';
+    if(!REST_PLAN[T] || !REST_PLAN[TRIPS]) return J(res,501,{error:'schema has no bookings/trips'});
+    const fk=REST_PLAN[TRIPS].fkCol;
+    pool.query(`SELECT DISTINCT ${qic(fk)} AS id FROM ${fqt(TRIPS)} WHERE "date"=$1`, [date])
+      .then(async r=>{
+        const ids=r.rows.map(x=>x.id).filter(v=>v!=null);
+        const vr=await pool.query('SELECT version FROM app_state WHERE id=$1',[STATE_KEY]);
+        const version=(vr.rows[0]&&vr.rows[0].version)||0;
+        if(!ids.length) return J(res,200,{date, version, bookings:[]});
+        const blob=osRepo.assembleBlob(await restLoadMany(T, ids));
+        const arr=Array.isArray(blob[REST_PLAN[T].appKey])?blob[REST_PLAN[T].appKey]:[];
+        J(res,200,{date, version, bookings:arr});
+      })
+      .catch(e=>J(res,500,{error:e.message}));
     return;
   }
   if(u === '/api/save' && req.method === 'POST'){

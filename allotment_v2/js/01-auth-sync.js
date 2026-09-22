@@ -456,7 +456,7 @@
          และไม่เช็ค updated_by อีกแล้ว · ของเดิมเช็คแล้วใบจองหลุดเงียบ
          เวลามีคนอื่นกดบันทึกคั่นระหว่างที่ผู้ใช้ยุ่งอยู่ */
       var _b2cNew=[]; try{ _b2cNew=_laB2CScan(BASE); }catch(e){}
-      _laClearPending();
+      _laClearPending(); _laCkFullAt=Date.now();      /* §ckDay · นับคิวก้อนเต็มรอบใหม่ */
       var ok = window._laReloadData ? window._laReloadData() : false;
       if(!ok){ _laReload(); return; }                             // in-place failed → fall back to full reload
       if(window._laRerender) window._laRerender();
@@ -468,7 +468,74 @@
     try{ x.send(); }catch(e){}
   }
   window._laSoftRefresh=_laSoftRefresh;   // expose for the banner button's inline onclick
-  function _laTryRefresh(){ if(!_laPending) return; if(_laBusy()) showRefresh(_laPending); else _laSoftRefresh(); }
+  /* ══ §ckDay (2026-09-22) · หน้าเช็คอินดึงเฉพาะของวันที่เปิดอยู่ ════════════
+     เขียนขึ้นเซิร์ฟเวอร์ส่งเฉพาะส่วนที่เปลี่ยนมานานแล้ว (/api/v1/_batch)
+     แต่ขาอ่านยังดึง /api/load ซึ่งเป็นก้อนทั้งระบบ ~20MB ทุกครั้งที่ใครก็ตามเซฟอะไร
+     หน้าท่าสองเครื่องเช็คอินสลับกันทั้งเช้า = เครื่องละหลายสิบรอบ บนเน็ตที่ช้าที่สุดในบริษัท
+     /api/ck คืนเฉพาะใบของวันนั้น (หลักแสนไบต์) พอสำหรับสิ่งที่คนหน้าท่าต้องเห็น
+
+     ⚠ ทางนี้ทำให้หน้าจอตรง เฉพาะ "ของวันนั้น" เท่านั้น · ส่วนอื่นของก้อนยังเก่าอยู่
+       จึงไม่ขยับ VER (ไม่โกหกว่าตามครบแล้ว) แต่จำไว้ที่ _laCkSeen ว่าเวอร์ชันนี้
+       หน้าเช็คอินตามทันแล้ว จะได้ไม่วนดึงซ้ำทุกรอบ
+       แล้วบังคับดึงก้อนเต็มเมื่อออกจากหน้า ซ่อนแท็บ หรือครบ 5 นาที
+     ⚠ ชุด id ของวันนั้นต้องตรงกันสองฝั่ง · ไม่ตรง (ใบเกิด ย้ายวัน ยกเลิก) = ถอยไปดึงเต็ม
+       ไม่เดาเอาเองว่าใบไหนหายไปไหน
+     ⚠ อัปเดต BASE ด้วยเสมอ · BASE คือภาพของเซิร์ฟเวอร์ที่ใช้คิด diff ตอนเซฟ
+       ถ้าแก้แต่ข้อมูลในเครื่องโดยไม่แตะ BASE การเซฟครั้งถัดไปจะเห็นของคนอื่น
+       เป็น "การแก้ของเรา" แล้วดันค่าเก่ากลับขึ้นไปทับ */
+  var _laCkSeen=0, _laCkFullAt=Date.now(), _laCkBusy=false;
+  var LA_CK_FULL_MS=300000;               /* ก้อนเต็มอย่างช้าทุก 5 นาที ระหว่างอยู่หน้านี้ */
+  function _laCkDate(){
+    try{ var d=window._pckDate; return (typeof d==='string' && /^\d{4}-\d{2}-\d{2}$/.test(d))?d:''; }
+    catch(e){ return ''; }
+  }
+  function _laCkCanNarrow(){
+    if(!_laLiveView() || typeof window._laCkApply!=='function') return false;
+    if(Date.now()-_laCkFullAt > LA_CK_FULL_MS) return false;    /* ถึงคิวก้อนเต็มแล้ว */
+    return !!_laCkDate();
+  }
+  /* ดึงแบบแคบ · สำเร็จคืน true ผ่าน cb · ล้มเหลวคืน false แล้วให้ผู้เรียกไปทางเดิม */
+  function _laCkNarrow(cb){
+    var date=_laCkDate();
+    if(!date) return cb(false);
+    if(_laCkBusy) return cb(true);   /* มีคำขอแคบค้างอยู่ · ข้ามรอบนี้ ไม่ใช่ยกระดับไปดึงก้อนเต็ม */
+    _laCkBusy=true;
+    var fin=function(v){ _laCkBusy=false; cb(v); };
+    var x=new XMLHttpRequest(); x.open('GET', bust('/api/ck?date='+encodeURIComponent(date)), true);
+    x.timeout=9000;
+    x.ontimeout=function(){ fin(false); };
+    x.onerror=function(){ fin(false); };
+    x.onload=function(){
+      if(x.status!==200) return fin(false);          /* 501 โหมด blob · 404 เซิร์ฟเวอร์เก่า → ทางเดิม */
+      var j=null; try{ j=JSON.parse(x.responseText); }catch(e){}
+      if(!j || !Array.isArray(j.bookings) || j.date!==date) return fin(false);
+      if(_laBusy()) return fin(false);               /* คนกลับมาทำงานระหว่างรอ · ไว้รอบหน้า */
+      /* BASE ก่อนเสมอ · ถ้าขั้นนี้ไม่ผ่าน ห้ามแตะข้อมูลในเครื่องเลย */
+      try{
+        if(BASE && Array.isArray(BASE.sb_bookings)){
+          var at={}; BASE.sb_bookings.forEach(function(b,i){ if(b&&b.id) at[b.id]=i; });
+          j.bookings.forEach(function(b){ if(b&&b.id&&at[b.id]!=null) BASE.sb_bookings[at[b.id]]=b; });
+        }
+      }catch(e){ return fin(false); }
+      var okApplied=false;
+      try{ okApplied=!!window._laCkApply(date, j.bookings); }catch(e){ okApplied=false; }
+      if(!okApplied) return fin(false);              /* ชุด id ไม่ตรง หรือวาดไม่ได้ → ดึงเต็ม */
+      _laCkSeen=Math.max(_laCkSeen, j.version||0);
+      if(_laPending && (_laPending.version||0)<=_laCkSeen){
+        _laPending=null; _laPendAt=0;                /* หน้านี้ตามทันแล้ว · ไม่ต้องขึ้นแถบเตือน */
+        var bn=document.getElementById('la-refresh'); if(bn){ bn.remove(); _refreshShown=false; }
+      }
+      fin(true);
+    };
+    try{ x.send(); }catch(e){ fin(false); }
+  }
+  function _laTryRefresh(){
+    if(!_laPending) return;
+    if((_laPending.version||0)<=_laCkSeen) return;   /* หน้าเช็คอินตามทันเวอร์ชันนี้แล้ว */
+    if(_laBusy()){ showRefresh(_laPending); return; }
+    if(_laCkCanNarrow()){ _laCkNarrow(function(okn){ if(!okn) _laSoftRefresh(); }); return; }
+    _laSoftRefresh();
+  }
   // poll cloud version
   /* §ckLive2 · ถามเวอร์ชันหนึ่งครั้ง · health=1 คือรอบที่รับผิดชอบรายงานสุขภาพ B2C ด้วย
      ตัวเร็วของหน้าเช็คอินไม่ต้องรายงาน จะได้ไม่เด้งซ้ำกับรอบ 10 วิ */
@@ -521,7 +588,7 @@
      ซึ่งบวกเวลารอฟรี ๆ อีกถึง 3 วิให้หน้าที่ต้องการความสด · ไม่มีคำขอเน็ตถ้าไม่มีอะไรรอ */
   setInterval(function(){
     if(!_laLiveView() || document.hidden || !_laPending) return;
-    if(!_laBusy()) _laSoftRefresh();
+    if(!_laBusy()) _laTryRefresh();
   }, 400);
   // §B2C sync-down alert (2026-07-31): a failed B2C sync is non-fatal on the server — it logs and moves
   // on — so without this the app looks perfectly healthy while orders silently stop arriving. Server
@@ -555,7 +622,20 @@
   function _laStartSSE(){ if(typeof EventSource==='undefined') return; try{ if(window.__laSSE) window.__laSSE.close(); var es=new EventSource('/api/events'); es.onmessage=function(e){ try{ var j=JSON.parse(e.data); if((j.version||0)>VER){ _laSetPending(j); _laTryRefresh(); } }catch(_){} }; window.__laSSE=es; }catch(e){} }
   _laStartSSE();
   // keep the saved screen fresh · once new data is pending, seamlessly refresh the moment the user goes idle
-  setInterval(function(){ _laSaveView(); if(_laPending && !_laBusy()) _laSoftRefresh(); }, 3000);
+  setInterval(function(){ _laSaveView(); if(_laPending && !_laBusy()) _laTryRefresh(); }, 3000);
+  /* §ckDay · ออกจากหน้าเช็คอินเมื่อไหร่ ต้องตามก้อนเต็มให้ครบ
+     ระหว่างอยู่หน้านั้นเราจงใจตามแค่ของวันนั้น · ส่วนอื่นของก้อนค้างไว้ */
+  (function(){
+    var was=false;
+    setInterval(function(){
+      var now=_laLiveView();
+      if(was && !now && _laCkSeen){ _laCkSeen=0; if(!_laBusy()) _laSoftRefresh(); }
+      was=now;
+    }, 1000);
+    try{ document.addEventListener('visibilitychange', function(){
+      if(document.hidden && _laCkSeen){ _laCkSeen=0; }   /* ซ่อนแท็บ · รอบหน้าที่กลับมาให้ดึงเต็ม */
+    }); }catch(e){}
+  })();
   function showRefresh(info){ if(_refreshShown) return; _refreshShown=true; onReady(function(){ var d=document.createElement('div'); d.id='la-refresh'; /* §laRefresh (2026-09-11) · หน้าตา/ตำแหน่งย้ายไปอยู่ css/01-base.css แล้ว
        ของเดิมเป็น inline style ลอยกลางก้นจอ · ที่นี่เหลือแค่เนื้อความ
        บรรทัดบน = เกิดอะไรขึ้น · บรรทัดล่าง = ใครทำ + ระบบจะทำอะไรต่อ */
