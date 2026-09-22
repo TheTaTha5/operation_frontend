@@ -7459,6 +7459,60 @@ function flBoardScan(){
 }
 function flBoardEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function flBoardWho(){ try{ return String((window.LA_ME&&(LA_ME.name||LA_ME.username))||'').trim(); }catch(_){ return ''; } }
+function _flBoardFind(id){
+  return (typeof FL_MAINT!=='undefined'?FL_MAINT:[]).filter(function(x){ return x.id===id; })[0]||null;
+}
+
+/* ══ งานย่อย · ขั้นตอนของใบเดียว · m.subs = [{t, d, by, at}] ═══════════════
+   ที่มา · ใบหนึ่งใบอยู่ในเลนเดิมเป็นเดือน เพราะ "ทำอยู่" กับ "ทำเสร็จ" เป็นสองค่าเท่านั้น
+   ระหว่างทางไม่มีที่ให้บันทึก ช่างเลยไม่บันทึก และใบก็เงียบทั้งที่งานเดินอยู่
+
+   ⚠ ติ๊กหนึ่งขั้น = ลง progressLog หนึ่งบรรทัด (flBoardSubTick) · ตั้งใจให้เป็นทางนั้น
+     บอร์ดไม่ได้เก็บตัวนับความคืบหน้าของตัวเอง · flBoardSilent อ่าน progressLog อยู่แล้ว
+     ความเงียบเลยรีเซ็ตเองโดยไม่มีตัวนับที่สอง (อ่านที่เดียว ใช้สองที่)
+   ═══════════════════════════════════════════════════════════════════════════ */
+function flBoardSubs(m){ return (m && Array.isArray(m.subs)) ? m.subs : []; }
+function flBoardSubDone(m){ var n=0; flBoardSubs(m).forEach(function(s){ if(s&&s.d) n++; }); return n; }
+/* แม่แบบขั้นตอน · เดาจากชื่อใบ เพราะชื่อใบเป็นของที่มีอยู่แล้ว ไม่ต้องให้ใครมาเลือกชนิดงานเพิ่ม
+   เดาผิดก็ลบขั้นที่ไม่ใช้ทิ้งได้ · แม่แบบเป็นจุดตั้งต้น ไม่ใช่ข้อบังคับ */
+var FL_BOARD_SUB_TPL = [
+  {re:/คาน|ขัดสี|ท้องเรือ|slipway/i, s:['จองคิวคาน','ลากเรือเข้าคาน','ขัดสี + ตรวจใต้ท้อง','ทาสีจริง','ลงน้ำ + ทดลองวิ่ง']},
+  {re:/เครื่อง|เกียร์|ใบจักร|ไดร์|engine|gear/i, s:['ถอดตรวจ','ประเมิน + ขออนุมัติ','สั่งอะไหล่','ประกอบกลับ','ทดลองเดินเครื่อง']}
+];
+var FL_BOARD_SUB_DEF = ['ประเมินงาน','ขออนุมัติ','ลงมือทำ','ตรวจรับ'];
+function flBoardSubTpl(m){
+  var t=String((m&&m.title)||'');
+  for(var i=0;i<FL_BOARD_SUB_TPL.length;i++){ if(FL_BOARD_SUB_TPL[i].re.test(t)) return FL_BOARD_SUB_TPL[i].s; }
+  return FL_BOARD_SUB_DEF;
+}
+
+/* ══ กรุ๊ปตามเรือ ══════════════════════════════════════════════════════════
+   ที่มา · Juliet ถูกกั้นด้วย 7 ใบ · Achilles 6 ใบ · เรียงเป็นการ์ดเดี่ยวแล้วอ่านไม่ออกว่า
+   ลำไหนคือตัวปัญหา · รวมใบของลำเดียวกันไว้ใต้หัวเดียว ลำที่ถูกกั้นนานสุดขึ้นก่อน
+   ═══════════════════════════════════════════════════════════════════════════ */
+var _flBoardGrp = (function(){ try{ return localStorage.getItem('la_flbgrp')!=='0'; }catch(_){ return true; } })();
+var _flBoardShut = {};   /* laneId:boatId → 1 คือยุบอยู่ · จำแค่ในหน้าจอ ไม่ต้องลงข้อมูลจริง */
+var _flBoardOpen = '';   /* ใบที่กางงานย่อยอยู่ · ทีละใบ */
+function flBoardSetGroup(v){
+  _flBoardGrp=!!v;
+  try{ localStorage.setItem('la_flbgrp', v?'1':'0'); }catch(_){}
+  flBoardRefresh();
+}
+function flBoardGrpToggle(ev,key){
+  if(ev) ev.stopPropagation();
+  if(_flBoardShut[key]) delete _flBoardShut[key]; else _flBoardShut[key]=1;
+  flBoardRefresh();
+}
+/* ลำนี้ถูกกั้นมากี่วัน · นับจากใบที่กั้นอยู่ซึ่งเปิดเร็วที่สุด
+   ไม่ได้เก็บตัวเลขไว้เอง · อ่านจากวันเปิดใบกับ getCurStatus ที่หน้าอื่นใช้อยู่แล้ว */
+function flBoardBoatDown(list){
+  var d=0;
+  (list||[]).forEach(function(m){
+    if(!flBoardBlocks(m)) return;
+    var n=flBoardDaysTo(String(m.startDate||'')); if(n>d) d=n; });
+  return d;
+}
 
 function flBoardCSS(){
   var H='#fl-board';
@@ -7482,7 +7536,10 @@ function flBoardCSS(){
   +H+' .lh em{width:6px;height:6px;border-radius:50%;flex:none}'
   +H+' .lh .t{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}'
   +H+' .lh .c{margin-left:auto;font-family:\'DM Mono\',ui-monospace,monospace;font-size:12px;color:#8E9299}'
-  +H+' .lb{padding:9px;display:flex;flex-direction:column;gap:7px;min-height:236px;max-height:330px;overflow:auto}'
+  +H+' .lb{padding:9px;display:flex;flex-direction:column;gap:7px;min-height:236px;max-height:400px;overflow:auto}'
+  /* กรุ๊ปเป็นลูกของ flex column ที่มี max-height · ค่าเริ่มต้นคือหดได้ กรุ๊ปเลยถูกบีบจนการ์ดข้างในหาย
+     flex:none บังคับให้สูงตามเนื้อจริง แล้วให้เลนเป็นตัวเลื่อนแทน */
+  +H+' .lb > *{flex:none}'
   +H+' .kd{background:#fff;border:1px solid #E7E3DC;border-radius:11px;padding:8px 10px;cursor:pointer}'
   +H+' .kd:hover{border-color:#CFC9BF}'
   +H+' .kd.blk{box-shadow:inset 3px 0 0 #A32D2D}'
@@ -7503,6 +7560,53 @@ function flBoardCSS(){
     +'text-overflow:ellipsis;white-space:nowrap}'
   +H+' .kd .ow.set{color:#0F6E56}'
   +H+' .mtpy{font-size:11.5px;color:#B4B8BE;text-align:center;padding:16px 8px}'
+  /* ปุ่มสลับกรุ๊ป/ใบเดี่ยว บนหัวบอร์ด */
+  +H+' .tgl{margin-left:12px;display:inline-flex;border:1px solid #E7E3DC;border-radius:9px;overflow:hidden}'
+  +H+' .tgl button{font-size:11.5px;font-weight:600;padding:6px 11px;cursor:pointer;border:0;background:#fff;color:#5F6368;font-family:inherit}'
+  +H+' .tgl button.on{background:#1A1A1A;color:#fff}'
+  /* กรุ๊ปเรือ */
+  +H+' .grp{border:1px solid #E7E3DC;border-radius:12px;background:#fff;overflow:hidden}'
+  +H+' .grp.blk{box-shadow:inset 3px 0 0 #A32D2D}'
+  +H+' .gh{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;background:#FBFAF8;border-bottom:1px solid #F2F0EB}'
+  +H+' .gh:hover{background:#F7F5F1}'
+  +H+' .gh .av{width:22px;height:22px;border-radius:7px;color:#fff;font-size:9px;font-weight:700;flex:none;'
+    +'display:flex;align-items:center;justify-content:center}'
+  +H+' .gh .nm{min-width:0}'
+  +H+' .gh .nm b{display:block;font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1A1A1A}'
+  +H+' .gh .nm i{display:block;font-style:normal;font-size:10.5px;color:#B4B8BE}'
+  +H+' .gh .r{margin-left:auto;display:flex;align-items:center;gap:7px;flex:none}'
+  +H+' .gh .cnt{font-family:\'DM Mono\',ui-monospace,monospace;font-size:11.5px;color:#8E9299}'
+  +H+' .gh .car{font-size:10px;color:#B4B8BE;transition:transform .12s}'
+  +H+' .grp.closed .car{transform:rotate(-90deg)}'
+  +H+' .grp.closed .gb{display:none}'
+  +H+' .gb{padding:7px;display:flex;flex-direction:column;gap:6px}'
+  /* การ์ดในกรุ๊ป · ชื่อเรืออยู่บนหัวกรุ๊ปแล้ว การ์ดขึ้นชื่องานเป็นบรรทัดแรกแทน */
+  +H+' .gb .kd{border-radius:9px;padding:7px 9px}'
+  +H+' .kd.open{border-color:#B9B2A6;background:#FCFBF9}'
+  +H+' .kd .tp .tt{flex:1;font-size:12px;font-weight:600;color:#1A1A1A;margin:0}'
+  /* แถบความคืบหน้างานย่อย */
+  +H+' .kd .bar{height:4px;border-radius:2px;background:#F2F0EB;overflow:hidden;margin-top:6px}'
+  +H+' .kd .bar i{display:block;height:100%;background:#0F6E56}'
+  /* รายการงานย่อย */
+  +H+' .subs{margin-top:7px;border-top:1px dashed #E7E3DC;padding-top:7px;display:flex;flex-direction:column;gap:3px;cursor:default}'
+  +H+' .sub{display:flex;align-items:flex-start;gap:7px;font-size:11.5px;color:#5F6368;padding:2px 0}'
+  +H+' .sub input{width:14px;height:14px;margin:1px 0 0;accent-color:#0F6E56;cursor:pointer;flex:none}'
+  +H+' .sub > span:first-of-type{min-width:0;overflow-wrap:break-word}'
+  +H+' .sub.done > span:first-of-type{text-decoration:line-through;color:#B4B8BE}'
+  +H+' .sub .who{margin-left:auto;font-size:10px;color:#B4B8BE;white-space:nowrap;flex:none}'
+  +H+' .sub .x{color:#D8D3CA;cursor:pointer;font-size:13px;line-height:1;padding:0 2px;flex:none}'
+  +H+' .sub .x:hover{color:#A32D2D}'
+  +H+' .subs .nos{font-size:11.5px;color:#B4B8BE;padding:2px 0}'
+  +H+' .addsub{display:flex;gap:5px;margin-top:5px}'
+  +H+' .addsub input{flex:1;min-width:0;border:1px solid #E7E3DC;border-radius:7px;padding:4px 8px;'
+    +'font-size:11.5px;font-family:inherit;outline:none;background:#fff;color:#1A1A1A}'
+  +H+' .addsub button{border:1px solid #E7E3DC;background:#fff;border-radius:7px;padding:4px 9px;'
+    +'font-size:11.5px;font-weight:600;color:#5F6368;cursor:pointer;font-family:inherit;flex:none}'
+  +H+' .kacts{display:flex;gap:5px;margin-top:7px}'
+  +H+' .kacts button{flex:1;min-width:0;border:1px solid #E7E3DC;background:#fff;border-radius:7px;padding:5px 7px;'
+    +'font-size:11px;font-weight:600;color:#5F6368;cursor:pointer;font-family:inherit;white-space:nowrap;'
+    +'overflow:hidden;text-overflow:ellipsis}'
+  +H+' .kacts button.pri{background:#0F6E56;border-color:#0F6E56;color:#fff}'
   /* กล่องสั่งงานบนการ์ด */
   +'#fl-board-pop{position:fixed;z-index:9000;background:#fff;border:1px solid #E7E3DC;border-radius:12px;'
     +'box-shadow:0 12px 32px rgba(0,0,0,.16);padding:9px;width:286px;display:none}'
@@ -7521,7 +7625,8 @@ function flBoardCSS(){
   +'</style>';
 }
 
-function flBoardCard(m){
+/* การ์ดใบงาน · inGrp = อยู่ใต้หัวกรุ๊ปเรือแล้ว ไม่ต้องขึ้นชื่อเรือซ้ำอีกรอบ */
+function flBoardCard(m, inGrp){
   var b=(typeof getBoat==='function')?getBoat(m.boatId):null;
   var nm=(b&&b.name)||m.boatId||'—';
   var col='#8E9299';
@@ -7531,17 +7636,152 @@ function flBoardCard(m){
   var own=String(m.owner||'').trim();
   var due=String(m.dueDate||'');
   var dueLate=due && flBoardDaysTo(due)>0;
-  return '<div class="kd'+(flBoardBlocks(m)?' blk':'')+'" draggable="true" data-mj="'+flBoardEsc(m.id)+'"'
-    +' ondragstart="flBoardDragStart(event,\''+flBoardEsc(m.id)+'\')" ondragend="this.classList.remove(\'drag\')"'
-    +' onclick="flBoardPop(event,\''+flBoardEsc(m.id)+'\')">'
-    +'<div class="tp"><span class="av" style="background:'+col+'">'+flBoardEsc(nm.slice(0,2).toUpperCase())+'</span>'
-      +'<span class="bn">'+flBoardEsc(nm)+'</span><span class="no">'+flBoardEsc(m.no||'')+'</span></div>'
-    +'<div class="tt">'+flBoardEsc(m.title||'')+'</div>'
+  var n=flBoardSubs(m).length, d=flBoardSubDone(m);
+  var open=(_flBoardOpen===m.id);
+  var eid=flBoardEsc(m.id);
+  var ttl=flBoardEsc(m.title||'');
+  return '<div class="kd'+((flBoardBlocks(m)&&!inGrp)?' blk':'')+(open?' open':'')+'" draggable="true" data-mj="'+eid+'"'
+    +' ondragstart="flBoardDragStart(event,\''+eid+'\')" ondragend="this.classList.remove(\'drag\')"'
+    +' onclick="flBoardToggle(event,\''+eid+'\')">'
+    +(inGrp
+      ? '<div class="tp"><span class="tt">'+ttl+'</span><span class="no">'+flBoardEsc(m.no||'')+'</span></div>'
+      : '<div class="tp"><span class="av" style="background:'+col+'">'+flBoardEsc(nm.slice(0,2).toUpperCase())+'</span>'
+        +'<span class="bn">'+flBoardEsc(nm)+'</span><span class="no">'+flBoardEsc(m.no||'')+'</span></div>'
+        +'<div class="tt">'+ttl+'</div>')
     +'<div class="mt"><span class="tg '+tone+'">เงียบ '+sil+' วัน</span>'
       +(cost?('<span class="tg">฿'+Math.round(cost).toLocaleString()+'</span>'):'')
       +(due?('<span class="tg'+(dueLate?' red':'')+'">ตอบ '+flBoardEsc(due.slice(5))+'</span>'):'')
+      +(n?('<span class="tg'+(d===n?' grn':'')+'">'+d+'/'+n+' ขั้นตอน</span>'):'')
       +'<span class="ow'+(own?' set':'')+'">'+flBoardEsc(own||'ยังไม่มีคนรับ')+'</span></div>'
+    +(n?('<div class="bar"><i style="width:'+Math.round(d/n*100)+'%"></i></div>'):'')
+    +(open?flBoardSubsHTML(m):'')
     +'</div>';
+}
+/* รายการงานย่อยที่กางอยู่ใต้การ์ด · กางทีละใบ ช่อง id เลยตายตัวได้เหมือนกล่องสั่งงาน
+   ⚠ ปุ่มปิดใบที่นี่ไม่ได้เขียนทางปิดของตัวเอง · ส่งเข้า flBoardCloseJob ทางเดิม */
+function flBoardSubsHTML(m){
+  var S=flBoardSubs(m), n=S.length, d=flBoardSubDone(m), eid=flBoardEsc(m.id), ro=!flBoardCanEdit();
+  var rows = n ? S.map(function(s,i){
+      return '<label class="sub'+(s&&s.d?' done':'')+'">'
+        +'<input type="checkbox"'+(s&&s.d?' checked':'')+(ro?' disabled':'')
+          +' onclick="event.stopPropagation()"'
+          +' onchange="flBoardSubTick(event,\''+eid+'\','+i+',this.checked)">'
+        +'<span>'+flBoardEsc(s&&s.t||'')+'</span>'
+        +((s&&s.by)?('<span class="who">'+flBoardEsc(s.by)+'</span>'):'')
+        +(ro?'':('<span class="x" title="ลบขั้นตอนนี้" onclick="flBoardSubDel(event,\''+eid+'\','+i+')">&times;</span>'))
+        +'</label>'; }).join('')
+    : '<div class="nos">ยังไม่ได้แตกขั้นตอน · พิมพ์ขั้นแรกข้างล่าง หรือกดแตกจากแม่แบบ</div>';
+  return '<div class="subs" onclick="event.stopPropagation()">'+rows
+    +(ro?'':('<div class="addsub"><input id="fl-bd-ns" type="text" placeholder="เพิ่มขั้นตอน…"'
+        +' onkeydown="if(event.key===\'Enter\')flBoardSubAdd(\''+eid+'\')">'
+        +'<button onclick="flBoardSubAdd(\''+eid+'\')">เพิ่ม</button></div>'
+      +'<div class="kacts">'
+        +'<button title="มอบหมาย ตั้งวันตอบ หรือพิมพ์บันทึก" onclick="flBoardPop(event,\''+eid+'\')">สั่งงาน</button>'
+        +'<button title="แตกขั้นตอนจากแม่แบบตามชนิดงาน" onclick="flBoardSubSplit(event,\''+eid+'\')">แม่แบบ</button>'
+        +'<button class="'+((n&&d===n)?'pri':'')+'" onclick="flBoardSubClose(event,\''+eid+'\')">'
+          +((n&&d===n)?'ครบแล้ว · ปิดใบ':'ปิดใบ')+'</button>'
+      +'</div>'))
+    +'</div>';
+}
+/* กางหรือหุบงานย่อยของใบนี้ · กางได้ทีละใบ ไม่งั้นเลนยาวจนเลื่อนหาไม่เจอ */
+function flBoardToggle(ev,id){
+  if(ev) ev.stopPropagation();
+  _flBoardOpen = (_flBoardOpen===id) ? '' : id;
+  flBoardPopClose();
+  flBoardRefresh();
+}
+/* ติ๊กหนึ่งขั้น · ลง progressLog หนึ่งบรรทัดทาง flBoardLog เหมือนบันทึกที่พิมพ์เอง
+   ช่างไม่ต้องพิมพ์อะไรเลย แต่ใบมีความเคลื่อนไหวจริง และความเงียบรีเซ็ตเอง */
+function flBoardSubTick(ev,id,i,on){
+  if(ev) ev.stopPropagation();
+  if(!flBoardCanEdit()) return;
+  var m=_flBoardFind(id); if(!m) return;
+  var S=flBoardSubs(m), s=S[i]; if(!s) return;
+  if(on){ s.d=1; s.at=TODAY_STR; var w=flBoardWho(); if(w) s.by=w; }
+  else  { s.d=0; delete s.at; }
+  var n=S.length, d=flBoardSubDone(m);
+  flBoardLog(m, (on?'☑ ':'☐ ')+String(s.t||'')+' · ขั้นตอน '+d+'/'+n);
+  /* มีความคืบหน้าแล้ว · ปลดเลนที่ถูกลากค้างไว้ ให้กลับไปคิดตามข้อมูลจริง (ทางเดียวกับ flBoardSaveCard) */
+  if(on && (m.boardLane==='decide' || m.boardLane==='wait')) delete m.boardLane;
+  flSave(); flBoardRefresh();
+  if(typeof flShowToast==='function'){
+    flShowToast((n&&d===n)
+      ? ((m.no||'')+' · ครบทุกขั้นตอนแล้ว · กด "ครบแล้ว · ปิดใบ" เพื่อปิด')
+      : ((m.no||'')+' · '+d+'/'+n+' ขั้นตอน · ความเงียบกลับเป็น 0'));
+  }
+}
+function flBoardSubAdd(id){
+  if(!flBoardCanEdit()) return;
+  var m=_flBoardFind(id); if(!m) return;
+  var el=document.getElementById('fl-bd-ns');
+  var t=((el&&el.value)||'').trim(); if(!t) return;
+  if(!Array.isArray(m.subs)) m.subs=[];
+  m.subs.push({t:t, d:0});
+  flBoardLog(m, '+ ขั้นตอน: '+t);
+  flSave(); flBoardRefresh();
+  if(typeof flShowToast==='function') flShowToast((m.no||'')+' · เพิ่มขั้นตอนแล้ว');
+}
+function flBoardSubDel(ev,id,i){
+  if(ev) ev.stopPropagation();
+  if(!flBoardCanEdit()) return;
+  var m=_flBoardFind(id); if(!m) return;
+  var S=flBoardSubs(m), s=S[i]; if(!s) return;
+  m.subs=S.filter(function(_,k){ return k!==i; });
+  flBoardLog(m, '− ขั้นตอน: '+String(s.t||''));
+  flSave(); flBoardRefresh();
+}
+function flBoardSubSplit(ev,id){
+  if(ev) ev.stopPropagation();
+  if(!flBoardCanEdit()) return;
+  var m=_flBoardFind(id); if(!m) return;
+  if(!Array.isArray(m.subs)) m.subs=[];
+  var add=0;
+  flBoardSubTpl(m).forEach(function(t){
+    var has=m.subs.some(function(s){ return String(s&&s.t)===t; });
+    if(!has){ m.subs.push({t:t, d:0}); add++; } });
+  if(!add){ if(typeof flShowToast==='function') flShowToast('ขั้นตอนจากแม่แบบมีครบแล้ว'); return; }
+  flBoardLog(m, '+ แตกขั้นตอนจากแม่แบบ '+add+' ขั้น');
+  flSave(); flBoardRefresh();
+  if(typeof flShowToast==='function') flShowToast((m.no||'')+' · เพิ่ม '+add+' ขั้นตอน');
+}
+function flBoardSubClose(ev,id){
+  if(ev) ev.stopPropagation();
+  _flBoardPopId=id;
+  flBoardCloseJob();
+}
+
+/* กรุ๊ปเรือหนึ่งบล็อกในเลน · หัวกรุ๊ปลากได้ = ย้ายทุกใบของลำนั้นพร้อมกัน */
+function flBoardGroup(laneId, bid, list){
+  var b=(typeof getBoat==='function')?getBoat(bid):null;
+  var nm=(b&&b.name)||bid||'—';
+  var col='#8E9299';
+  try{ if(typeof getBoatColor==='function'){ var g=getBoatColor(bid); if(g&&g.text) col=g.text; } }catch(_){}
+  var blk=list.some(flBoardBlocks);
+  var down=flBoardBoatDown(list);
+  var subN=0, subD=0;
+  list.forEach(function(m){ subN+=flBoardSubs(m).length; subD+=flBoardSubDone(m); });
+  var key=laneId+':'+bid, shut=!!_flBoardShut[key];
+  return '<div class="grp'+(shut?' closed':'')+(blk?' blk':'')+'" data-gb="'+flBoardEsc(bid)+'">'
+    +'<div class="gh" draggable="true" ondragstart="flBoardGrpDrag(event,\''+flBoardEsc(bid)+'\')"'
+      +' onclick="flBoardGrpToggle(event,\''+flBoardEsc(key)+'\')">'
+      +'<span class="av" style="background:'+col+'">'+flBoardEsc(nm.slice(0,2).toUpperCase())+'</span>'
+      +'<span class="nm"><b>'+flBoardEsc(nm)+'</b><i>'
+        +(blk?('กั้นมา '+down+' วัน'):'เรือวิ่งได้')
+        +(subN?(' · ขั้นตอน '+subD+'/'+subN):'')+'</i></span>'
+      +'<span class="r"><span class="cnt">'+list.length+' ใบ</span><span class="car">&#9660;</span></span>'
+    +'</div>'
+    +'<div class="gb">'+list.map(function(m){ return flBoardCard(m,1); }).join('')+'</div>'
+  +'</div>';
+}
+/* เรียงกรุ๊ปในเลน · ลำที่กั้นเรืออยู่ก่อน แล้วกั้นมานานกว่าก่อน แล้วใบเยอะกว่าก่อน */
+function flBoardGrpOrder(by){
+  return Object.keys(by).sort(function(a,b){
+    var ab=by[a].some(flBoardBlocks)?1:0, bb=by[b].some(flBoardBlocks)?1:0;
+    if(ab!==bb) return bb-ab;
+    var ad=flBoardBoatDown(by[a]), bd=flBoardBoatDown(by[b]);
+    if(ad!==bd) return bd-ad;
+    return by[b].length-by[a].length;
+  });
 }
 
 function flBoardHTML(){
@@ -7570,6 +7810,10 @@ function flBoardHTML(){
         +num('เงียบ &gt; 60 วัน', S.silent, S.silent>0)
         +num('ยังไม่มีคนรับ', S.noOwner)
         +(S.parked?num('พักไว้', S.parked):'')
+        +'<span class="tgl">'
+          +'<button class="'+(_flBoardGrp?'on':'')+'" onclick="flBoardSetGroup(1)">กรุ๊ปตามเรือ</button>'
+          +'<button class="'+(_flBoardGrp?'':'on')+'" onclick="flBoardSetGroup(0)">เรียงใบเดี่ยว</button>'
+        +'</span>'
         +'<button class="more" onclick="nav(document.querySelector(\'[data-view=fl-maintenance]\'))">ดูใบทั้งหมด &rarr;</button>'
       +'</div></div>'
     +'<div class="lanes">'
@@ -7580,31 +7824,59 @@ function flBoardHTML(){
           +'<div class="lh"><em style="background:'+L.c+'"></em>'
             +'<span class="t" style="color:'+L.c+'" title="'+flBoardEsc(L.d)+'">'+L.t+'</span>'
             +'<span class="c">'+cs.length+'</span></div>'
-          +'<div class="lb">'+(cs.length?cs.map(flBoardCard).join(''):'<div class="mtpy">ไม่มีใบในเลนนี้</div>')+'</div>'
+          +'<div class="lb">'+(cs.length?flBoardLaneBody(L.id,cs):'<div class="mtpy">ไม่มีใบในเลนนี้</div>')+'</div>'
         +'</div>'; }).join('')
     +'</div>'
   +'</div>';
 }
 
+/* ตัวเลน · cs เรียงมาแล้ว (ใบที่กั้นเรือก่อน แล้วเงียบนานก่อน) · กรุ๊ปไม่ได้เรียงใหม่
+   แค่เอาใบของลำเดียวกันมาต่อกัน ลำดับในกรุ๊ปเลยยังเป็นลำดับเดิม */
+function flBoardLaneBody(laneId, cs){
+  if(!_flBoardGrp) return cs.map(function(m){ return flBoardCard(m,0); }).join('');
+  var by={};
+  cs.forEach(function(m){ var k=m.boatId||'—'; (by[k]=by[k]||[]).push(m); });
+  return flBoardGrpOrder(by).map(function(k){ return flBoardGroup(laneId,k,by[k]); }).join('');
+}
+
 /* ── ลากการ์ดข้ามเลน ─────────────────────────────────────────────────────
    การลากเขียน boardLane ลงใบจริง ไม่ใช่จำไว้บนหน้าจอ · รีเฟรชแล้วต้องอยู่ที่เดิม
    และลง progressLog ไว้ด้วย เพราะ "ใครย้ายเมื่อไหร่" เป็นสิ่งที่ต้องตอบได้ย้อนหลัง */
-var _flBoardDrag='';
+var _flBoardDrag='', _flBoardGrpDrag='';
 function flBoardDragStart(ev,id){
   if(!flBoardCanEdit()){ ev.preventDefault(); return; }
-  _flBoardDrag=id;
+  _flBoardDrag=id; _flBoardGrpDrag='';
   try{ ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',id); }catch(_){}
   setTimeout(function(){ var el=document.querySelector('#fl-board .kd[data-mj="'+id+'"]'); if(el) el.classList.add('drag'); },0);
+}
+/* ลากหัวกรุ๊ป = ยกทุกใบของลำนั้นไปด้วยกัน · Juliet ถูกกั้นด้วย 7 ใบ การย้ายทีละใบคือเจ็ดครั้ง */
+function flBoardGrpDrag(ev,bid){
+  if(!flBoardCanEdit()){ ev.preventDefault(); return; }
+  _flBoardGrpDrag=bid; _flBoardDrag='';
+  try{ ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain','grp:'+bid); }catch(_){}
 }
 function flBoardOver(ev,el){ if(!flBoardCanEdit()) return; ev.preventDefault(); el.classList.add('drop'); }
 function flBoardDrop(ev,el){
   ev.preventDefault(); el.classList.remove('drop');
   if(!flBoardCanEdit()) return;
+  var to=el.getAttribute('data-lane'); if(!to) return;
+  var L=FL_BOARD_LANES.filter(function(x){ return x.id===to; })[0];
+  /* ยกทั้งกรุ๊ป · ลงบรรทัดใน progressLog ใบต่อใบเหมือนลากทีละใบ
+     ย่อให้เหลือบรรทัดเดียวไม่ได้ · เปิดใบเดี่ยวแล้วต้องเห็นว่าใบนี้ถูกย้ายเมื่อไหร่ */
+  if(_flBoardGrpDrag){
+    var bid=_flBoardGrpDrag; _flBoardGrpDrag='';
+    var mv=flBoardJobs().filter(function(x){ return x.boatId===bid && flBoardLane(x)!==to; });
+    if(!mv.length) return;
+    mv.forEach(function(x){ x.boardLane=to; flBoardLog(x, 'ย้ายไปเลน "'+(L?L.t:to)+'" · ยกทั้งลำ'); });
+    flSave(); flBoardRefresh();
+    var bt=(typeof getBoat==='function')?getBoat(bid):null;
+    if(typeof flShowToast==='function') flShowToast(((bt&&bt.name)||bid)+' · ย้าย '+mv.length+' ใบ → '+(L?L.t:to));
+    return;
+  }
   var id=_flBoardDrag || (ev.dataTransfer?ev.dataTransfer.getData('text/plain'):'');
   var m=(typeof FL_MAINT!=='undefined'?FL_MAINT:[]).filter(function(x){ return x.id===id; })[0];
   if(!m) return;
-  var to=el.getAttribute('data-lane'); if(!to || flBoardLane(m)===to) return;
-  var L=FL_BOARD_LANES.filter(function(x){ return x.id===to; })[0];
+  if(flBoardLane(m)===to) return;
   m.boardLane=to;
   flBoardLog(m, 'ย้ายไปเลน "'+(L?L.t:to)+'"');
   flSave(); flBoardRefresh();

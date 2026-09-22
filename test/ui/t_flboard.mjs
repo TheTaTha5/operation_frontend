@@ -11,6 +11,8 @@
 //   3 กดการ์ดแล้วบันทึกได้จริง · ลงใบจริงและลง localStorage
 //   4 ลากข้ามเลนแล้วอยู่ที่เดิมหลังวาดใหม่ (เขียนลงใบ ไม่ใช่จำไว้บนหน้าจอ)
 //   5 พักไว้แล้วหลุดจากบอร์ดและจากตัวนับ
+//   6 กรุ๊ปตามเรือ · ใบอยู่ใต้หัวของลำตัวเอง · เรียงลำที่กั้นนานสุดก่อน · ยุบ/สลับใบเดี่ยวได้
+//   7 งานย่อย · ติ๊กหนึ่งขั้นต้องลง progressLog จริง ความเงียบรีเซ็ต และลง localStorage
 //
 // ⚠ ต้องเปิดผ่าน nav() จริง · บอร์ดวาดจาก flRenderDashboard
 import { open } from './_harness.mjs';
@@ -118,8 +120,12 @@ else ok('ตัวเลขบนหัวบอร์ดตรงกับต�
 const D = await page.evaluate(() => {
   const c = document.querySelector('#fl-board .lane[data-lane="decide"] .kd') || document.querySelector('#fl-board .kd');
   const id = c.getAttribute('data-mj');
+  /* กดการ์ด = กางงานย่อย · กล่องสั่งงานอยู่หลังปุ่ม "สั่งงาน" ในแผงที่กางออกมา */
   c.dispatchEvent(new MouseEvent('click', {bubbles:true}));
-  const popOn = !!(document.getElementById('fl-board-pop') || {}).classList?.contains('on');
+  const subsOpen = !!document.querySelector('#fl-board .kd[data-mj="' + id + '"] .subs');
+  document.querySelector('#fl-board .kd[data-mj="' + id + '"] .kacts button')
+    .dispatchEvent(new MouseEvent('click', {bubbles:true}));
+  const popOn = subsOpen && !!(document.getElementById('fl-board-pop') || {}).classList?.contains('on');
   const m0 = FL_MAINT.find(x => x.id === id);
   const nLog0 = (m0.progressLog || []).length, sil0 = flBoardSilent(m0);
   document.getElementById('fl-bd-own').value  = 'ช่างหัวหน้า';
@@ -134,7 +140,7 @@ const D = await page.evaluate(() => {
            keptOwner:kept.owner, keptDue:kept.dueDate,
            keptLog:((kept.progressLog || []).slice(-1)[0] || {}).text || '' };
 });
-if (!D.popOn) fail('กดการ์ดแล้วกล่องสั่งงานไม่เปิด');
+if (!D.popOn) fail('กดการ์ดแล้วงานย่อยไม่กาง หรือปุ่มสั่งงานไม่เปิดกล่อง');
 else if (D.owner !== 'ช่างหัวหน้า' || D.due !== '2026-09-30') fail('บันทึกผู้รับผิดชอบ/วันตอบไม่ติด');
 else if (D.logAdded !== 1) fail('บันทึกความคืบหน้าไม่ได้ลงใบ · เพิ่มมา ' + D.logAdded + ' บรรทัด');
 else if (D.sil1 !== 0) fail('บันทึกแล้วความเงียบไม่รีเซ็ต · ยังเป็น ' + D.sil1 + ' วัน');
@@ -173,6 +179,8 @@ const F = await page.evaluate(() => {
   const c = document.querySelector('#fl-board .kd');
   const id = c.getAttribute('data-mj');
   c.dispatchEvent(new MouseEvent('click', {bubbles:true}));
+  document.querySelector('#fl-board .kd[data-mj="' + id + '"] .kacts button')
+    .dispatchEvent(new MouseEvent('click', {bubbles:true}));   /* ปุ่มสั่งงาน · ตั้ง _flBoardPopId */
   flBoardPark();
   const m = FL_MAINT.find(x => x.id === id);
   const ls = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
@@ -187,7 +195,192 @@ else if (F.after !== F.before - 1) fail('พักไว้แล้วตัว
 else if (F.keptParked !== F.parked) fail('พักไว้แล้วไม่ลง localStorage');
 else ok(F.no + ' · พักไว้แล้วหลุดจากบอร์ดและตัวนับ · ใบที่เปิด ' + F.before + ' → ' + F.after);
 
-/* ══ 6 · จอแคบ · ต้องไม่ล้นแนวนอน ══════════════════════════════════════ */
+/* ══ 6 · กรุ๊ปตามเรือ ═══════════════════════════════════════════════════
+   ตัวเรียงกรุ๊ปเขียนเองในเทส ไม่เรียก flBoardGrpOrder · ถ้าเรียกก็ตรงกันเสมอแม้กติกาเพี้ยน */
+const G = await page.evaluate(() => {
+  function days(d){ if(!d) return 0;
+    var A=String(d).slice(0,10).split('-'), B=TODAY_STR.split('-');
+    return Math.round((Date.UTC(+B[0],+B[1]-1,+B[2])-Date.UTC(+A[0],+A[1]-1,+A[2]))/86400000); }
+  function blocks(m){ var b=getBoat(m.boatId); if(!b) return false;
+    var s=(getCurStatus(b,TODAY_STR)||{}).s||''; return s==='fixing'||s==='unavailable'; }
+  var wrongBoat=[], wrongCnt=[], wrongOrder=[], lanes=0, groups=0;
+  [].slice.call(document.querySelectorAll('#fl-board .lane')).forEach(function(l){
+    lanes++;
+    var gs=[].slice.call(l.querySelectorAll('.grp'));
+    groups+=gs.length;
+    /* ก ใบในกรุ๊ปต้องเป็นของลำนั้นจริง · และเลขบนหัวกรุ๊ปต้องเท่าจำนวนการ์ด */
+    gs.forEach(function(g){
+      var bid=g.getAttribute('data-gb');
+      var kd=[].slice.call(g.querySelectorAll('.kd'));
+      kd.forEach(function(c){
+        var m=FL_MAINT.find(function(x){ return x.id===c.getAttribute('data-mj'); });
+        if(m && (m.boatId||'—')!==bid) wrongBoat.push((m.no||'')+' อยู่ใต้ '+bid);
+      });
+      var shown=parseInt((g.querySelector('.gh .cnt')||{}).textContent||'0',10);
+      if(shown!==kd.length) wrongCnt.push(bid+' บอก '+shown+' แต่มี '+kd.length);
+    });
+    /* ข ลำดับกรุ๊ปในเลน · กั้นเรืออยู่ก่อน → กั้นมานานกว่าก่อน → ใบเยอะกว่าก่อน */
+    var by={};
+    [].slice.call(l.querySelectorAll('.kd')).forEach(function(c){
+      var m=FL_MAINT.find(function(x){ return x.id===c.getAttribute('data-mj'); });
+      if(m) (by[m.boatId||'—']=by[m.boatId||'—']||[]).push(m); });
+    var want=Object.keys(by).sort(function(a,b){
+      var ab=by[a].some(blocks)?1:0, bb=by[b].some(blocks)?1:0;
+      if(ab!==bb) return bb-ab;
+      var ad=0, bd=0;
+      by[a].forEach(function(m){ if(blocks(m)){ var n=days(m.startDate||''); if(n>ad) ad=n; } });
+      by[b].forEach(function(m){ if(blocks(m)){ var n=days(m.startDate||''); if(n>bd) bd=n; } });
+      if(ad!==bd) return bd-ad;
+      return by[b].length-by[a].length; });
+    var got=gs.map(function(g){ return g.getAttribute('data-gb'); });
+    if(got.join('|')!==want.join('|'))
+      wrongOrder.push(l.getAttribute('data-lane')+' · ได้ '+got.join(',')+' ควรเป็น '+want.join(','));
+  });
+  /* ค ยุบกรุ๊ปแล้วการ์ดต้องหาย แต่ใบยังนับอยู่ · กางกลับแล้วต้องกลับมา */
+  var g0=document.querySelector('#fl-board .grp');
+  var lane0=g0.closest('.lane').getAttribute('data-lane'), bid0=g0.getAttribute('data-gb');
+  var n0=g0.querySelectorAll('.kd').length;
+  flBoardGrpToggle(null, lane0+':'+bid0);
+  var g1=document.querySelector('#fl-board .lane[data-lane="'+lane0+'"] .grp[data-gb="'+bid0+'"]');
+  var shutOk=g1.classList.contains('closed')
+    && getComputedStyle(g1.querySelector('.gb')).display==='none'
+    && parseInt(g1.querySelector('.gh .cnt').textContent,10)===n0;
+  flBoardGrpToggle(null, lane0+':'+bid0);
+  var reopened=document.querySelector('#fl-board .lane[data-lane="'+lane0+'"] .grp[data-gb="'+bid0+'"] .kd .tt');
+  /* ง สลับเป็นใบเดี่ยว · กรุ๊ปหาย แต่จำนวนการ์ดเท่าเดิม */
+  var kdGrouped=document.querySelectorAll('#fl-board .kd').length;
+  flBoardSetGroup(0);
+  var flat={ grp:document.querySelectorAll('#fl-board .grp').length,
+             kd:document.querySelectorAll('#fl-board .kd').length,
+             pref:localStorage.getItem('la_flbgrp') };
+  flBoardSetGroup(1);
+  return { lanes:lanes, groups:groups, wrongBoat:wrongBoat.slice(0,4), wrongCnt:wrongCnt.slice(0,4),
+           wrongOrder:wrongOrder.slice(0,3), shutOk:shutOk, reopened:!!reopened,
+           kdGrouped:kdGrouped, flat:flat };
+});
+if (G.wrongBoat.length) fail('มีใบอยู่ใต้หัวกรุ๊ปของเรือลำอื่น · ' + G.wrongBoat.join(' | '));
+else ok('ทุกใบอยู่ใต้หัวกรุ๊ปของลำตัวเอง · ' + G.groups + ' กรุ๊ปใน ' + G.lanes + ' เลน');
+if (G.wrongCnt.length) fail('เลขบนหัวกรุ๊ปไม่ตรงกับจำนวนการ์ด · ' + G.wrongCnt.join(' | '));
+else ok('เลขบนหัวกรุ๊ปตรงกับจำนวนการ์ดทุกกรุ๊ป');
+if (G.wrongOrder.length) fail('ลำดับกรุ๊ปในเลนไม่ตรงกติกา · ' + G.wrongOrder.join(' | '));
+else ok('ลำดับกรุ๊ปตรงกติกาทุกเลน · กั้นเรืออยู่ก่อน แล้วกั้นนานกว่าก่อน');
+if (!G.shutOk) fail('ยุบกรุ๊ปแล้วการ์ดไม่หาย หรือเลขบนหัวหายไปด้วย');
+else if (!G.reopened) fail('กางกรุ๊ปกลับแล้วการ์ดไม่กลับมา');
+else ok('ยุบกรุ๊ปแล้วการ์ดหาย เลขยังอยู่ · กางกลับแล้วการ์ดกลับมาครบ');
+if (G.flat.grp) fail('สลับเป็นใบเดี่ยวแล้วยังมีกรุ๊ปเหลือ ' + G.flat.grp + ' กรุ๊ป');
+else if (G.flat.kd !== G.kdGrouped) fail('สลับเป็นใบเดี่ยวแล้วจำนวนการ์ดเปลี่ยน · ' + G.kdGrouped + ' → ' + G.flat.kd);
+else if (G.flat.pref !== '0') fail('สลับแล้วไม่ได้จำไว้ · รีเฟรชแล้วเด้งกลับ');
+else ok('สลับเป็นใบเดี่ยวได้ · การ์ดครบ ' + G.flat.kd + ' ใบ และจำไว้ในเครื่อง');
+
+/* ══ 6b · ลากทั้งกรุ๊ป · ทุกใบของลำนั้นย้ายพร้อมกันและมีบันทึกใบต่อใบ ════ */
+const H = await page.evaluate(() => {
+  /* หาลำที่มีใบเปิดตั้งแต่ 2 ใบขึ้นไป · ลากทั้งกรุ๊ปถึงจะมีความหมาย */
+  var by={};
+  flBoardJobs().forEach(function(m){ (by[m.boatId]=by[m.boatId]||[]).push(m); });
+  var bid=Object.keys(by).filter(function(k){ return by[k].length>1; })
+    .sort(function(a,b){ return by[b].length-by[a].length; })[0];
+  if(!bid) return { skip:true };
+  var ids=by[bid].map(function(m){ return m.id; });
+  var nLog0={}; by[bid].forEach(function(m){ nLog0[m.id]=(m.progressLog||[]).length; });
+  _flBoardGrpDrag=bid; _flBoardDrag='';
+  flBoardDrop({preventDefault(){}, dataTransfer:null}, document.querySelector('#fl-board .lane[data-lane="close"]'));
+  flBoardRefresh();
+  var stillWrong=ids.filter(function(id){
+    var el=document.querySelector('#fl-board .kd[data-mj="'+id+'"]');
+    return !el || el.closest('.lane').getAttribute('data-lane')!=='close'; });
+  var ls=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+  var notKept=ids.filter(function(id){
+    var k=(ls.fleet_maintenance||[]).find(function(x){ return x.id===id; })||{};
+    return k.boardLane!=='close'; });
+  var noLog=ids.filter(function(id){
+    var m=FL_MAINT.find(function(x){ return x.id===id; });
+    return (m.progressLog||[]).length !== nLog0[id]+1
+        || !/ยกทั้งลำ/.test(((m.progressLog||[]).slice(-1)[0]||{}).text||''); });
+  var b=getBoat(bid);
+  return { skip:false, boat:(b&&b.name)||bid, n:ids.length,
+           stillWrong:stillWrong.length, notKept:notKept.length, noLog:noLog.length };
+});
+if (H.skip) console.log('  ! ไม่มีลำไหนมีใบเปิดเกินหนึ่งใบ · ข้ามข้อลากทั้งกรุ๊ป');
+else if (H.stillWrong) fail('ลากทั้งกรุ๊ปแล้ว ' + H.stillWrong + ' ใบไม่ย้ายตาม');
+else if (H.notKept) fail('ลากทั้งกรุ๊ปแล้ว ' + H.notKept + ' ใบไม่ลง localStorage');
+else if (H.noLog) fail('ลากทั้งกรุ๊ปแล้ว ' + H.noLog + ' ใบไม่มีบันทึกของตัวเอง');
+else ok(H.boat + ' · ลากทั้งกรุ๊ป ' + H.n + ' ใบย้ายพร้อมกัน ลงเครื่อง และมีบันทึกใบต่อใบ');
+
+/* ══ 7 · งานย่อย ════════════════════════════════════════════════════════
+   หัวใจคือ "ติ๊กหนึ่งขั้น = บันทึกความคืบหน้าหนึ่งครั้ง" · ความเงียบต้องรีเซ็ตเอง
+   โดยที่บอร์ดไม่ได้เก็บตัวนับของตัวเอง (อ่าน progressLog ที่เดียว) */
+const I = await page.evaluate(() => {
+  /* เลือกใบที่เงียบนานที่สุด · จะได้เห็นชัดว่าความเงียบตกลงจริง */
+  var m = flBoardJobs().slice().sort(function(a,b){ return flBoardSilent(b)-flBoardSilent(a); })[0];
+  var id = m.id, no = m.no, sil0 = flBoardSilent(m);
+  var lane0 = flBoardLane(m);
+  document.querySelector('#fl-board .kd[data-mj="'+id+'"]')
+    .dispatchEvent(new MouseEvent('click', {bubbles:true}));
+  var subsShown = !!document.querySelector('#fl-board .kd[data-mj="'+id+'"] .subs');
+  /* จำลองว่ามีคนลากใบนี้ไปแช่ไว้ที่ "รออะไหล่" · ติ๊กแล้วต้องหลุดออกมาเอง
+     ถ้าไม่ตั้งไว้ ใบจะเด้งเป็น doing อยู่ดีเพราะความเงียบรีเซ็ต · ข้อนี้จะไม่ได้กันอะไรเลย */
+  m.boardLane='wait'; var laneForced=flBoardLane(m);
+  flBoardSubSplit(null, id);
+  var tpl = (m.subs||[]).length;
+  var splitAgain = (flBoardSubSplit(null, id), (FL_MAINT.find(x=>x.id===id).subs||[]).length);
+  /* ตั้งหลักนับบรรทัดหลังแตกแม่แบบ · การแตกเองก็ลงบันทึกหนึ่งบรรทัด
+     จากนี้ไปทุกบรรทัดที่เพิ่มต้องมาจากการติ๊กเท่านั้น */
+  var nLog0 = (FL_MAINT.find(x=>x.id===id).progressLog||[]).length;
+  /* ติ๊กขั้นแรก · เก็บตัวเลขทันที · m1 เป็นตัวอ้างถึงใบจริง อ่านตอน return จะกลายเป็นสถานะสุดท้าย */
+  flBoardSubTick(null, id, 0, true);
+  var m1 = FL_MAINT.find(x=>x.id===id);
+  var d1 = (m1.subs||[]).filter(s=>s.d).length;
+  var logAdd1 = (m1.progressLog||[]).length - nLog0;
+  var sil1 = flBoardSilent(m1), lane1 = flBoardLane(m1);
+  var by1 = ((m1.subs||[])[0]||{}).by || '', at1 = ((m1.subs||[])[0]||{}).at || '';
+  var boxes = document.querySelectorAll('#fl-board .kd[data-mj="'+id+'"] .subs .sub input');
+  var tagAfter1 = [].slice.call(document.querySelectorAll('#fl-board .kd[data-mj="'+id+'"] .tg'))
+    .map(e=>e.textContent).filter(t=>/ขั้นตอน/.test(t))[0]||'';
+  var bar1 = (document.querySelector('#fl-board .kd[data-mj="'+id+'"] .bar i')||{}).style||{};
+  var ls1 = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+  var kept1 = (ls1.fleet_maintenance||[]).find(x=>x.id===id)||{};
+  /* ติ๊กจนครบ */
+  for(var i=1;i<tpl;i++) flBoardSubTick(null, id, i, true);
+  var m2 = FL_MAINT.find(x=>x.id===id);
+  var dAll = (m2.subs||[]).filter(s=>s.d).length;
+  var closeBtn = [].slice.call(document.querySelectorAll('#fl-board .kd[data-mj="'+id+'"] .kacts button')).slice(-1)[0];
+  var closeLabel = (closeBtn||{}).textContent||'';
+  /* ติ๊กกลับออก · ต้องลดลงและลง log อีกบรรทัด */
+  flBoardSubTick(null, id, 0, false);
+  var m3 = FL_MAINT.find(x=>x.id===id);
+  return { no:no, sil0:sil0, lane0:lane0, subsShown:subsShown, tpl:tpl, splitAgain:splitAgain,
+           d1:d1, logAdd1:logAdd1, sil1:sil1, lane1:lane1, laneForced:laneForced, boxes:boxes.length,
+           tagAfter1:tagAfter1, barW:String(bar1.width||''),
+           keptSub:((kept1.subs||[])[0]||{}).d, keptLog:((kept1.progressLog||[]).slice(-1)[0]||{}).text||'',
+           by1:by1, at1:at1, dAll:dAll, closeLabel:closeLabel,
+           dBack:(m3.subs||[]).filter(s=>s.d).length,
+           logAddAll:(m3.progressLog||[]).length-nLog0 };
+});
+if (!I.subsShown) fail('กดการ์ดแล้วรายการงานย่อยไม่กาง');
+else if (I.tpl < 4) fail('แตกจากแม่แบบแล้วได้แค่ ' + I.tpl + ' ขั้น');
+else if (I.splitAgain !== I.tpl) fail('แตกแม่แบบซ้ำแล้วขั้นตอนโดนเติมซ้ำ · ' + I.tpl + ' → ' + I.splitAgain);
+else ok(I.no + ' · แตกจากแม่แบบได้ ' + I.tpl + ' ขั้น · กดซ้ำไม่เพิ่มซ้ำ');
+if (I.boxes !== I.tpl) fail('ช่องติ๊กบนหน้าจอ ' + I.boxes + ' ช่อง แต่มี ' + I.tpl + ' ขั้นตอน');
+else if (I.d1 !== 1) fail('ติ๊กขั้นแรกแล้วไม่ติด');
+else if (I.logAdd1 !== 1) fail('ติ๊กหนึ่งขั้นต้องลง progressLog หนึ่งบรรทัด · ได้ ' + I.logAdd1);
+else if (I.sil1 !== 0) fail('ติ๊กแล้วความเงียบไม่รีเซ็ต · ' + I.sil0 + ' → ' + I.sil1 + ' วัน');
+else if (!/1\/+/.test(I.tagAfter1)) fail('ป้ายบนการ์ดไม่ขึ้น 1/' + I.tpl + ' · ได้ "' + I.tagAfter1 + '"');
+else if (I.barW !== Math.round(1 / I.tpl * 100) + '%') fail('แถบความคืบหน้าไม่ตรง · ได้ ' + I.barW);
+else ok(I.no + ' · ติ๊กหนึ่งขั้น = บันทึกหนึ่งบรรทัด · เงียบ ' + I.sil0 + ' → 0 วัน · แถบ ' + I.barW);
+if (I.keptSub !== 1 || !/ขั้นตอน 1\//.test(I.keptLog)) fail('ติ๊กแล้วไม่ลง localStorage · รีเฟรชแล้วหาย');
+else if (!I.at1) fail('ติ๊กแล้วไม่ได้บันทึกวันที่ติ๊ก');
+else ok('ขั้นที่ติ๊กและบรรทัดบันทึกลงเครื่องจริง · ลงวันที่ ' + I.at1 + (I.by1 ? (' โดย ' + I.by1) : ''));
+if (I.laneForced !== 'wait') fail('ตั้งใบให้ค้างที่เลนรออะไหล่ไม่ได้ · ข้อนี้ไม่ได้ทดสอบอะไร');
+else if (I.lane1 !== 'doing') fail('ใบที่ถูกลากแช่ไว้ที่รออะไหล่ ติ๊กแล้วไม่หลุดออกมา · ยังเป็น ' + I.lane1);
+else ok('ใบที่ถูกลากแช่ไว้ที่รออะไหล่ · ติ๊กหนึ่งขั้นแล้วหลุดไปเลนกำลังทำเอง');
+if (I.dAll !== I.tpl) fail('ติ๊กครบทุกขั้นแล้วนับได้ ' + I.dAll + ' จาก ' + I.tpl);
+else if (!/ครบแล้ว/.test(I.closeLabel)) fail('ครบทุกขั้นแล้วปุ่มไม่ชวนปิดใบ · ได้ "' + I.closeLabel.trim() + '"');
+else ok('ติ๊กครบ ' + I.tpl + '/' + I.tpl + ' แล้วปุ่มเปลี่ยนเป็น "' + I.closeLabel.trim() + '"');
+if (I.dBack !== I.tpl - 1) fail('ติ๊กกลับออกแล้วไม่ลด · ยังเป็น ' + I.dBack);
+else if (I.logAddAll !== I.tpl + 1) fail('บันทึกไม่ครบทุกครั้งที่ติ๊ก · ได้ ' + I.logAddAll + ' ควรเป็น ' + (I.tpl + 1));
+else ok('ติ๊กกลับออกได้ · ทุกครั้งที่ติ๊กลงบันทึกครบ ' + I.logAddAll + ' บรรทัด');
+
+/* ══ 8 · จอแคบ · ต้องไม่ล้นแนวนอน ══════════════════════════════════════ */
 for (const w of [1440, 900, 390]) {
   await page.setViewportSize({ width: w, height: 900 });
   await page.waitForTimeout(350);
