@@ -5678,7 +5678,7 @@ function renderTripPL(){
     try{ console.error('[P&L] render failed', err); }catch(_){}
     body='<div class="empty">Could not build this view — '+e(String(err&&err.message||err))+'</div>';
   }
-  host.innerHTML='<style id="pl-style">'+pxCSS()+'</style>'+pxBar(e)+body;
+  host.innerHTML=pxBar(e)+body;   // styles: css/03-trippl.css (was pxCSS(), injected per render)
 }
 
 /* §mealTrip · ของจริงรายทริป · 'YYYY-MM-DD::boatId'
