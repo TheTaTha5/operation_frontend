@@ -43,7 +43,7 @@ export const DOMAINS = {
                             prefixes: ['acct', 'pfm', 'ts'] },
   '08i-reports.js':       { title: 'Reports · analysis · daily report · market data · pickup map · B2C dashboard',
                             prefixes: ['rep', 'px', 'dr', 'drm', 'md', 'pm', 'pmap', 'b'] },
-  '08j-projects.js':      { title: 'Projects',
+  '08j-boatjobs.js':      { title: 'Boat job sheet (ใบงานเรือ)',
                             prefixes: ['pj'] },
 };
 

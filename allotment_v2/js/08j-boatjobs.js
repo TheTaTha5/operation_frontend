@@ -1,6 +1,74 @@
-// 08j-projects.js · Projects
+// 08j-boatjobs.js · Boat job sheet (ใบงานเรือ · pier crew / guides / programs per boat per day)
 // Moved verbatim out of 08-app.js by tools/split-08-app.mjs (function declarations only, original
 // order). Classic script: loads before 08-app.js, every function is still a global. See js/README.md.
+
+/* §pjModule (2026-09-23) · this whole file is one function scope. Everything declared in it is
+   private to the boat job sheet unless it is listed in the export block at the bottom — that list
+   is the complete set of names any other script (or UI test) uses. Deliberately NOT reindented,
+   so blame and diffs stay readable. Sloppy mode on purpose, same as before the wrap.
+   Adding a function another file needs: add it to the export block, or it is undefined there. */
+(function(){
+/* §pjAct (2026-09-23) · this screen's event handlers · no inline on*="…" in its markup any more.
+   The markup says what should happen (data-on-click="slotDrop" data-a-bid="b3" data-a-slot="cap"),
+   laDelegate (08-app.js) finds the action here and calls it with (element, event). Arguments come
+   back from data-a-* as strings, so numeric ones are converted with + where the function expects a
+   number — exactly what the inline code passed. pjOn() builds the attributes and HTML-escapes
+   every value. Converted with tools/handler-map.mjs: every handler element calls the same function
+   with the same arguments, stops propagation the same way, and a 200-step real-click replay leaves
+   the same data and the same screen. */
+function pjOn(ev, act, args){
+  var s=' data-on-'+ev+'="'+act+'"';
+  if(args) for(var k in args) s+=' data-a-'+k+'="'+poE(String(args[k]))+'"';
+  return s;
+}
+const PJ_ACTIONS = {
+  // ── keys / propagation ──
+  lbKey: function(el, e){   // editable slot label · Enter keeps, Escape restores the saved text
+    if(e.key==='Enter'){ e.preventDefault(); el.blur(); }
+    if(e.key==='Escape'){ el.textContent=el.dataset.o; el.blur(); }
+  },
+  enterBlur: function(el, e){ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } },
+  stop: function(el, e){ e.stopPropagation(); },   // colour inputs inside a popup must not close it
+  // ── blur ──
+  slotLb:  function(el){ var d=el.dataset; pjSlotLbSet(d.aKind, d.aSlot, el.textContent, d.aDef, d.aBid); },
+  note:    function(el){ pjNote(el.dataset.aBid, el.innerText); },
+  // ── change ──
+  pick:     function(el){ pjPick(el.dataset.aBid, el.dataset.aSlot, el.value); },
+  freePick: function(el){ pjFreePick(el.dataset.aBid, el.dataset.aSlot, el); },
+  gdPick:   function(el){ var d=el.dataset; pjGdPick(d.aBid, d.aKind, +d.aIdx, el.value); },
+  wcSet:    function(el){ pjWcSet(el.dataset.aBid, el.value); },
+  progColorPick: function(el){ pjProgColor(el.dataset.aRid, el.value); },
+  stColorPick:   function(el){ pjStColor(el.dataset.aK, el.value); },
+  mvSet:    function(el){ pjMvSet(el.dataset.aBid, el.value); },
+  mjPick:   function(el){ pjMjPick(el.dataset.aBid, el.value); },
+  wbName:   function(el){ pjWbName(el.dataset.aBid, el.value); },
+  wbCustom: function(el){ pjWbCustom(el.dataset.aBid, el.value); },
+  date:     function(el){ pjDate(el.value); },
+  // ── click ──
+  slotDrop:   function(el){ pjSlotDrop(el.dataset.aBid, el.dataset.aSlot); },
+  gdDrop:     function(el){ var d=el.dataset; pjGdDrop(d.aBid, d.aKind, +d.aIdx, +d.aOn); },
+  popToggle:  function(el){ pjPopToggle(el.dataset.aId); },
+  gdAddSlot:  function(el){ pjGdAddSlot(el.dataset.aBid, el.dataset.aKind); },
+  progColor:  function(el){ pjProgColor(el.dataset.aRid, el.dataset.aC); },
+  stColor:    function(el){ pjStColor(el.dataset.aK, el.dataset.aC); },
+  stColorReset: function(el){ pjStColorReset(el.dataset.aK); },
+  opDrop:     function(el){ pjOpDrop(el.dataset.aBid); },
+  lockSet:    function(el){ pjLockSet(el.dataset.aBid, +el.dataset.aOn); },
+  slotAdd:    function(el){ pjSlotAdd(el.dataset.aBid, el.dataset.aKind); },
+  wbSet:      function(el){ var d=el.dataset; pjWbSet(d.aBid, d.aT, d.aC); },
+  teamPull:   function(el){ pjTeamPull(el.dataset.aBid); },
+  teamSave:   function(el){ pjTeamSave(el.dataset.aBid); },
+  guideOpen:  function(el){ pjGuideOpen(el.dataset.aBid); },
+  guideJob:   function(el){ pjGuideJob(el.dataset.aBid); },
+  filter:     function(el){ pjFilter(el.dataset.aK); },
+  go:         function(el){ pjGo(el.dataset.aK); },
+  shift:      function(el){ pjShift(+el.dataset.aN); },
+  today:      function(){ pjToday(); },
+  toggleIdle: function(){ pjToggleIdle(); },
+  copyYday:   function(el){ pjCopyYday(el.dataset.aPier); },
+  wide:       function(el){ pjWide(+el.dataset.aN); },
+  print:      function(){ pjPrint(); },
+};
 
 /* §crewPaper (2026-09-05) · ทีมเรือของลำนั้นวันนั้น · อ่านจากใบงานเรือที่เดียว
    ใบงานไกด์ไม่เคยบอกว่าใครลงเรือลำนี้เลย · ใบสั่งงานมัคคุเทศก์บอกแต่ "จำนวน"
@@ -856,10 +924,9 @@ function pjSlotRow(pier,bid,kind,slot,defLb,val,subOld,roles,ro,boat){
   var kHtml = ro ? poE(lb)
     : ('<span class="pj-kx" contenteditable="true" spellcheck="false"'
       +' title="แก้ชื่อช่องนี้ได้ · มีผลเฉพาะลำนี้ วันนี้ · ลบจนว่าง = กลับเป็น '+poE(pjSlotLbBase(kind,slot,defLb))+'"'
-      +' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}'
-        +'if(event.key===\'Escape\'){this.textContent=this.dataset.o;this.blur();}"'
+      +pjOn('keydown','lbKey')
       +' data-o="'+poE(lb)+'"'
-      +' onblur="pjSlotLbSet(\''+kind+'\',\''+slot+'\',this.textContent,\''+poE(defLb)+'\',\''+poE(bid)+'\')">'
+      +pjOn('blur','slotLb',{kind:kind,slot:slot,def:defLb,bid:bid})+'>'
       +poE(lb)+'</span>');
   var badge='';
   var hp=val?pjHomePier(val):'';
@@ -867,9 +934,9 @@ function pjSlotRow(pier,bid,kind,slot,defLb,val,subOld,roles,ro,boat){
   var freeCaptain=slot==='cap' && boat && boat.ownership==='charter';
   var sel=(badge?('<span style="display:inline-flex;flex:none">'+badge+'</span>'):'')
     +(freeCaptain
-      ? '<input class="pj-free" value="'+poE(val)+'" placeholder="พิมพ์ชื่อกัปตัน" onchange="pjFreePick(\''+bid+'\',\''+slot+'\',this)"'+(ro?' disabled':'')+'>'
-      : '<select onchange="pjPick(\''+bid+'\',\''+slot+'\',this.value)"'+(ro?' disabled':'')+'>'+pjOpts(pier,val,roles)+'</select>')
-    +((ro||!val)?'':('<button class="pj-rx" onclick="pjSlotDrop(\''+bid+'\',\''+slot+'\')" title="เอาคนออกจากช่องนี้">&#10005;</button>'));
+      ? '<input class="pj-free" value="'+poE(val)+'" placeholder="พิมพ์ชื่อกัปตัน"'+pjOn('change','freePick',{bid:bid,slot:slot})+(ro?' disabled':'')+'>'
+      : '<select'+pjOn('change','pick',{bid:bid,slot:slot})+(ro?' disabled':'')+'>'+pjOpts(pier,val,roles)+'</select>')
+    +((ro||!val)?'':('<button class="pj-rx"'+pjOn('click','slotDrop',{bid:bid,slot:slot})+' title="เอาคนออกจากช่องนี้">&#10005;</button>'));
   return '<div class="pj-rw'+(subOld?' sw2':'')+'"><div class="k">'+kHtml+'</div>'+sel
     +(subOld?('<span class="pj-tag">SUB</span><span class="pj-was" title="ปกติคือ '+poE(pjStaffName(subOld))+'">ปกติ '+poE(pjStaffName(subOld))+'</span>'):'')+'</div>';
 }
@@ -879,7 +946,7 @@ function pjSelRow(pier,bid,label,slot,val,subOld,roles,ro,boat){
   var hp=val?pjHomePier(val):'';
   if(hp && hp!==pier) badge+='<span class="pj-away" title="มาช่วยจาก '+poE((PO_PIERS.filter(function(x){return x.k===hp;})[0]||{}).t||hp)+'">'+poE(pjPierShort(hp))+'</span>';
   var sel=(badge?('<span style="display:inline-flex;flex:none">'+badge+'</span>'):'')
-    +'<select onchange="pjPick(\''+bid+'\',\''+slot+'\',this.value)"'+(ro?' disabled':'')+'>'+pjOpts(pier,val,roles)+'</select>';
+    +'<select'+pjOn('change','pick',{bid:bid,slot:slot})+(ro?' disabled':'')+'>'+pjOpts(pier,val,roles)+'</select>';
   return pjRow(label, sel, subOld);
 }
 function pjTxtRow(label,txt){
@@ -992,19 +1059,17 @@ function pjGdLead(bid){
 }
 function pjGdRow(label, bid, kind, idx, val, langs, taken, busy, extra, lead){
   var chips=(langs||[]).map(function(L){ return '<span class="pj-lg">'+poE(L)+'</span>'; }).join('');
-  var call=function(v){ return 'pjGdPick(\''+poE(bid)+'\',\''+kind+'\','+idx+','+v+')'; };
   var slot=pjGdSlot(kind,idx), def=pjGdDefLb(kind,idx), lb=pjSlotLb('gd',slot,def,bid);
   var kHtml='<span class="pj-kx" contenteditable="true" spellcheck="false"'
     +' title="แก้ชื่อช่องนี้ได้ · มีผลเฉพาะลำนี้ วันนี้ · ลบจนว่าง = กลับเป็น '+poE(pjSlotLbBase('gd',slot,def))+'"'
-    +' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}'
-      +'if(event.key===\'Escape\'){this.textContent=this.dataset.o;this.blur();}"'
+    +pjOn('keydown','lbKey')
     +' data-o="'+poE(lb)+'"'
-    +' onblur="pjSlotLbSet(\'gd\',\''+slot+'\',this.textContent,\''+poE(def)+'\',\''+poE(bid)+'\')">'
+    +pjOn('blur','slotLb',{kind:'gd',slot:slot,def:def,bid:bid})+'>'
     +poE(lb)+'</span>';
   return '<div class="pj-rw"><div class="k">'+kHtml+'</div>'
-    +'<select onchange="'+call('this.value')+'">'+pjGdOpts(val, kind==='gd', taken, busy)+'</select>'
+    +'<select'+pjOn('change','gdPick',{bid:bid,kind:kind,idx:idx})+'>'+pjGdOpts(val, kind==='gd', taken, busy)+'</select>'
     +((val||extra)
-       ? ('<button class="pj-rx" onclick="pjGdDrop(\''+poE(bid)+'\',\''+kind+'\','+idx+','+(val?1:0)+')"'
+       ? ('<button class="pj-rx"'+pjOn('click','gdDrop',{bid:bid,kind:kind,idx:idx,on:(val?1:0)})
           +' title="'+(val?'เอาคนออกจากช่องนี้':'ปิดช่องว่างที่เปิดไว้')+'">&#10005;</button>')
        : '')
     +((lead&&val&&val===lead)
@@ -1073,7 +1138,7 @@ function pjWcRow(bid, cur, ro, ST){
   var cs=((typeof paCodes==='function')?paCodes():[]).filter(function(c){ return c && c.kind==='work'; });
   var seen={}; cs.forEach(function(c){ seen[c.code]=1; });
   if(cur && !seen[cur]) cs.push({code:cur, label:'(ไม่มีในทะเบียน)'});
-  var sel='<select onchange="pjWcSet(\''+poE(bid)+'\',this.value)"'+(ro?' disabled':'')
+  var sel='<select'+pjOn('change','wcSet',{bid:bid})+(ro?' disabled':'')
     +' title="รหัสนี้จะไปขึ้นในตารางการทำงานให้ทุกคนที่อยู่บนใบนี้">'
     +'<option value=""'+(cur?'':' selected')+'>'
       +(au?('อัตโนมัติ · '+poE(au)):'ยังไม่ระบุ')+'</option>'
@@ -1311,7 +1376,7 @@ function pjCard(B, pier, ro){
               return g.active!==false && !taken[g.id]; }).length;
             var aid='pjga_'+String(bid).replace(/[^A-Za-z0-9_-]/g,'_');
             out+='<div class="pj-addw">'
-              +'<button class="pj-addb" onclick="pjPopToggle(\''+aid+'\')"'+(left?'':' disabled')
+              +'<button class="pj-addb"'+pjOn('click','popToggle',{id:aid})+(left?'':' disabled')
                 +' title="'+(left?'เพิ่มช่องไกด์ หรือช่อง ผช.ไกด์ / สตาฟ'
                               :'ทุกคนในทะเบียนไกด์ลงลำนี้หมดแล้ว — เพิ่มคนใหม่ได้ที่ปุ่ม จัดไกด์ › ทะเบียนไกด์')+'">'
                 +'&#65291; เพิ่มคน</button>'
@@ -1319,9 +1384,9 @@ function pjCard(B, pier, ro){
               +'<div class="pj-pop pj-addp" id="'+aid+'"><div class="ph">เลือกช่องที่จะเพิ่ม</div>'
                 /* §gdLb · ชื่อในเมนูต้องเป็นชื่อที่ตั้งทับไว้ ไม่ใช่ชื่อตั้งต้น
                    ไม่งั้นเมนูเรียกช่องคนละชื่อกับที่เห็นบนการ์ด */
-                +'<button onclick="pjGdAddSlot(\''+poE(bid)+'\',\'gd\')">'
+                +'<button'+pjOn('click','gdAddSlot',{bid:bid,kind:'gd'})+'>'
                   +poE(pjSlotLb('gd',pjGdSlot('gd',nG),pjGdDefLb('gd',nG),bid))+'</button>'
-                +'<button onclick="pjGdAddSlot(\''+poE(bid)+'\',\'tr\')">'
+                +'<button'+pjOn('click','gdAddSlot',{bid:bid,kind:'tr'})+'>'
                   +poE(pjSlotLb('gd',pjGdSlot('tr',nT),pjGdDefLb('tr',nT),bid))+'</button>'
                 /* §gdLb · แถวที่เพิ่มมาเปลี่ยนชื่อตำแหน่งได้ · ต้องบอกตรงนี้
                    ไม่งั้นไม่มีอะไรชวนให้ลองคลิกที่ชื่อช่อง */
@@ -1351,20 +1416,20 @@ function pjCard(B, pier, ro){
      +'<div class="pr">'+(rt.id?poE(rt.islands||'')
         :(B._away?poE(B._away.route.name||'')
                  :poE([SM.t, ST.loc||'', ST.note||''].filter(Boolean).join(' \u00b7 '))))+'</div>'
-     +(ro?'':'<button class="pj-pen" onclick="pjPopToggle(\''+pid+'\')" title="'+(rt.id?'แต้มสีโปรแกรมนี้':'แต้มสีสถานะนี้')+'">&#9998;</button>')
+     +(ro?'':'<button class="pj-pen"'+pjOn('click','popToggle',{id:pid})+' title="'+(rt.id?'แต้มสีโปรแกรมนี้':'แต้มสีสถานะนี้')+'">&#9998;</button>')
      /* §pjStColor · ลำที่ไม่มีโปรแกรม แถบนี้แทนสถานะ · จานสีจึงต้องแก้สีของสถานะ ไม่ใช่ของโปรแกรม */
      +(rt.id
         ? ('<div class="pj-pop" id="'+pid+'"><div class="ph">สีของโปรแกรม '+poE(rt.name||'')+'</div><div class="pj-sws">'
-            +PJ_PAL.map(function(c){ return '<div class="pj-sw'+(c.toLowerCase()===String(pcol).toLowerCase()?' on':'')+'" style="background:'+c+'" onclick="pjProgColor(\''+poE(B.rid)+'\',\''+c+'\')"></div>'; }).join('')
+            +PJ_PAL.map(function(c){ return '<div class="pj-sw'+(c.toLowerCase()===String(pcol).toLowerCase()?' on':'')+'" style="background:'+c+'"'+pjOn('click','progColor',{rid:B.rid,c:c})+'></div>'; }).join('')
             +'</div>'
-            +'<label class="pj-cus">เลือกสีเอง<input type="color" value="'+poE(pcol)+'" onchange="pjProgColor(\''+poE(B.rid)+'\',this.value)" onclick="event.stopPropagation()"></label>'
+            +'<label class="pj-cus">เลือกสีเอง<input type="color" value="'+poE(pcol)+'"'+pjOn('change','progColorPick',{rid:B.rid})+pjOn('click','stop')+'></label>'
             +'<div class="pf">เปลี่ยนแล้วมีผลกับโปรแกรมนี้ <b>ทุกลำทุกวัน</b> และทุกหน้าที่โชว์เส้นทางนี้</div></div>')
         : ('<div class="pj-pop" id="'+pid+'"><div class="ph">สีของสถานะ '+poE(SM.t)+'</div><div class="pj-sws">'
-            +PJ_PAL.map(function(c){ return '<div class="pj-sw'+(c.toLowerCase()===String(pjBand(ST.k)).toLowerCase()?' on':'')+'" style="background:'+c+'" onclick="pjStColor(\''+ST.k+'\',\''+c+'\')"></div>'; }).join('')
+            +PJ_PAL.map(function(c){ return '<div class="pj-sw'+(c.toLowerCase()===String(pjBand(ST.k)).toLowerCase()?' on':'')+'" style="background:'+c+'"'+pjOn('click','stColor',{k:ST.k,c:c})+'></div>'; }).join('')
             +'</div>'
-            +'<label class="pj-cus">เลือกสีเอง<input type="color" value="'+poE(pjBand(ST.k))+'" onchange="pjStColor(\''+ST.k+'\',this.value)" onclick="event.stopPropagation()"></label>'
+            +'<label class="pj-cus">เลือกสีเอง<input type="color" value="'+poE(pjBand(ST.k))+'"'+pjOn('change','stColorPick',{k:ST.k})+pjOn('click','stop')+'></label>'
             +'<div class="pf">เปลี่ยนแล้วมีผลกับ<b>ทุกลำที่อยู่สถานะนี้</b> · ลำที่ออกทริปยังใช้สีของโปรแกรมเหมือนเดิม'
-            +(pjStIsCustom(ST.k)?('<button class="pj-rst" onclick="pjStColorReset(\''+ST.k+'\')">คืนค่าสีเดิมของสถานะนี้</button>'):'')
+            +(pjStIsCustom(ST.k)?('<button class="pj-rst"'+pjOn('click','stColorReset',{k:ST.k})+'>คืนค่าสีเดิมของสถานะนี้</button>'):'')
             +'</div></div>'))
      +'</div>'
    +'<div class="stbar"><span class="stw">'
@@ -1385,7 +1450,7 @@ function pjCard(B, pier, ro){
            ออกไปนอกขอบการ์ด แล้วโดน overflow:hidden ของ .stw กลืนหายไปทั้งปุ่ม
            ผลคือเห็นคำเตือนแต่กดเอาโปรแกรมออกไม่ได้เลย (วัดที่ 1920 ปุ่มเลยขอบไป 195px) */
         +'<span class="t">&#9888; โปรแกรมค้าง</span>'   /* ชื่อเส้นทางไม่ต้องพูดซ้ำตรงนี้ · แถบชื่อโปรแกรมอยู่เหนือแถบนี้ขึ้นไปสองบรรทัดเอง */
-        +(ro?'':('<button onclick="pjOpDrop(\''+poE(bid)+'\')">เอาออก</button>'))+'</span>'):'')
+        +(ro?'':('<button'+pjOn('click','opDrop',{bid:bid})+'>เอาออก</button>'))+'</span>'):'')
      /* §pjPierNow · ลำนี้ไม่ใช่ของประจำท่า หรือไม่ได้อยู่ที่ท่า · ต้องบอกให้เห็นตั้งแต่แถบสถานะ */
      +((B._asn && B._asn.toPier===pier && B._asn.fromPier && B._asn.fromPier!==pier)
         ? ('<span class="pj-move" title="ใบย้ายท่า '+poE(B._asn.startDate||'')+' – '+poE(B._asn.endDate||'')
@@ -1400,8 +1465,8 @@ function pjCard(B, pier, ro){
      /* §pjLock2 · ปุ่มปิด/เปิดใบ · มุมขวาของแถบสถานะ · คนที่แก้ไม่ได้ไม่ต้องเห็น */
      +(ro?''
         :(lk
-          ? ('<button class="pj-lb ed" onclick="pjLockSet(\''+bid+'\',0)" title="เปิดใบนี้ให้แก้ไขอีกครั้ง">&#9998; แก้ไข</button>')
-          : ('<button class="pj-lb" onclick="pjLockSet(\''+bid+'\',1)" title="ปิดใบนี้ · ต้องกดแก้ไขก่อนถึงจะเปลี่ยนคนได้">&#10003; จัดเสร็จแล้ว</button>')))
+          ? ('<button class="pj-lb ed"'+pjOn('click','lockSet',{bid:bid,on:0})+' title="เปิดใบนี้ให้แก้ไขอีกครั้ง">&#9998; แก้ไข</button>')
+          : ('<button class="pj-lb"'+pjOn('click','lockSet',{bid:bid,on:1})+' title="ปิดใบนี้ · ต้องกดแก้ไขก่อนถึงจะเปลี่ยนคนได้">&#10003; จัดเสร็จแล้ว</button>')))
    +'</div>'
    /* §pjWork · ชื่อตำแหน่งเปลี่ยนตามงาน · ชื่อคนยังมาจากทะเบียนพนักงานท่าเรือชุดเดิม
       ช่องที่เก็บยังเป็น cap/asst/crew/island ชุดเดิม จึงไหลเข้าตารางการทำงานเองอยู่แล้ว */
@@ -1442,11 +1507,11 @@ function pjCard(B, pier, ro){
        if(!lro && rest.length){
          var aid='pja_'+bid;
          out+='<div class="pj-addw">'
-           +'<button class="pj-addb" onclick="pjPopToggle(\''+aid+'\')">&#65291; เพิ่มคน</button>'
+           +'<button class="pj-addb"'+pjOn('click','popToggle',{id:aid})+'>&#65291; เพิ่มคน</button>'
            +'<span class="pj-addn">เหลือ '+rest.length+' ช่อง</span>'
            +'<div class="pj-pop pj-addp" id="'+aid+'"><div class="ph">เลือกช่องที่จะเพิ่ม</div>'
            + rest.map(function(x){
-               return '<button onclick="pjSlotAdd(\''+bid+'\',\''+x[0]+'\')">'
+               return '<button'+pjOn('click','slotAdd',{bid:bid,kind:x[0]})+'>'
                  +poE(pjSlotLb(KIND,x[0],x[1],bid))+'</button>'; }).join('')
            +'</div></div>';
        }
@@ -1482,7 +1547,7 @@ function pjCard(B, pier, ro){
         + (function(){
             var raw=mvTripRaw(_poDate,bid), V=mvForTrip(_poDate,bid,B.rid);
             var col=pjMvCol(V?V.id:''), nm=V?(V.name||V.id):'';
-            var sel='<select onchange="pjMvSet(\''+bid+'\',this.value)"'+(lro?' disabled':'')+'>'
+            var sel='<select'+pjOn('change','mvSet',{bid:bid})+(lro?' disabled':'')+'>'
               +'<option value=""'+(raw===''?' selected':'')+'>ตามเส้นทาง'
                 +(mvForRoute(B.rid)?(' · '+poE(mvForRoute(B.rid).name||'')):' · ยังไม่ได้ตั้ง')+'</option>'
               + mvList().map(function(x){ return '<option value="'+poE(x.id)+'"'+(raw===x.id?' selected':'')+'>'
@@ -1508,7 +1573,7 @@ function pjCard(B, pier, ro){
                 + pjTxtRow('ที่อยู่', ST.loc||'—')
                 + pjTxtRow('ตั้งแต่', (ST.log&&ST.log.from)?pjDocDate(ST.log.from):'—');
             }
-            var sel='<select onchange="pjMjPick(\''+bid+'\',this.value)"'+(lro?' disabled':'')+'>'
+            var sel='<select'+pjOn('change','mjPick',{bid:bid})+(lro?' disabled':'')+'>'
               + ST.mj.map(function(m){ return '<option value="'+poE(m.id)+'"'+((M&&M.id===m.id)?' selected':'')+'>'
                   +poE((m.no?(m.no+' · '):'')+(m.title||m.type||'งานซ่อม'))+'</option>'; }).join('')
               +'</select>';
@@ -1525,11 +1590,11 @@ function pjCard(B, pier, ro){
         + (gdHas?gdSec():'') ))
    + (going ? ( pjSecHd('Customer','cust')
    +'<div class="pj-wbrow"><span class="k">Wristband</span>'
-     +'<span class="pj-wb" onclick="'+(lro?'':'pjPopToggle(\''+wid+'\')')+'" style="position:relative">'
+     +'<span class="pj-wb"'+(lro?' data-on-click=""':pjOn('click','popToggle',{id:wid}))+' style="position:relative">'
        +'<i style="background:'+(wbc||'#F0F0EC')+'"></i>'+(wbt?poE(wbt):'<span style="color:#C9CFD8;font-weight:500">ยังไม่ระบุ</span>')
        +'<div class="pj-pop" id="'+wid+'" style="top:30px;left:0;right:auto;width:252px"><div class="ph">สีสายรัดข้อมือวันนี้</div>'
        +'<div class="pj-sws">'
-       +PJ_WB.map(function(w){ return '<div class="pj-sw'+(w.c===wbc?' on':'')+'" title="'+w.t+'" style="background:'+w.c+'" onclick="pjWbSet(\''+bid+'\',\''+w.t+'\',\''+w.c+'\')"></div>'; }).join('')
+       +PJ_WB.map(function(w){ return '<div class="pj-sw'+(w.c===wbc?' on':'')+'" title="'+w.t+'" style="background:'+w.c+'"'+pjOn('click','wbSet',{bid:bid,t:w.t,c:w.c})+'></div>'; }).join('')
        +'</div>'
        /* §pjWb2 · สายรัดเป็นของที่ซื้อมาเป็นล็อต · ล็อตไหนได้สีแปลกมาก็คีย์เองได้
           ไม่ต้องรอเพิ่มในโค้ด · และต้องล้างกลับเป็น "ยังไม่ระบุ" ได้ด้วย
@@ -1542,17 +1607,17 @@ function pjCard(B, pier, ro){
          +'<span>ชื่อสี</span>'
          +'<input type="text" class="pj-wbni" maxlength="24" value="'+poE(wbt)+'" '
          +'placeholder="พิมพ์เอง เช่น ส้มอ่อน" '
-         +'onclick="event.stopPropagation()" '
-         +'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '
-         +'onchange="pjWbName(\''+bid+'\',this.value)">'
+         +pjOn('click','stop').slice(1)+' '
+         +pjOn('keydown','enterBlur').slice(1)+' '
+         +pjOn('change','wbName',{bid:bid}).slice(1)+'>'
        +'</div>'
        +'<div class="pj-wbx">'
          +'<label class="pj-wbc" title="เลือกสีเอง · ใช้กับล็อตที่สีไม่มีในชุดมาตรฐาน">'
            +'<input type="color" value="'+(wbc||'#888888')+'" '
-           +'onclick="event.stopPropagation()" '
-           +'onchange="pjWbCustom(\''+bid+'\',this.value)">'
+           +pjOn('click','stop').slice(1)+' '
+           +pjOn('change','wbCustom',{bid:bid}).slice(1)+'>'
            +'<span>เลือกสีเอง</span></label>'
-         +(wbt?('<button type="button" class="pj-wbclr" onclick="pjWbSet(\''+bid+'\',\'\',\'\')">ล้างสี</button>'):'')
+         +(wbt?('<button type="button" class="pj-wbclr"'+pjOn('click','wbSet',{bid:bid,t:'',c:''})+'>ล้างสี</button>'):'')
        +'</div>'
        +'<div class="pf">เก็บแยกรายวันรายลำ</div></div></span>'
      +'<span style="flex:1"></span><span class="k">Group</span>'
@@ -1579,18 +1644,18 @@ function pjCard(B, pier, ro){
     })() ) )
    + pjSecHd('Note','note')
    +'<div class="pj-note"'+(lro?'':' contenteditable="true"')+' data-ph="พิมพ์หมายเหตุของลำนี้วันนี้…" '
-     +'onblur="pjNote(\''+bid+'\',this.innerText)">'+poE(J.note||'')+'</div>'
+     +pjOn('blur','note',{bid:bid}).slice(1)+'>'+poE(J.note||'')+'</div>'
    +'<div class="foot">'
-     +'<button class="gh" onclick="pjTeamPull(\''+bid+'\')"'+(lro?' disabled':'')+'>&#8634; ดึงทีมประจำ</button>'
-     +'<button onclick="pjTeamSave(\''+bid+'\')"'+(lro?' disabled':'')+'>ตั้งเป็นทีมประจำ</button>'
+     +'<button class="gh"'+pjOn('click','teamPull',{bid:bid})+(lro?' disabled':'')+'>&#8634; ดึงทีมประจำ</button>'
+     +'<button'+pjOn('click','teamSave',{bid:bid})+(lro?' disabled':'')+'>ตั้งเป็นทีมประจำ</button>'
      +'<span style="flex:1"></span>'
-     +'<button onclick="pjGuideOpen(\''+bid+'\')">จัดไกด์</button>'
+     +'<button'+pjOn('click','guideOpen',{bid:bid})+'>จัดไกด์</button>'
    +'</div>'
    /* §gjCard · ท้ายสุดของการ์ด · เต็มความกว้าง จะได้ไม่โดนแถวปุ่มด้านบนบีบตกขอบ
       ตัวเลขบนปุ่มคือจำนวน booking ที่จะลงใบ · ไม่มีเลย = ปุ่มกดไม่ได้ พร้อมบอกว่าทำไม */
    +(function(){
       var gj=(_pjGjMap||{})[bid]||0;
-      return '<div class="gjrow"><button onclick="pjGuideJob(\''+bid+'\')"'+(gj?'':' disabled')
+      return '<div class="gjrow"><button'+pjOn('click','guideJob',{bid:bid})+(gj?'':' disabled')
        +' title="'+(gj? poE('พิมพ์ใบงานไกด์ของ '+(B.boat.name||bid)+' · '+_poDate+' · '+gj+' booking · A4 แนวนอน')
                      : poE('ลำนี้ยังไม่มีใบจองที่จัดเรือแล้วในวันนี้ — จัดเรือก่อนถึงพิมพ์ใบงานไกด์ได้'))+'">'
        +'&#128196; ใบงานไกด์'+(gj?('<span class="n">'+gj+'</span>'):'')+'</button></div>';
@@ -2613,3 +2678,40 @@ function pjShotScript(fn){
      +"s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';"
      +"s.onload=run;s.onerror=bad;document.head.appendChild(s);}";
 }
+
+/* §pjModule · exports */
+// the screen itself · renderPierJob and its helpers in 08-app.js
+window.PJ_ACTIONS = PJ_ACTIONS;
+window.pjOn = pjOn;
+window.pjCard = pjCard;
+window.pjAllBoats = pjAllBoats;
+window.pjBoatSt = pjBoatSt;
+window.pjGrp = pjGrp;
+window.pjSubN = pjSubN;
+window.pjIsIdle = pjIsIdle;
+window.pjApplyIdle = pjApplyIdle;
+window.pjAlignSecs = pjAlignSecs;
+window.pjGuideJobMap = pjGuideJobMap;
+window.pjPierOf = pjPierOf;
+window.pjPierShort = pjPierShort;
+window.pjGo = pjGo;
+window.pjCSS = pjCSS;
+window.pjOf = pjOf;
+window.pjPax = pjPax;
+window.pjStaffName = pjStaffName;
+window.pjDateWords = pjDateWords;
+// check-in, guide jobs (08e-checkin.js) · pier cash (08g-cash.js) · reports (08i-reports.js)
+window.pjCrewOf = pjCrewOf;
+window.pjCrewLine = pjCrewLine;
+window.pjGuides = pjGuides;
+window.pjGuidesFull = pjGuidesFull;
+window.pjPrint = pjPrint;
+window.pjShotScript = pjShotScript;
+// used only by UI tests (test/ui/t_pjwb, t_pjwbsave, t_pjstale)
+window.pjKey = pjKey;
+window.pjPopToggle = pjPopToggle;
+window.pjWbSet = pjWbSet;
+window.pjWbName = pjWbName;
+window.pjOpDrop = pjOpDrop;
+
+})();

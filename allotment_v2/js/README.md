@@ -48,7 +48,7 @@ bought load performance and editing ergonomics; it did not buy encapsulation. Re
 | 15 | `08g-cash.js` | pier cash · petty cash (`pc`, `po`) | split from 08-app.js |
 | 16 | `08h-accounting.js` | accounting · daily PFM · travel summary (`acct`, `pfm`, `ts`) | split from 08-app.js |
 | 17 | `08i-reports.js` | reports · analysis · daily report · market data · pickup map · B2C dashboard | split from 08-app.js |
-| 18 | `08j-projects.js` | Projects (`pj`) | split from 08-app.js |
+| 18 | `08j-boatjobs.js` | boat job sheet · ใบงานเรือ (`pj`) · first screen converted to `laDelegate` | split from 08-app.js |
 | 19 | `08-app.js` | everything else: **all load-time code** (top-level `const`/`let`, IIFEs, listeners) + `render*` entry points and shared helpers | 39246–86154 |
 | 20 | `09-action-board.js` | Action Board (`abRender`) | — (post-split) |
 
@@ -65,6 +65,29 @@ could reach via hoisting is already defined. Two rules follow:
 - **New functions go in the file of their prefix.** `node tools/verify-08-split.mjs static` proves
   the move against a git ref; `snapshot`/`compare` diff every global's source and every view's HTML
   in Chrome before vs. after.
+
+### Getting a screen off inline handlers (`laDelegate` · first done: `08j-boatjobs.js`)
+
+Inline `onclick="pjPick('b3','cap',this.value)"` is why every function has to stay global. A screen
+is converted like this — the boat job sheet (`renderPierJob` + `08j-boatjobs.js`) is the worked example:
+
+1. **Markup says what, not how:** `data-on-change="pick" data-a-bid="b3" data-a-slot="cap"`, built by a
+   small helper (`pjOn(ev, action, args)`, which also HTML-escapes the values).
+2. **One action table per screen** (`PJ_ACTIONS`): `pick(el){ pjPick(el.dataset.aBid, el.dataset.aSlot, el.value); }`.
+   `data-a-*` values come back as strings — convert with `+` where the old inline code passed a number.
+3. **The render function attaches the dispatcher to the screen's host:** `laDelegate(host, PJ_ACTIONS)`
+   (`08-app.js`). It reproduces inline-handler semantics: bubbling order along `composedPath`, stops on
+   `stopPropagation`, sits on the host so document-level "click outside" listeners still get stopped,
+   `blur` is heard as `focusout`. An empty `data-on-click=""` is a deliberate no-op.
+4. **Then the file can be closed:** once nothing calls its functions by name from HTML, wrap it in one
+   function scope and export only what other scripts use (`08j` exports 30 of 112 names; the list is at
+   the bottom of the file and is the complete public surface).
+
+Proving it (all three are in `tools/`): `handler-map.mjs record` before, `compare` after — every handler
+element must call the same function with the same arguments and propagate the same way, and a
+~200-step real-click replay must leave the same data and screen (`--no-map` once the file is wrapped).
+`render-golden.mjs` covers the neighbouring views. `check-inline-handlers.mjs` runs in CI and fails if
+any file gains an inline handler; after converting a screen, `--update` locks in the lower count.
 
 The numeric prefixes are the split order, **not** the load order — `10-embed.js` is deliberately the
 first tag in `<head>`, ahead of `01-auth-sync.js`. It has to be: it sets `window.__laEmbed` before

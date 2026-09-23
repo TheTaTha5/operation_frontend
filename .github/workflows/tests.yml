@@ -68,6 +68,11 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      # Inline on*="…" handlers keep every function global · screens are moving to laDelegate one at a
+      # time, and this keeps the per-file count from growing back (tools/inline-handlers.baseline.json).
+      - name: Inline handlers may only go down
+        run: node tools/check-inline-handlers.mjs
+
       - name: Apply relational schema from db/migrations (if present)
         run: |
           if [ -d db/migrations ] && ls db/migrations/*.sql >/dev/null 2>&1; then

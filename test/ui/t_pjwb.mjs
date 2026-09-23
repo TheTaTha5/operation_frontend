@@ -44,8 +44,11 @@ const S = await page.evaluate(() => {
     /* ดึง bid จาก onclick ของช่องสีมาตรฐาน · ชื่อ id ถูกแปลงอักขระไปแล้ว ย้อนกลับไม่ได้
        ⚠ .pj-sw ถูกใช้กับป๊อปอัพสีโปรแกรม/สีสถานะด้วย และอยู่ก่อนในหน้า
           ไม่เจาะจง id ของป๊อปอัพสายรัด = ได้ช่องสีของป๊อปอัพอื่นมาแทน */
-    const sw = document.querySelector('.pj-pop[id^="pjwb-"] .pj-sw[onclick]');
-    const m = sw ? /pjWbSet\('([^']+)'/.exec(sw.getAttribute('onclick') || '') : null;
+    /* §pjAct · swatches carry data-on-click + data-a-bid since the laDelegate conversion ·
+       the onclick form is still read so the test also runs against older builds */
+    const sw = document.querySelector('.pj-pop[id^="pjwb-"] .pj-sw[data-on-click], .pj-pop[id^="pjwb-"] .pj-sw[onclick]');
+    const m = !sw ? null : sw.getAttribute('data-a-bid') ? [0, sw.getAttribute('data-a-bid')]
+                         : /pjWbSet\('([^']+)'/.exec(sw.getAttribute('onclick') || '');
     return m ? { bid: m[1], pier, nCards: document.querySelectorAll('.pj-wb').length } : null;
   };
   let got = null;

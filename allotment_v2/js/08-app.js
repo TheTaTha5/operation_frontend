@@ -12004,10 +12004,51 @@ var _pjGjMap=null;
   }
 }catch(_){} })();
 
+/* §laDelegate (2026-09-23) · event delegation for screens converted off inline on*="…" handlers.
+   Markup carries data-on-<event>="<action>" plus data-a-<name>="…" arguments; one listener per event
+   type on the screen's host looks the action up in that screen's table (e.g. PJ_ACTIONS). No global
+   function names in the HTML, and arguments are plain data, not JavaScript pasted into a string.
+   It keeps inline-handler semantics on purpose:
+   - actions run in bubbling order along the event's path (composedPath is fixed at dispatch, so an
+     action that re-renders the host does not cut the walk short), stopping once one calls
+     stopPropagation — window.event.stopPropagation() in a called function counts too;
+   - the listener is on the host, not document, so stopPropagation still keeps the event away from
+     document-level listeners (the "click outside closes the popup" ones), as the inline version did;
+   - like an inline handler, an action runs whenever the event reaches its element · the browser
+     already keeps user clicks and edits off disabled controls, so there is no disabled check here;
+   - blur does not bubble, so it is heard as focusout (fires right after blur, same task).
+   An empty data-on-click="" is a deliberate no-op (the inline version had onclick="" there).
+   tools/handler-map.mjs proves a conversion: same calls, same arguments, same propagation. */
+var LA_DELEGATE_EVENTS = { click:'click', change:'change', keydown:'keydown', focusout:'blur', input:'input' };
+function laDelegate(host, actions){
+  if(!host) return;
+  host.__laActions = actions;
+  if(host.__laDelegate) return;
+  host.__laDelegate = 1;
+  Object.keys(LA_DELEGATE_EVENTS).forEach(function(type){
+    var attr = 'data-on-' + LA_DELEGATE_EVENTS[type];
+    host.addEventListener(type, function(e){
+      var path = e.composedPath();
+      for(var i = 0; i < path.length; i++){
+        var el = path[i];
+        if(el === host) break;
+        if(!el.getAttribute) continue;
+        var name = el.getAttribute(attr);
+        if(!name) continue;
+        var fn = host.__laActions && host.__laActions[name];
+        if(typeof fn !== 'function'){ try{ console.error('[laDelegate] unknown action: ' + name); }catch(_){} continue; }
+        fn.call(el, el, e);
+        if(e.cancelBubble) break;
+      }
+    });
+  });
+}
+
 function renderPierJob(pier){
   if(pier) _poPier=pier;
   var P=PO_PIERS.filter(function(p){ return p.k===_poPier; })[0]||PO_PIERS[0];
   var host=document.getElementById('pj-host-'+P.k); if(!host) return;
+  laDelegate(host, PJ_ACTIONS);   /* §pjAct · this screen's handlers are data-on-* → PJ_ACTIONS (08j-boatjobs.js) */
   var all=pjAllBoats(_poDate,_poPier), ro=!poCanEdit();
   var cnt={all:all.length, go:0, ready:0, work:0, down:0, stale:0};
   var staleL=[];
@@ -12029,7 +12070,7 @@ function renderPierJob(pier){
   /* §gjCard · ทำใหม่ทุกรอบที่วาด · จัดเรือที่หน้าอื่นแล้วกลับมา ปุ่มต้องเปลี่ยนตาม */
   _pjGjMap=pjGuideJobMap(_poDate);
   var chip=function(k,lb,n,dot){
-    return '<button class="'+(_pjF===k?'on':'')+'" onclick="pjFilter(\''+k+'\')">'
+    return '<button class="'+(_pjF===k?'on':'')+'"'+pjOn('click','filter',{k:k})+'>'
       +(dot?('<i style="background:'+dot+'"></i>'):'')+lb+'<span class="n">'+n+'</span></button>';
   };
   /* §pjSkin · ธงบอกว่า host ตัวนี้ใช้สกินใหม่ · อีกสองหน้าที่ใช้ pjCSS() ร่วมกันไม่ได้ธงนี้ */
@@ -12048,14 +12089,14 @@ function renderPierJob(pier){
         +'ตัวเลข ลค · โปรแกรม · เวลาออก · ไกด์ ดึงจากระบบทั้งหมด</p></div></div>'
       +'<div class="pj-nbar">'
         +'<button class="pri">ใบงานเรือ</button>'
-        +'<button onclick="pjGo(\'poa\')">ตารางการทำงาน</button>'
-        +'<button onclick="pjGo(\'pol\')">ใบอนุญาต</button>'
-        +'<button onclick="pjGo(\'po\')">เบิก-คืนอุปกรณ์</button>'
+        +'<button'+pjOn('click','go',{k:'poa'})+'>ตารางการทำงาน</button>'
+        +'<button'+pjOn('click','go',{k:'pol'})+'>ใบอนุญาต</button>'
+        +'<button'+pjOn('click','go',{k:'po'})+'>เบิก-คืนอุปกรณ์</button>'
         +'<span class="sep"></span>'
-        +'<button class="nav" onclick="pjShift(-1)" title="วันก่อนหน้า">&#8249;</button>'
-        +'<input type="date" value="'+_poDate+'" onchange="pjDate(this.value)">'
-        +'<button class="nav" onclick="pjShift(1)" title="วันถัดไป">&#8250;</button>'
-        +'<button class="now" onclick="pjToday()">วันนี้</button>'
+        +'<button class="nav"'+pjOn('click','shift',{n:-1})+' title="วันก่อนหน้า">&#8249;</button>'
+        +'<input type="date" value="'+_poDate+'"'+pjOn('change','date')+'>'
+        +'<button class="nav"'+pjOn('click','shift',{n:1})+' title="วันถัดไป">&#8250;</button>'
+        +'<button class="now"'+pjOn('click','today')+'>วันนี้</button>'
       +'</div>'
     +'</div>'
     +dcard
@@ -12070,7 +12111,7 @@ function renderPierJob(pier){
       /* §pjHideIdle · ปุ่มสลับ · โชว์จำนวนที่ซ่อนอยู่เสมอ ไม่ให้หายเงียบ
          ไม่มีลำไหนเข้าข่ายก็ไม่ต้องมีปุ่ม · ปุ่มที่กดแล้วไม่เกิดอะไรคือขยะบนจอ */
       +((_idleN||!_pjHideIdle)
-        ? ('<button class="pj-idlebtn'+(_pjHideIdle?' on':'')+'" onclick="pjToggleIdle()"'
+        ? ('<button class="pj-idlebtn'+(_pjHideIdle?' on':'')+'"'+pjOn('click','toggleIdle')
            +' title="'+poE('ลำที่ยังไม่ได้ใส่อะไรลงไปเลยในวันนี้ — ไม่มีทริป ไม่มีคน ไม่มีหมายเหตุ'
              +' · ลำที่จอดแต่จ่ายช่างไว้แล้วไม่นับ ยังเห็นตามปกติ'
              +' · บนใบที่พิมพ์ ปุ่มนี้ย่อกล่อง "Not available" ให้เหลือแค่จำนวน')+'">'
@@ -12088,11 +12129,11 @@ function renderPierJob(pier){
           +'&#9888; ยังไม่ได้ตั้งท่าประจำ '+np.length+' ลำ · ไม่ขึ้นในหน้าท่าไหนเลย — ตั้งได้ที่ Boat Operation</span>'; })()
       +'<span style="flex:1"></span>'
       +'<div class="pj-acts">'
-        +'<button class="gh" onclick="pjCopyYday(\''+P.k+'\')"'+(ro?' disabled':'')+'>&#8634; คัดลอกจากเมื่อวาน</button>'
+        +'<button class="gh"'+pjOn('click','copyYday',{pier:P.k})+(ro?' disabled':'')+'>&#8634; คัดลอกจากเมื่อวาน</button>'
         +'<div class="pj-wsw" title="จำนวนลำที่เห็นพร้อมกันต่อหนึ่งหน้าจอ">'
-          +[3,4,5].map(function(n){ return '<button class="'+(_pjW===n?'on':'')+'" onclick="pjWide('+n+')">'+n+' ลำ</button>'; }).join('')
+          +[3,4,5].map(function(n){ return '<button class="'+(_pjW===n?'on':'')+'"'+pjOn('click','wide',{n:n})+'>'+n+' ลำ</button>'; }).join('')
         +'</div>'
-        +'<button class="pri" onclick="pjPrint()">&#128424; พิมพ์ใบงาน</button>'
+        +'<button class="pri"'+pjOn('click','print')+'>&#128424; พิมพ์ใบงาน</button>'
       +'</div>'
     +'</div>'
     +(boats.length

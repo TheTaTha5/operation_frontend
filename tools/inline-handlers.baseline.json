@@ -1,0 +1,23 @@
+{
+  "allotment_v2.html": 365,
+  "js/01-auth-sync.js": 54,
+  "js/02-sidebar.js": 2,
+  "js/03-topbar-nav.js": 0,
+  "js/04-data-core.js": 218,
+  "js/05-fleet.js": 467,
+  "js/06-engine-assign.js": 47,
+  "js/07-charter.js": 0,
+  "js/08-app.js": 390,
+  "js/08a-booking.js": 502,
+  "js/08b-agents.js": 167,
+  "js/08c-rates.js": 76,
+  "js/08d-contracts.js": 119,
+  "js/08e-checkin.js": 219,
+  "js/08f-vans.js": 142,
+  "js/08g-cash.js": 91,
+  "js/08h-accounting.js": 46,
+  "js/08i-reports.js": 73,
+  "js/08j-boatjobs.js": 2,
+  "js/09-action-board.js": 11,
+  "js/10-embed.js": 1
+}
