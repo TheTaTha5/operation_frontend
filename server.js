@@ -3019,7 +3019,10 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, {'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
     res.write('retry: 5000\n\n');
     sseClients.add(res);
-    const hb=setInterval(()=>{ try{ res.write(':hb\n\n'); }catch(e){} }, 25000);
+    // §sseCatchup · named event, not a ':' comment — comments never reach EventSource, so the client
+    // could not tell a live-but-quiet stream from one that silently died (measured: ~8 min on prod).
+    // The client's onmessage only sees unnamed events, so older tabs ignore 'hb'.
+    const hb=setInterval(()=>{ try{ res.write('event: hb\ndata: 1\n\n'); }catch(e){} }, 25000);
     req.on('close', ()=>{ clearInterval(hb); sseClients.delete(res); });
     return;
   }
