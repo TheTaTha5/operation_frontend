@@ -63938,6 +63938,17 @@ function pjCSS(){
   +H+' .pj-cus input{width:44px;height:24px;padding:0;border:1px solid #E1E4EA;border-radius:6px;background:none;cursor:pointer}'
   +H+' .pj-sw.on{box-shadow:0 0 0 2px #16265C}'
   /* §pjWb2 · แถวเลือกสีเอง / ล้างสี ใต้ตารางสี */
+  /* §pjWbTxt (2026-09-23) · ช่องพิมพ์ชื่อสีเอง · เหตุผลเดียวกับที่ใบงานโชว์ชื่อสี
+     ล็อตที่ซื้อมาได้สีที่ไม่มีในชุดมาตรฐาน เดิมถูกบันทึกเป็นคำว่า "สีเอง" เฉย ๆ
+     ซึ่งบนใบที่ปริ้นขาวดำหรือแคปส่งไลน์ อ่านแล้วไม่รู้ว่าสีอะไร และสั่งของต่อไม่ได้ */
+  +H+' .pj-wbn{display:flex;align-items:center;gap:8px;margin-top:9px;padding-top:9px;'
+     +'border-top:1px solid #EDEFF3}'
+  +H+' .pj-wbn>span{flex:none;font-size:11px;font-weight:700;color:#5A6270}'
+  +H+' .pj-wbni{flex:1;min-width:0;padding:5px 8px;border:1px solid #E1E4EA;border-radius:7px;'
+     +'font:600 11.5px inherit;color:#1E2430;background:#fff}'
+  +H+' .pj-wbni:focus{outline:none;border-color:#16265C;box-shadow:0 0 0 2px rgba(22,38,92,.12)}'
+  /* เส้นคั่นเส้นเดียวพอ · สองเส้นติดกันอ่านเป็นกล่องซ้อนกล่อง */
+  +H+' .pj-wbn + .pj-wbx{border-top:none;margin-top:7px;padding-top:0}'
   +H+' .pj-wbx{display:flex;align-items:center;gap:8px;margin-top:9px;padding-top:9px;'
      +'border-top:1px solid #EDEFF3}'
   +H+' .pj-wbc{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:11px;'
@@ -64507,11 +64518,65 @@ function pjLockSet(bid,v){
   pjKeep(function(){ renderPierJob(); });
 }
 function pjWbSet(bid,t,c){ if(!poGuard()) return; pjSet(_poDate,bid,{wb:t,wbc:c}); renderPierJob(); }
+/* ══ §pjWbTxt (2026-09-23) · พิมพ์ชื่อสีเองได้ ═══════════════════════════════
+   ชุดสีมาตรฐานมาพร้อมชื่ออยู่แล้ว · ที่ขาดคือล็อตที่ได้สีนอกชุด
+   ของเดิมกดเลือกสีเองแล้วชื่อถูกตั้งเป็นคำว่า "สีเอง" ตายตัว แก้ไม่ได้
+   ใบงานเรือ (§pjWbName) โชว์ชื่อสีเพราะใบถูกปริ้นขาวดำและแคปส่งไลน์
+   "สีเอง" บนใบนั้นจึงบอกอะไรไม่ได้เลย · และคนสั่งของต่อพิมพ์ชื่อสีไม่ได้
+   ⚠ ชื่อกับสีเก็บแยกกันมาแต่ไหนแต่ไร (wb / wbc) · พิมพ์ชื่อโดยไม่เลือกสีก็ได้
+      ใบงานรองรับอยู่แล้ว (มีสี = แถบสี+ชื่อ · มีแต่ชื่อ = ชื่อล้วน) */
+function pjWbName(bid,t){
+  if(!poGuard()) return;
+  var o=pjOf(_poDate,bid)||{};
+  var nm=String(t==null?'':t).trim().slice(0,24);
+  var c=String(o.wbc||'');
+  if(nm===String(o.wb||'')) return;        /* ไม่ได้เปลี่ยนอะไร · ไม่ต้องวาดใหม่ทั้งหน้า */
+  if(!nm && !c) return;                    /* ว่างทั้งคู่ = ไม่มีอะไรให้เก็บ */
+  pjSet(_poDate,bid,{wb:nm,wbc:c});
+  renderPierJob();
+}
+/* เลือกสีเอง · ถ้าพิมพ์ชื่อไว้แล้วต้องไม่โดนคำว่า "สีเอง" ทับ
+   ลำดับที่คนทำจริงคือพิมพ์ชื่อก่อนแล้วค่อยจิ้มสีให้ตรง · ทับแล้วต้องพิมพ์ใหม่ */
+function pjWbCustom(bid,c){
+  if(!poGuard()) return;
+  var o=pjOf(_poDate,bid)||{};
+  var nm=String(o.wb||'').trim();
+  pjSet(_poDate,bid,{wb:(nm||'\u0e2a\u0e35\u0e40\u0e2d\u0e07'), wbc:String(c||'')});
+  renderPierJob();
+}
 function pjPopToggle(id){
   var el=document.getElementById(id), was=el&&el.classList.contains('on');
   document.querySelectorAll('.pj-pop').forEach(function(p){ p.classList.remove('on'); });
-  if(el && !was) el.classList.add('on');
+  if(el && !was){ el.classList.add('on'); pjPopFit(el); }
   if(window.event) window.event.stopPropagation();
+}
+/* ══ §pjPopFit (2026-09-23) · การ์ดมี overflow:hidden ════════════════
+   ป๊อปอัพที่ยาวเกินขอบล่างของการ์ดถูกกลืนหายไปเฉย ๆ โดยไม่มีอะไรบอก
+   ที่หายคือแถวล่างสุด (เลือกสีเอง · ล้างสี) ซึ่งเป็นปุ่มที่ต้องกดจริง
+   อาการเดียวกันกับ §pjStaleFit · เห็นของ แต่กดไม่ได้
+   เลื่อนขึ้นเท่าที่กรอบยอมให้ · ไม่พลิกขึ้นทั้งก้อนเพราะบางใบกรอบเตี้ยกว่าป๊อปอัพ
+   จำค่า top เดิมไว้ที่ตัวเอง · เปิดซ้ำต้องเริ่มนับจากที่เดิมทุกครั้ง ไม่งั้นขยับขึ้นเรื่อย ๆ */
+function pjPopFit(el){
+  try{
+    if(el._pjTop==null) el._pjTop=el.style.top||'';
+    el.style.top=el._pjTop;
+    var n=el.parentElement, box=null;
+    while(n && n!==document.body){
+      var cs=getComputedStyle(n);
+      if(/hidden|clip|auto|scroll/.test(cs.overflowY)){ box=n.getBoundingClientRect(); break; }
+      n=n.parentElement;
+    }
+    if(!box) return;
+    var r=el.getBoundingClientRect();
+    var over=r.bottom-(box.bottom-6);
+    if(over<=0) return;
+    var room=r.top-(box.top+6);                 /* ที่ว่างเหนือป๊อปอัพในกรอบเดียวกัน */
+    var up=Math.min(over, Math.max(0, room));
+    if(up<=0) return;
+    var cur=parseFloat(getComputedStyle(el).top);
+    if(!isFinite(cur)) cur=0;
+    el.style.top=(cur-up)+'px';
+  }catch(_){}
 }
 /* แต้มสีโปรแกรม · เขียนลง ROUTES เลย จึงเปลี่ยนพร้อมกันทุกหน้าที่โชว์เส้นทางนี้ */
 function pjProgColor(rid,hex){
@@ -64900,10 +64965,23 @@ function pjCard(B, pier, ro){
        /* §pjWb2 · สายรัดเป็นของที่ซื้อมาเป็นล็อต · ล็อตไหนได้สีแปลกมาก็คีย์เองได้
           ไม่ต้องรอเพิ่มในโค้ด · และต้องล้างกลับเป็น "ยังไม่ระบุ" ได้ด้วย
           ของเดิมพอตั้งผิดแล้วเอาออกไม่ได้เลย */
+       /* §pjWbTxt · ช่องชื่อสี · คลิกในช่องต้องไม่ปิดป๊อปอัพ
+          ป๊อปอัพถูกเปิด/ปิดด้วย onclick ที่ span แม่ · คลิกอะไรข้างในก็เด้งขึ้นไปถึง
+          ไม่หยุดไว้ = จิ้มช่องแล้วป๊อปอัพหุบทันที พิมพ์ไม่ได้เลย
+          เก็บค่าตอน change (เปลี่ยนแล้วออกจากช่อง) · Enter = ออกจากช่อง */
+       +'<div class="pj-wbn">'
+         +'<span>ชื่อสี</span>'
+         +'<input type="text" class="pj-wbni" maxlength="24" value="'+poE(wbt)+'" '
+         +'placeholder="พิมพ์เอง เช่น ส้มอ่อน" '
+         +'onclick="event.stopPropagation()" '
+         +'onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" '
+         +'onchange="pjWbName(\''+bid+'\',this.value)">'
+       +'</div>'
        +'<div class="pj-wbx">'
          +'<label class="pj-wbc" title="เลือกสีเอง · ใช้กับล็อตที่สีไม่มีในชุดมาตรฐาน">'
            +'<input type="color" value="'+(wbc||'#888888')+'" '
-           +'onchange="pjWbSet(\''+bid+'\',\'สีเอง\',this.value)">'
+           +'onclick="event.stopPropagation()" '
+           +'onchange="pjWbCustom(\''+bid+'\',this.value)">'
            +'<span>เลือกสีเอง</span></label>'
          +(wbt?('<button type="button" class="pj-wbclr" onclick="pjWbSet(\''+bid+'\',\'\',\'\')">ล้างสี</button>'):'')
        +'</div>'
