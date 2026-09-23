@@ -1116,23 +1116,10 @@ function ctFactPrint(){
 }
 
 // ── แท็บ 1 · แผนคำนวณ ───────────────────────────────────────────────────────────────────────────
-function ctPlanHtml(){
-  var P = ctPlans();
-  if(!_ct.pid || !P.filter(function(x){ return x.id === _ct.pid; }).length) _ct.pid = P[0].id;
-  var pl = ctPlan(_ct.pid), T = ctTpl(), R = ctVatR(T);
-  var pax = Math.max(1, +pl.pax || 1);
-  var capPer = ctPlanSeats(pl);                          /* §boatRent · ปักเรือไว้ = อิงที่นั่งของลำนั้น */
-  var cap = Math.max(1, capPer * Math.max(1, +pl.boats || 1));
-  var cur = ctProfitAt(pl, pax, T);
-  /* §ctChd · ภาษีขายคิดจากยอดขายจริง ซึ่งมีทั้งราคาผู้ใหญ่และราคาเด็ก */
-  var _pCh = (pl.priceCh != null && pl.priceCh !== '') ? (+pl.priceCh || 0) : (+pl.price || 0);
-  var _nCh = ctChdAt(pl, pax);
-  var vout = ((pax - _nCh) * (+pl.price || 0) + _nCh * _pCh) * R;
-  var be = ctBreakEven(pl, cap, T);
-  var bePct = be ? Math.min(100, Math.round(be / cap * 100)) : 100;
-
-  // ── แถบซ้าย · รายการแผน ──
-  var items = P.map(function(x){
+/* lifted out of ctPlanHtml by tools/lift.mjs (var:items) · reads: P, T */
+function ctPlanItems(C){
+  const { P, T } = C;
+  return P.map(function(x){
     var on = (x.id === _ct.pid);
     var xcap = Math.max(1, ctPlanSeats(x) * Math.max(1, +x.boats || 1));   /* §boatRent */
     var b = ctBreakEven(x, xcap, T);
@@ -1143,13 +1130,11 @@ function ctPlanHtml(){
       + (ctRentOf(x.boatId) ? ' · <b style="color:#B45309">เรือเช่า</b>' : '') + '</span>'
       + '<span class="ct-rt-badge' + (b ? '' : ' warn') + '">' + (b ? ('คุ้มทุน ' + b + ' คน') : 'เต็มลำยังไม่คุ้ม') + '</span></span></button>';
   }).join('');
-  var side = '<aside class="ct-side"><div class="ct-side-h">แผนคำนวณ · ' + P.length + '</div>' + items
-    + '<button class="ct-addrt" onclick="ctAddPlan()">' + ctIcon('plus', 13) + ' เพิ่มเส้นทาง / แผนคำนวณ</button></aside>';
-
-  // ── หัว · ชื่อแผน + ผูกเส้นทาง + ปุ่ม ──
-  /* §ctRoute · ผูกรายเส้นทาง ไม่ใช่รายกลุ่ม · Early OTA กับ by Speedboat อยู่กลุ่มเดียวกัน
-     แต่ออกคนละเวลา คนละราคา ไม่มีรถรับส่ง — บังคับให้ใช้ต้นทุนชุดเดียวกันคือผิดทั้งคู่ */
-  var head = '<div class="ct-card ct-namebar">'
+}
+/* lifted out of ctPlanHtml by tools/lift.mjs (var:head) · reads: pl */
+function ctPlanHead(C){
+  const { pl } = C;
+  return '<div class="ct-card ct-namebar">'
     + '<input class="ct-title" data-fk="pl.name" value="' + ctE(pl.name) + '" oninput="ctPlanSet(\'name\',this.value)">'
     + '<div class="ct-linkbox">' + ctIcon('link', 13) + '<span>ผูกกับเส้นทาง:</span>'
     + '<select onchange="ctPlanSet(\'famId\',this.value)"><option value="">— ยังไม่ผูก —</option>'
@@ -1164,11 +1149,11 @@ function ctPlanHtml(){
       + ctIcon('printer', 15) + '</button>'                                   /* §ctFact */
     + '<button class="ct-ib" title="คัดลอกแผน" onclick="ctDupPlan()">' + ctIcon('copy', 15) + '</button>'
     + '<button class="ct-ib danger" title="ลบแผน" onclick="ctDelPlan()">' + ctIcon('trash', 15) + '</button></div>';
-
-  // ── พารามิเตอร์ ──
-  var fld = function(t, inner, hot){ return '<label class="ct-f' + (hot ? ' hot' : '') + '"><span>' + t + '</span>' + inner + '</label>'; };
-  var inp = function(k, hot){ return '<input class="ct-in wide' + (hot ? ' hot' : '') + '" data-fk="pl.' + k + '" value="' + ctE(pl[k]) + '" oninput="ctPlanSet(\'' + k + '\',this.value)">'; };
-  var params = '<div class="ct-card ct-params"><div class="ct-card-h">' + ctIcon('sliders', 15)
+}
+/* lifted out of ctPlanHtml by tools/lift.mjs (var:params) · reads: fld, pl, inp, capPer, pax */
+function ctPlanParams(C){
+  const { fld, pl, inp, capPer, pax } = C;
+  return '<div class="ct-card ct-params"><div class="ct-card-h">' + ctIcon('sliders', 15)
     + '<b>พารามิเตอร์การตั้งราคา &amp; กำลังการผลิต</b><span class="ct-hint">ปรับแล้วคำนวณจุดคุ้มทุนใหม่ทันที</span></div>'
     + '<div class="ct-grid8">'
     + fld('เครื่องยนต์', '<select class="ct-in wide" onchange="ctPlanSet(\'eng\',this.value)">'
@@ -1201,12 +1186,11 @@ function ctPlanHtml(){
         : '\u0e15\u0e31\u0e49\u0e07 <b>\u0e40\u0e14\u0e47\u0e01\u0e01\u0e35\u0e48 %</b> \u0e41\u0e25\u0e49\u0e27\u0e08\u0e38\u0e14\u0e04\u0e38\u0e49\u0e21\u0e17\u0e38\u0e19\u0e08\u0e30\u0e04\u0e34\u0e14\u0e23\u0e32\u0e22\u0e44\u0e14\u0e49\u0e41\u0e22\u0e01\u0e1c\u0e39\u0e49\u0e43\u0e2b\u0e0d\u0e48/\u0e40\u0e14\u0e47\u0e01\u0e43\u0e2b\u0e49 \u00b7 '
           + '\u0e40\u0e14\u0e47\u0e01 0% = \u0e17\u0e38\u0e01\u0e2b\u0e31\u0e27\u0e08\u0e48\u0e32\u0e22\u0e23\u0e32\u0e04\u0e32\u0e40\u0e14\u0e35\u0e22\u0e27\u0e40\u0e2b\u0e21\u0e37\u0e2d\u0e19\u0e40\u0e14\u0e34\u0e21')
     + '</div></div>';
-
-  /* ══ §boatRent · การ์ดเรือ & ค่าเช่า ═══════════════════════════════════════
-     ค่าเช่าเป็นตัวเลขที่ผู้ใช้ระบุเอง · เลือกได้ว่าเหมาทั้งลำ หรือคิดต่อที่นั่ง
-     (ต่อที่นั่งอิงที่นั่งของลำที่ปักไว้ ไม่ใช่เลขที่พิมพ์เอง) */
-  var RN = ctRentOf(pl.boatId);
-  var rentHtml = (function(){
+}
+/* lifted out of ctPlanHtml by tools/lift.mjs (var:rentHtml) · reads: pl, RN, T, pax, R, cur, cap */
+function ctPlanRent(C){
+  const { pl, RN, T, pax, R, cur, cap } = C;
+  return (function(){
     var BL = (typeof BOATS !== 'undefined' ? BOATS : []).filter(function(b){ return !b.retired; });
     var bid = pl.boatId || '';
     var pick = '<select class="ct-in wide" onchange="ctPlanSet(\'boatId\',this.value)">'
@@ -1408,6 +1392,113 @@ function ctPlanHtml(){
     body += '</div>';
     return '<div class="ct-card ct-catcard ct-rent on">' + head + body + '</div>';
   })();
+}
+/* lifted out of ctPlanHtml by tools/lift.mjs (var:kpi) · reads: be, pl, bePct, cap, pax, cur, vout */
+function ctPlanKpi(C){
+  const { be, pl, bePct, cap, pax, cur, vout } = C;
+  return '<div class="ct-kpis">'
+    + '<div class="ct-k mint"><div class="ct-k-top"><div><span class="ct-k-lb">จุดคุ้มทุน · BREAK-EVEN</span>'
+      + '<div class="ct-k-v">' + (be ? (be + '<em>คน</em>') : '<span style="font-size:26px">ไม่ถึง</span>') + '</div></div>'
+      + '<span class="ct-k-ic">' + ctIcon('chart', 17) + '</span></div>'
+      + (be && +pl.chPct > 0
+          ? ('<div class="ct-k-row"><span>ส่วนผสมที่จุดคุ้มทุน</span><span>ผู้ใหญ่ ' + (be - ctChdAt(pl, be)) + ' · เด็ก ' + ctChdAt(pl, be) + '</span></div>') : '')
+      + '<div class="ct-k-foot"><div class="ct-k-row"><span>อัตราส่วนความจุเรือ</span><span>' + (be ? (bePct + '% ของความจุ ' + cap + ' ที่นั่ง') : ('เต็มลำ ' + cap + ' ที่นั่งก็ยังขาดทุน')) + '</span></div>'
+      + '<div class="ct-bar"><i style="width:' + bePct + '%' + (be ? '' : ';background:#e11d48') + '"></i></div></div></div>'
+    + '<div class="ct-k brand"><div class="ct-k-top"><div><span class="ct-k-lb">กำไรที่คาดการณ์ · ' + pax + ' คน</span>'
+      + '<div class="ct-k-v' + (cur.p < 0 ? ' neg' : '') + '">' + (cur.p >= 0 ? '+' : '') + ctN(cur.p) + '<em>฿</em></div></div>'
+      + '<span class="ct-k-ic">' + ctIcon('coins', 17) + '</span></div>'
+      + '<div class="ct-k-note"><i></i>Margin <b>' + (cur.rev ? Math.round(cur.p / cur.rev * 100) : 0) + '%</b> ของรายได้สุทธิ</div></div>'
+    + '<div class="ct-k plain"><div class="ct-k-top"><div><span class="ct-k-lb">VAT ต้องนำส่ง · NET VAT</span>'
+      + '<div class="ct-k-v">' + ctB(Math.max(0, vout - cur.c.vin)) + '</div></div>'
+      + '<span class="ct-k-ic">' + ctIcon('receipt', 17) + '</span></div>'
+      + '<div class="ct-k-split"><span>ภาษีขาย ' + ctB(vout) + '</span><span>·</span><span>ภาษีซื้อ ' + ctB(cur.c.vin) + '</span></div></div>'
+    + '</div>';
+}
+/* lifted out of ctPlanHtml by tools/lift.mjs (var:trows) · reads: pl, cap, T, pax */
+function ctPlanTierRows(C){
+  const { pl, cap, T, pax } = C;
+  return ctTiers(pl).map(function(t, i){
+    var pr = +t.p || 0, pl2 = {};
+    for(var kk in pl){ if(Object.prototype.hasOwnProperty.call(pl, kk)) pl2[kk] = pl[kk]; }
+    pl2.price = pr;
+    var b2 = ctBreakEven(pl2, cap, T), r2 = ctProfitAt(pl2, pax, T);
+    var rF = ctProfitAt(pl2, cap, T);                       // §ctTierFull · กำไรตอนเต็มลำ
+    var mg = r2.rev ? (r2.p / r2.rev * 100) : 0;
+    var on = (pr === (+pl.price || 0)), bp = b2 ? Math.min(100, Math.round(b2 / cap * 100)) : 100;
+    return '<tr' + (on ? ' class="on"' : '') + '>'
+      + '<td><span class="ct-tnm">' + (on ? '<i class="ct-nowdot"></i>' : '')
+      + '<input class="ct-in tn" data-fk="tn.' + i + '" value="' + ctE(t.n) + '" oninput="ctTierSet(' + i + ',\'n\',this.value)"></span></td>'
+      + '<td class="ct-r"><input class="ct-in tp" data-fk="tp.' + i + '" value="' + pr + '" oninput="ctTierSet(' + i + ',\'p\',this.value)"></td>'
+      + '<td class="ct-r"><span class="ct-bev' + (b2 ? '' : ' bad') + '">' + (b2 ? (b2 + ' <em>คน</em>') : 'ไม่คุ้ม') + '</span>'
+      + '<span class="ct-cap2' + (b2 ? '' : ' bad') + '"><i style="width:' + bp + '%"></i></span></td>'
+      + '<td class="ct-r"><b class="ct-pf' + (r2.p < 0 ? ' neg' : '') + '">' + (r2.p >= 0 ? '+' : '−') + ctB(Math.abs(r2.p)) + '</b></td>'
+      + '<td class="ct-r"><b class="ct-pf full' + (rF.p < 0 ? ' neg' : '') + '">' + (rF.p >= 0 ? '+' : '−') + ctB(Math.abs(rF.p)) + '</b></td>'
+      + '<td class="ct-r"><span class="ct-mg"><span class="ct-mgb' + (mg < 0 ? ' neg' : '') + '"><i style="width:' + Math.min(100, Math.abs(mg)).toFixed(0) + '%"></i></span>'
+      + '<b class="ct-mgv' + (mg < 0 ? ' neg' : '') + '">' + (mg >= 0 ? '' : '−') + Math.abs(mg).toFixed(0) + '%</b></span></td>'
+      + '<td class="ct-c">' + (on ? '<span class="ct-nowtx">ใช้อยู่</span>'
+          : '<button class="ct-use" title="สลับแผนนี้ไปใช้ราคานั้น" onclick="ctTierUse(' + pr + ')">ใช้ราคานี้</button>') + '</td></tr>';
+  }).join('');
+}
+/* lifted out of ctPlanHtml by tools/lift.mjs (var:tier) · reads: pax, cap, trows */
+function ctPlanTier(C){
+  const { pax, cap, trows } = C;
+  return '<div class="ct-card ct-tblcard"><div class="ct-card-h split">'
+    + '<div><b>Tier ราคา · 5 ระดับ</b><span class="ct-sub">ต้นทุนชุดเดียวกัน เทียบ 5 ราคาพร้อมกัน</span></div>'
+    + '<button class="ct-mini" title="เติมราคา 5 ระดับจากราคาปัจจุบัน" onclick="ctTierSpread()">กระจายจากราคาปัจจุบัน</button></div>'
+    + '<div class="ct-scroll"><table class="ct-tbl ct-ttbl"><thead><tr><th>Tier</th><th class="ct-r">ราคา/หัว</th>'
+    + '<th class="ct-r">จุดคุ้มทุน</th><th class="ct-r">กำไร · ที่ ' + pax + ' คน</th>'
+    + '<th class="ct-r">กำไร · เต็มลำ ' + cap + ' คน</th><th class="ct-r">Margin</th><th class="ct-c"></th></tr></thead>'
+    + '<tbody>' + trows + '</tbody></table></div>'
+    + '<div class="ct-foot2">คุ้มทุน = จำนวนคนน้อยที่สุดที่กำไรเป็นบวก (ไล่ทีละคน เพราะค่าจ้างเป็นขั้นบันได) · เต็มลำ = ' + cap + ' คน คือเพดานกำไรของราคานั้น · Margin = กำไร ÷ รายได้สุทธิ ที่ ' + pax + ' คน</div></div>';
+}
+/* lifted out of ctPlanHtml by tools/lift.mjs (var:itin) · reads: irows, km */
+function ctPlanItin(C){
+  const { irows, km } = C;
+  return '<div class="ct-card ct-itcard"><div class="ct-card-h split">'
+    + '<div><b>รายละเอียดเส้นทาง</b></div>'
+    + '<button class="ct-mini" title="จัดลำดับตามเวลา" onclick="ctItinSort()">เรียงเวลา</button></div>'
+    + '<div class="ct-itbody">'
+    + '<div class="ct-ihead"><span class="r">เวลา</span><span>กิจกรรม</span><span class="r">กม.</span><span></span></div>'
+    + '<div class="ct-itscroll">' + irows + '</div>'
+    + '<button class="ct-iadd" onclick="ctItinAdd()">+ เพิ่มบรรทัด</button>'
+    + '<div class="ct-ifoot"><span>รวมระยะทาง</span><b>' + (km == null ? '—' : km.toLocaleString()) + ' กม.</b></div>'
+    + '</div></div>';
+}
+function ctPlanHtml(){
+  var P = ctPlans();
+  if(!_ct.pid || !P.filter(function(x){ return x.id === _ct.pid; }).length) _ct.pid = P[0].id;
+  var pl = ctPlan(_ct.pid), T = ctTpl(), R = ctVatR(T);
+  var pax = Math.max(1, +pl.pax || 1);
+  var capPer = ctPlanSeats(pl);                          /* §boatRent · ปักเรือไว้ = อิงที่นั่งของลำนั้น */
+  var cap = Math.max(1, capPer * Math.max(1, +pl.boats || 1));
+  var cur = ctProfitAt(pl, pax, T);
+  /* §ctChd · ภาษีขายคิดจากยอดขายจริง ซึ่งมีทั้งราคาผู้ใหญ่และราคาเด็ก */
+  var _pCh = (pl.priceCh != null && pl.priceCh !== '') ? (+pl.priceCh || 0) : (+pl.price || 0);
+  var _nCh = ctChdAt(pl, pax);
+  var vout = ((pax - _nCh) * (+pl.price || 0) + _nCh * _pCh) * R;
+  var be = ctBreakEven(pl, cap, T);
+  var bePct = be ? Math.min(100, Math.round(be / cap * 100)) : 100;
+
+  // ── แถบซ้าย · รายการแผน ──
+  var items = ctPlanItems({ P, T });
+  var side = '<aside class="ct-side"><div class="ct-side-h">แผนคำนวณ · ' + P.length + '</div>' + items
+    + '<button class="ct-addrt" onclick="ctAddPlan()">' + ctIcon('plus', 13) + ' เพิ่มเส้นทาง / แผนคำนวณ</button></aside>';
+
+  // ── หัว · ชื่อแผน + ผูกเส้นทาง + ปุ่ม ──
+  /* §ctRoute · ผูกรายเส้นทาง ไม่ใช่รายกลุ่ม · Early OTA กับ by Speedboat อยู่กลุ่มเดียวกัน
+     แต่ออกคนละเวลา คนละราคา ไม่มีรถรับส่ง — บังคับให้ใช้ต้นทุนชุดเดียวกันคือผิดทั้งคู่ */
+  var head = ctPlanHead({ pl });
+
+  // ── พารามิเตอร์ ──
+  var fld = function(t, inner, hot){ return '<label class="ct-f' + (hot ? ' hot' : '') + '"><span>' + t + '</span>' + inner + '</label>'; };
+  var inp = function(k, hot){ return '<input class="ct-in wide' + (hot ? ' hot' : '') + '" data-fk="pl.' + k + '" value="' + ctE(pl[k]) + '" oninput="ctPlanSet(\'' + k + '\',this.value)">'; };
+  var params = ctPlanParams({ fld, pl, inp, capPer, pax });
+
+  /* ══ §boatRent · การ์ดเรือ & ค่าเช่า ═══════════════════════════════════════
+     ค่าเช่าเป็นตัวเลขที่ผู้ใช้ระบุเอง · เลือกได้ว่าเหมาทั้งลำ หรือคิดต่อที่นั่ง
+     (ต่อที่นั่งอิงที่นั่งของลำที่ปักไว้ ไม่ใช่เลขที่พิมพ์เอง) */
+  var RN = ctRentOf(pl.boatId);
+  var rentHtml = ctPlanRent({ pl, RN, T, pax, R, cur, cap });
 
   /* §ctOd · ของที่ลูกค้าสั่งเพิ่ม · แยกสองช่องทาง แยกรายเส้นทาง (แผน 1 แผน = 1 เส้นทาง)
      ต้นทุนยังมาจากสูตรกลาง · ที่กรอกตรงนี้คือจำนวนที่คาดกับเงินที่บริษัทได้จริงต่อหน่วย */
@@ -1480,23 +1571,7 @@ function ctPlanHtml(){
   }
 
   // ── การ์ดตัวเลขสำคัญ ──
-  var kpi = '<div class="ct-kpis">'
-    + '<div class="ct-k mint"><div class="ct-k-top"><div><span class="ct-k-lb">จุดคุ้มทุน · BREAK-EVEN</span>'
-      + '<div class="ct-k-v">' + (be ? (be + '<em>คน</em>') : '<span style="font-size:26px">ไม่ถึง</span>') + '</div></div>'
-      + '<span class="ct-k-ic">' + ctIcon('chart', 17) + '</span></div>'
-      + (be && +pl.chPct > 0
-          ? ('<div class="ct-k-row"><span>ส่วนผสมที่จุดคุ้มทุน</span><span>ผู้ใหญ่ ' + (be - ctChdAt(pl, be)) + ' · เด็ก ' + ctChdAt(pl, be) + '</span></div>') : '')
-      + '<div class="ct-k-foot"><div class="ct-k-row"><span>อัตราส่วนความจุเรือ</span><span>' + (be ? (bePct + '% ของความจุ ' + cap + ' ที่นั่ง') : ('เต็มลำ ' + cap + ' ที่นั่งก็ยังขาดทุน')) + '</span></div>'
-      + '<div class="ct-bar"><i style="width:' + bePct + '%' + (be ? '' : ';background:#e11d48') + '"></i></div></div></div>'
-    + '<div class="ct-k brand"><div class="ct-k-top"><div><span class="ct-k-lb">กำไรที่คาดการณ์ · ' + pax + ' คน</span>'
-      + '<div class="ct-k-v' + (cur.p < 0 ? ' neg' : '') + '">' + (cur.p >= 0 ? '+' : '') + ctN(cur.p) + '<em>฿</em></div></div>'
-      + '<span class="ct-k-ic">' + ctIcon('coins', 17) + '</span></div>'
-      + '<div class="ct-k-note"><i></i>Margin <b>' + (cur.rev ? Math.round(cur.p / cur.rev * 100) : 0) + '%</b> ของรายได้สุทธิ</div></div>'
-    + '<div class="ct-k plain"><div class="ct-k-top"><div><span class="ct-k-lb">VAT ต้องนำส่ง · NET VAT</span>'
-      + '<div class="ct-k-v">' + ctB(Math.max(0, vout - cur.c.vin)) + '</div></div>'
-      + '<span class="ct-k-ic">' + ctIcon('receipt', 17) + '</span></div>'
-      + '<div class="ct-k-split"><span>ภาษีขาย ' + ctB(vout) + '</span><span>·</span><span>ภาษีซื้อ ' + ctB(cur.c.vin) + '</span></div></div>'
-    + '</div>';
+  var kpi = ctPlanKpi({ be, pl, bePct, cap, pax, cur, vout });
 
   // ── ตารางต้นทุน · แบบกระชับ (§ctCompact) ──
   var gAgg = {}, gOrder = [], gLn = {};
@@ -1550,35 +1625,8 @@ function ctPlanHtml(){
     + '<td class="ct-r big">' + ctN(cur.c.net) + '</td></tr></tfoot></table></div></div>';
 
   // ── Tier ราคา 5 ระดับ (§ctTier) ──
-  var trows = ctTiers(pl).map(function(t, i){
-    var pr = +t.p || 0, pl2 = {};
-    for(var kk in pl){ if(Object.prototype.hasOwnProperty.call(pl, kk)) pl2[kk] = pl[kk]; }
-    pl2.price = pr;
-    var b2 = ctBreakEven(pl2, cap, T), r2 = ctProfitAt(pl2, pax, T);
-    var rF = ctProfitAt(pl2, cap, T);                       // §ctTierFull · กำไรตอนเต็มลำ
-    var mg = r2.rev ? (r2.p / r2.rev * 100) : 0;
-    var on = (pr === (+pl.price || 0)), bp = b2 ? Math.min(100, Math.round(b2 / cap * 100)) : 100;
-    return '<tr' + (on ? ' class="on"' : '') + '>'
-      + '<td><span class="ct-tnm">' + (on ? '<i class="ct-nowdot"></i>' : '')
-      + '<input class="ct-in tn" data-fk="tn.' + i + '" value="' + ctE(t.n) + '" oninput="ctTierSet(' + i + ',\'n\',this.value)"></span></td>'
-      + '<td class="ct-r"><input class="ct-in tp" data-fk="tp.' + i + '" value="' + pr + '" oninput="ctTierSet(' + i + ',\'p\',this.value)"></td>'
-      + '<td class="ct-r"><span class="ct-bev' + (b2 ? '' : ' bad') + '">' + (b2 ? (b2 + ' <em>คน</em>') : 'ไม่คุ้ม') + '</span>'
-      + '<span class="ct-cap2' + (b2 ? '' : ' bad') + '"><i style="width:' + bp + '%"></i></span></td>'
-      + '<td class="ct-r"><b class="ct-pf' + (r2.p < 0 ? ' neg' : '') + '">' + (r2.p >= 0 ? '+' : '−') + ctB(Math.abs(r2.p)) + '</b></td>'
-      + '<td class="ct-r"><b class="ct-pf full' + (rF.p < 0 ? ' neg' : '') + '">' + (rF.p >= 0 ? '+' : '−') + ctB(Math.abs(rF.p)) + '</b></td>'
-      + '<td class="ct-r"><span class="ct-mg"><span class="ct-mgb' + (mg < 0 ? ' neg' : '') + '"><i style="width:' + Math.min(100, Math.abs(mg)).toFixed(0) + '%"></i></span>'
-      + '<b class="ct-mgv' + (mg < 0 ? ' neg' : '') + '">' + (mg >= 0 ? '' : '−') + Math.abs(mg).toFixed(0) + '%</b></span></td>'
-      + '<td class="ct-c">' + (on ? '<span class="ct-nowtx">ใช้อยู่</span>'
-          : '<button class="ct-use" title="สลับแผนนี้ไปใช้ราคานั้น" onclick="ctTierUse(' + pr + ')">ใช้ราคานี้</button>') + '</td></tr>';
-  }).join('');
-  var tier = '<div class="ct-card ct-tblcard"><div class="ct-card-h split">'
-    + '<div><b>Tier ราคา · 5 ระดับ</b><span class="ct-sub">ต้นทุนชุดเดียวกัน เทียบ 5 ราคาพร้อมกัน</span></div>'
-    + '<button class="ct-mini" title="เติมราคา 5 ระดับจากราคาปัจจุบัน" onclick="ctTierSpread()">กระจายจากราคาปัจจุบัน</button></div>'
-    + '<div class="ct-scroll"><table class="ct-tbl ct-ttbl"><thead><tr><th>Tier</th><th class="ct-r">ราคา/หัว</th>'
-    + '<th class="ct-r">จุดคุ้มทุน</th><th class="ct-r">กำไร · ที่ ' + pax + ' คน</th>'
-    + '<th class="ct-r">กำไร · เต็มลำ ' + cap + ' คน</th><th class="ct-r">Margin</th><th class="ct-c"></th></tr></thead>'
-    + '<tbody>' + trows + '</tbody></table></div>'
-    + '<div class="ct-foot2">คุ้มทุน = จำนวนคนน้อยที่สุดที่กำไรเป็นบวก (ไล่ทีละคน เพราะค่าจ้างเป็นขั้นบันได) · เต็มลำ = ' + cap + ' คน คือเพดานกำไรของราคานั้น · Margin = กำไร ÷ รายได้สุทธิ ที่ ' + pax + ' คน</div></div>';
+  var trows = ctPlanTierRows({ pl, cap, T, pax });
+  var tier = ctPlanTier({ pax, cap, trows });
 
   // ── สรุปกำไร (§ctPnl2) ──
   var sr  = function(a, b, cls){ return '<div class="ct-sr' + (cls ? (' ' + cls) : '') + '"><span>' + a + '</span><span>' + b + '</span></div>'; };
@@ -1638,15 +1686,7 @@ function ctPlanHtml(){
       + '<input class="ct-iin km" data-fk="it.' + i + '.k" value="' + ctE(r.k) + '" placeholder="—" oninput="ctItinSet(' + i + ',\'k\',this.value)">'
       + '<button class="ct-ix" title="ลบบรรทัดนี้" onclick="ctItinDel(' + i + ')">×</button></div>';
   }).join('') : '<div class="ct-iempty">ยังไม่มีรายการ · กด “เพิ่มบรรทัด”</div>';
-  var itin = '<div class="ct-card ct-itcard"><div class="ct-card-h split">'
-    + '<div><b>รายละเอียดเส้นทาง</b></div>'
-    + '<button class="ct-mini" title="จัดลำดับตามเวลา" onclick="ctItinSort()">เรียงเวลา</button></div>'
-    + '<div class="ct-itbody">'
-    + '<div class="ct-ihead"><span class="r">เวลา</span><span>กิจกรรม</span><span class="r">กม.</span><span></span></div>'
-    + '<div class="ct-itscroll">' + irows + '</div>'
-    + '<button class="ct-iadd" onclick="ctItinAdd()">+ เพิ่มบรรทัด</button>'
-    + '<div class="ct-ifoot"><span>รวมระยะทาง</span><b>' + (km == null ? '—' : km.toLocaleString()) + ' กม.</b></div>'
-    + '</div></div>';
+  var itin = ctPlanItin({ irows, km });
 
   return '<div class="ct-wrap">' + side + '<div class="ct-main">' + head + params + rentHtml + kpi
     + '<div class="ct-trio">' + itin + chart + pnl + '</div>'

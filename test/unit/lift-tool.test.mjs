@@ -76,3 +76,37 @@ test('fn:NAME moves a closure-free inner declaration and renames its call sites'
 test('fn:NAME refuses when the inner function reads outer bindings', () => {
   assert.ok(!lift('function f(){ const k = 1; function h(){ return k; } return h(); }', 'f', 'fn:h', false).ok);
 });
+
+// each:LINE · forEach callbacks that update running variables
+test('each: running state goes through S and is copied back', () => {
+  const code = [
+    'function f(rows){',
+    '  var body = "", prev = null, n = 0; const tag = "#";',
+    '  rows.forEach(function(r){',
+    '    if (r.g !== prev){ prev = r.g; body += "[" + r.g + "]"; }',
+    '    n++; body += tag + r.v; var o = { n }; body += o.n;',
+    '  });',
+    '  return body + "|" + prev + "|" + n;',
+    '}'].join('\n');
+  const r = lift(code, 'f', 'each:3');
+  assert.ok(r.ok, r.out);
+  assert.match(r.code, /n: S\.n/);   // shorthand property expanded
+  const rows = '[{g:1,v:"a"},{g:1,v:"b"},{g:2,v:"c"}]';
+  assert.equal(run(r.code, `f(${rows})`), run(code, `f(${rows})`));
+});
+
+test('each: refuses when another closure reads the state mid-loop', () => {
+  const code = 'function f(rows){ var t = 0; const peek = () => t; rows.forEach(function(r){ t += r + peek(); }); return t; }';
+  const r = lift(code, 'f', 'each:1', false);
+  assert.ok(!r.ok); assert.match(r.out, /another closure/);
+});
+
+test('each: refuses a nested function inside the callback that touches the state', () => {
+  const code = 'function f(rows){ var t = 0; rows.forEach(function(r){ [1].map(() => { t += r; }); }); return t; }';
+  assert.ok(!lift(code, 'f', 'each:1', false).ok);
+});
+
+test('each: refuses const state and the callback\'s own this', () => {
+  assert.ok(!lift('function f(rows){ const o = 1; rows.forEach(function(r){ o = r; }); }', 'f', 'each:1', false).ok);
+  assert.ok(!lift('function f(rows){ var t; rows.forEach(function(r){ t = this; }); }', 'f', 'each:1', false).ok);
+});

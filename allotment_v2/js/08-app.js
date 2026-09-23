@@ -4656,6 +4656,214 @@ function renderDailyReport(){
     +pane+'</div><div id="dr-mail-host"></div>';
   if(_drMailOpen) drMailPaint();
 }
+/* lifted out of renderTravelSum by tools/lift.mjs (each:5037) · reads: mrows, e, date, DEC, money · updates: prevRoute, body */
+function tsManifestRow(C, S, r){
+  const { mrows, e, date, DEC, money } = C;
+
+    var b=r.b;
+    if(r.routeId!==S.prevRoute){
+      S.prevRoute=r.routeId;
+      var rt=(typeof getRoute==='function'?getRoute(r.routeId):null)||{};
+      var grp=mrows.filter(function(x){ return x.routeId===r.routeId && !x.cxlRow; });
+      var gX=mrows.filter(function(x){ return x.routeId===r.routeId && x.cxlRow && !x.mvRow; });
+      var gM=mrows.filter(function(x){ return x.routeId===r.routeId && x.mvRow; });
+      var gB=grp.reduce(function(a,x){ return a+x.booked; },0), gT=grp.reduce(function(a,x){ return a+x.travelled; },0);
+      S.body+='<tr class="ts-grow"><td colspan="16" style="padding:7px 11px">'
+        +'<span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:'+(rt.color||'var(--zn700)')+'">'
+        +'<i class="ts-dot" style="border-radius:50%;background:'+(rt.color||'#999')+'"></i>'+e(rt.name||r.routeId||'—')+'</span>'
+        +'<span style="float:right" class="ts-tel">'+grp.length+' booking · จอง '+gB+' → เดินทางจริง '+gT+(gB-gT>0?(' · หาย '+(gB-gT)):'')
+        +(gX.length?(' · <b style="color:var(--rs700)">ยกเลิกทั้งใบ '+gX.length+' ใบ</b>'):'')
+        +(gM.length?(' · <b style="color:var(--pu700)">เลื่อนวันไปแล้ว '+gM.length+' ใบ</b>'):'')+'</span>'
+        +'</td></tr>';
+    }
+    var ag=(typeof sbGetAgent==='function')?sbGetAgent(b.agentId):null;
+    var agName=ag?(ag.name||ag.code||'—'):(b.channel||'walk-in');
+    var agColor=(b.agentId&&typeof bkV2AgentColor==='function')?bkV2AgentColor(b.agentId):'#64748B';
+    var agInk=(typeof bkV2ContrastInk==='function')?bkV2ContrastInk(agColor):'#fff';
+    var veh=r.van?((typeof vehGet==='function'?vehGet(r.van):null)||{}):null;
+    var boat=r.boat?((typeof getBoat==='function'?getBoat(r.boat):null)||{}):null;
+    var dec=r.dec, mm=tsMoneyOf(b,date);
+    var stat = r.mvRow ? ('<span class="ts-chip p">&#10007; เลื่อนวัน</span>'
+        +(r.mvTo?('<div class="ts-tel" style="margin-top:3px">ไป '+e((typeof ckDayShortTh==='function')?ckDayShortTh(r.mvTo):r.mvTo)+'</div>'):''))
+      : r.cxlRow ? '<span class="ts-chip r">CXL &middot; ยกเลิก</span>' : r.issue
+      ? (dec ? '<span class="ts-chip '+DEC[dec.decision][1]+'">'+DEC[dec.decision][0]+(dec.decision==='postpone'?'':(' · '+money(dec.amount)))+'</span>'
+             : '<span class="ts-chip r">รอตัดสิน</span>')
+      : (mm.due>0 ? '<span class="ts-chip a">รอเก็บ '+money(mm.due)+'</span>'
+                  : '<span class="ts-chip g">&#10003; เรียบร้อย</span>');
+    var px=tsPaxSplit(r, date);
+    var pxCell=function(k){
+      var v=px[k];
+      if(!v.b) return '<td class="c ts-px zero">·</td>';
+      if(r.cxlRow) return '<td class="c ts-px zero" title="'+(r.mvRow?'เลื่อนวันออกไปแล้ว':'ยกเลิกทั้งใบ')+' · จอง '+v.b+'">'+v.b+'</td>';
+      if(v.l===v.b) return '<td class="c ts-px">'+v.b+'</td>';
+      return '<td class="c ts-px lost" title="จอง '+v.b+' → ไปจริง '+v.l+'">'+v.l+'<em>/'+v.b+'</em></td>';
+    };
+    var dep=tsDepTime(r.routeId), sb=tsSendBack(b, date);
+    // §tsNoBoard · ใบนี้ได้ขึ้นรถ/ขึ้นเรือจริงไหม
+    //   เดิมป้ายรถ/เรือหน้าตาเหมือนกันหมดไม่ว่าคนจะขึ้นจริงหรือเปล่า คนอ่านใบปิดวันแยกไม่ออก
+    var _lost=(typeof ckLostByType==='function')?ckLostByType(b,date):null;
+    var _gone = r.cxlRow || r.travelled<=0 || (r.booked>0 && _lost && _lost.total>=r.booked);
+    var noVan  = _gone || (r.vanDone  && (r.vanActual!=null)  && r.vanActual<=0)
+                       || (!!r.vanCk  && (typeof ckEventTally==='function') && ckEventTally(r.vanCk).total>=r.booked && r.booked>0);
+    var noBoat = _gone || (r.pierDone && (r.pierActual!=null) && r.pierActual<=0)
+                       || (!!r.pierCk && (typeof ckEventTally==='function') && ckEventTally(r.pierCk).total>=r.booked && r.booked>0);
+    var room=b.roomNo||b.room||b.roomNumber||'';
+    S.body+='<tr'+(r.mvRow?' class="ts-cxlrow ts-mvrow"':(r.cxlRow?' class="ts-cxlrow"':''))+'>'
+      +'<td><span class="ts-vch">'+e(b.voucherRef||b.code||'—')+'</span></td>'
+      +'<td>'+(((typeof laAgencyMark==='function')&&laAgencyMark(b,16,{pad:'5px 7px',margin:false}))||('<span class="ts-ag" style="background:'+agColor+';color:'+agInk+'" title="'+e(agName)+'">'+e(agName)+'</span>'))+'</td>'
+      +'<td><div class="ts-lead">'+e(b.leadPax||'—')+'</div><div class="ts-tel">'+e(b.leadPhone||b.phone||'')+'</div></td>'
+      + pxCell('ad') + pxCell('chd') + pxCell('inf') + pxCell('foc')
+      +'<td class="c ts-mono" style="font-weight:800">'+(r.cxlRow?('<span style="color:var(--rs700)">0</span> / '+r.booked):(r.travelled+' / '+r.booked))+'</td>'
+      +'<td style="max-width:168px">'
+        +(r.ovnBack?('<div><span class="ts-chip" style="background:#EDE7FB;color:#5B289A;font-weight:800" title="ขากลับค้างคืน &middot; ขึ้นเรือที่ท่าเกาะ ไม่มีรถไปรับ &middot; ไม่คิดเงินซ้ำ">&#8617; OVN ขากลับ</span></div>'
+             +(r.ovnOut?('<div class="ts-tel">ไปเมื่อ '+e((typeof ovnDayTh==='function')?ovnDayTh(r.ovnOut):r.ovnOut)+'</div>'):'')):'')
+        +((b.hotelName||b.pickup)
+            ? (e(b.hotelName||b.pickup)+(room?('<span class="ts-room">ห้อง '+e(room)+'</span>'):''))
+            : '<span class="ts-chip n" title="ใบนี้ไม่มีจุดรับ · ลูกค้ามาเองที่ท่า">No pickup</span>')+'</td>'
+      +'<td style="max-width:150px">'+(sb?('<div class="ts-sbk">'+e(sb.t)+'</div><span class="ts-chip '+sb.cls+'">'+e(sb.tag)+'</span>')
+        :'<span style="color:var(--zn400)">จุดเดิม</span>')+'</td>'
+      +'<td class="ts-aocol">'+tsAddonCell(r, date)+'</td>'
+      +'<td>'+((veh?('<span class="ts-chip n'+(noVan?' ts-nb':'')+'"'+(noVan?' title="ไม่ได้ขึ้นรถ"':'')
+              +'>&#128656; '+e(veh.name||r.van)+'</span>'):(r.cxlRow?'':'<span class="ts-chip p">มาเอง</span>'))
+         +(boat?('<span class="ts-chip g'+(noBoat?' ts-nb':'')+'"'+(noBoat?' title="ไม่ได้ขึ้นเรือ"':'')
+              +'>&#128676; '+e(boat.name||r.boat)+'</span>')
+              :(r.cxlRow?'':'<span class="ts-chip r">ยังไม่จัดเรือ</span>'))
+         +((r.cxlRow&&!veh&&!boat)?'<span style="color:var(--zn400)">—</span>':''))+'</td>'
+      /* §tsManMv · เงินย้ายไปกับวันใหม่แล้ว · โชว์ซ้ำที่นี่จะอ่านเป็นยอดของวันนี้ */
+      +'<td class="ts-paycol">'+(r.mvRow
+          ? '<span style="color:var(--zn400);font-size:10.5px">ยอดเงินไปอยู่กับวันใหม่แล้ว</span>'
+          : tsPayCell(r, date))+'</td>'
+      +(function(){
+          if(r.mvRow) return '<td class="r ts-mono" style="font-weight:800;color:var(--zn400)">&mdash;</td>';
+          var T=tsTotalOf(r, date), N=tsNetOf(r);
+          // §tsNetRate · ที่มาของยอด Net ในรูป "จำนวน × เรตต่อคน" · หาเรตไม่เจอใส่ขีด ไม่เดา
+          /* §b2bPromo · บอกให้เห็นว่าบรรทัดนี้ขายด้วยโปรตัวไหน · เอกสารข้อ 6 */
+          var pl=(N&&N.promo)?N.promo:'';
+          var nr='<span class="ts-net" title="'
+                 +(N?('ยอด Net '+money(N.tot)+(pl?(' · โปร: '+e(pl)+(N.promoSold?' (ล็อกไว้ตอนขาย)':'')):' ตาม Rate Type')):'ไม่มีเรตใน Rate Type')
+                 +'">('+(N?e(N.txt):'&mdash;')+')</span>'
+                 +(pl?('<span class="ts-net" style="color:#9A5410" title="'+e(pl)+'"> PROMO</span>'):'');
+          var tip='booking '+money(T.base)
+            +(T.site?(' · '+T.parts.map(function(p){ return p[0]+' '+money(p[1]); }).join(' · ')):'')
+            +(N?(' · Net '+money(N.tot)+' = '+N.txt):' · ไม่มีเรตใน Rate Type')
+            +(pl?(' · โปร: '+pl):'');
+          return '<td class="r ts-mono ts-totc" style="font-weight:800" title="'+e(tip)+'">'+money(T.all)
+            +(T.site?('<span class="ts-totb">'+money(T.base)+'<em>+'+money(T.site)+'</em></span>'):'')
+            +nr+'</td>';
+        })()
+      +'<td style="max-width:170px">'+(r.mvRow
+          ? ('<span class="ts-chip p">เลื่อนวันแล้ว</span>'
+             +(r.mvWhy?('<div class="ts-tel" style="margin-top:3px">'+e(r.mvWhy)+'</div>'):''))
+          : tsCxlCell(r, date, DEC, money))+'</td>'
+      +'<td class="c">'+stat+'</td>'
+      +'</tr>';
+  }
+/* lifted out of renderTravelSum by tools/lift.mjs (each:4974) · reads: PM, e, money, date · updates: mbody */
+function tsMoneyRow(C, S, m){
+  const { PM, e, money, date } = C;
+
+    var r=m.r, b=r.b;
+    var ag=(typeof sbGetAgent==='function')?sbGetAgent(b.agentId):null;
+    var agName=ag?(ag.name||ag.code||'—'):(b.channel||'walk-in');
+    var agColor=(b.agentId&&typeof bkV2AgentColor==='function')?bkV2AgentColor(b.agentId):'#64748B';
+    var agInk=(typeof bkV2ContrastInk==='function')?bkV2ContrastInk(agColor):'#fff';
+    var veh=r.van?((typeof vehGet==='function'?vehGet(r.van):null)||{}):null;
+    var boat=r.boat?((typeof getBoat==='function'?getBoat(r.boat):null)||{}):null;
+    var mchips=m.pays.map(function(p){ var x=PM[p.method||'cash']||['อื่นๆ','n'];
+      return '<span class="ts-chip '+x[1]+'" title="'+e((p.at?pckHHMM(p.at)+' · ':'')+(p.by||'')+(p.note?(' · '+p.note):''))+'">'
+        + x[0]+' '+money(p.amount)+((+p.fee>0)?(' <i style="font-style:normal;opacity:.7">+fee '+money(p.fee)+'</i>'):'')+'</span>';
+    }).join('');
+    // §tsSalePayChip · เงินของที่ขายเพิ่มหน้างานเก็บอยู่บนตัวรายการ ไม่ได้อยู่ใน pierPayments
+    //   ถ้าไม่เติมตรงนี้ ใบที่ขายแต่ของเพิ่มจะขึ้นว่า "ยังไม่เก็บ" ทั้งที่รับเงินไปแล้ว
+    var _sby={};
+    m.S.list.forEach(function(x){ if(!x.done) return; var k=x.method||'cash'; _sby[k]=(_sby[k]||0)+x.amt; });
+    Object.keys(_sby).forEach(function(k){ var x=PM[k]||['อื่นๆ','n'];
+      mchips+='<span class="ts-chip '+x[1]+'" title="เงินจากของที่ขายเพิ่มหน้างาน">'
+        + x[0]+' '+money(_sby[k])+' <i style="font-style:normal;opacity:.7">ขายเพิ่ม</i></span>'; });
+    // §tsInvPaid · ใบที่จ่ายผ่านบิลมาแล้ว อย่าขึ้น "ยังไม่เก็บ" ให้คนหน้าท่าไปตามซ้ำ
+    if(!mchips) mchips=(m.inv&&m.inv.settled)
+      ? ('<span class="ts-chip g" title="'+e('รับเงินครบตามใบแจ้งหนี้ '+m.inv.no)+'">&#10003; จ่ายผ่านบิล</span>')
+      : '<span class="ts-chip n">ยังไม่เก็บ</span>';
+    var _noSlip=(+m.M.noSlip||0)+(+m.S.noSlip||0);
+    var slipWarn=(_noSlip>0)?('<span class="ts-chip a" title="โอน/บัตรที่ยังไม่แนบสลิป · รวมของที่ขายเพิ่ม">ขาดสลิป '+_noSlip+'</span>'):'';
+    // §tsSlipAdd · แถวปุ่มแนบสลิปของแต่ละก้อนเงินที่ไม่ใช่เงินสด · แนบได้จากหน้านี้เลย
+    var _slipBits=[];
+    m.pays.forEach(function(p){
+      if((p.method||'cash')==='cash') return;
+      var n=((p.slips||[]).length), lb=(PM[p.method||'cash']||['อื่นๆ'])[0]+' '+money(p.amount);
+      /* §slipView · มีสลิปแล้ว = กดเปิดดูได้เลย ไม่ต้องไปสแกนซัมลงไดร์ฟ */
+      _slipBits.push(n
+        ? ('<span class="ts-slipok" style="cursor:pointer" '+laSlipClickAttr(p.slips, lb)
+           +' title="'+e(lb+' · มีสลิปแล้ว '+n+' ไฟล์ · กดเพื่อเปิดดู')+'">&#128206; '+e(lb)+'</span>')
+        : ('<label class="ts-slipb" title="'+e('แนบสลิป · '+lb)+'">&#128206; แนบสลิป '+e(lb)
+           +'<input type="file" accept="image/*,application/pdf" style="display:none"'
+           +' onchange="tsSlipPick(\'p\',\''+b.id+'\',\''+(p.id||'')+'\',this)"></label>'));
+    });
+    m.S.list.forEach(function(x){
+      if(x.kind!=='ex' || !x.id) return;
+      if((x.method||'cash')==='cash') return;
+      var lb=String(x.t||'ขายเพิ่ม')+' '+money(x.amt);
+      _slipBits.push((+x.nSlip>0)
+        ? ('<span class="ts-slipok" style="cursor:pointer" '+laSlipClickAttr(x.slips, lb)
+           +' title="'+e(lb+' · มีสลิปแล้ว · กดเพื่อเปิดดู')+'">&#128206; '+e(lb)+'</span>')
+        : ('<label class="ts-slipb" title="'+e('แนบสลิป · '+lb)+'">&#128206; แนบสลิป '+e(lb)
+           +'<input type="file" accept="image/*,application/pdf" style="display:none"'
+           +' onchange="tsSlipPick(\'x\',\''+b.id+'\',\''+x.id+'\',this)"></label>'));
+    });
+    var slipRow=_slipBits.length?('<div class="ts-slips">'+_slipBits.join('')+'</div>'):'';
+    var parts=[]; if(m.M.cot>0) parts.push('COT '+money(m.M.cot));
+    if(m.M.balance>0) parts.push('ค้าง '+money(m.M.balance));
+    if(m.M.upDue>0) parts.push('upgrade '+money(m.M.upDue));
+    S.mbody+='<tr class="'+(m.cxl?'ts-cxl':(m.due>0?'need':''))+'">'
+      +'<td><span class="ts-vch">'+e(b.voucherRef||b.code||'—')+'</span></td>'
+      +'<td>'+(((typeof laAgencyMark==='function')&&laAgencyMark(b,16,{pad:'5px 7px',margin:false}))||('<span class="ts-ag" style="background:'+agColor+';color:'+agInk+'" title="'+e(agName)+'">'+e(agName)+'</span>'))+'</td>'
+      +'<td><div class="ts-lead">'+e(b.leadPax||'—')+'</div><div class="ts-tel">'+e(b.leadPhone||b.phone||'')+'</div></td>'
+      +'<td><div style="font-size:11px">'+e(b.hotelName||b.pickup||'—')+'</div>'
+        +'<div class="ts-tel">'+(veh?e(veh.name||r.van):'มาเอง')+(boat?(' · '+e(boat.name||r.boat)):'')+'</div></td>'
+      +'<td class="ts-aocol">'+tsSaleCell(m.S, money, e)+'</td>'
+      +'<td class="ts-mono" style="font-size:10.5px">'+(e([m.who].concat(m.S.list.map(function(x){return x.who;}))
+          .filter(function(v,i,a){ return v && a.indexOf(v)===i; }).join(' · '))||'<span style="color:var(--zn400)">—</span>')+'</td>'
+      +'<td>'+mchips+slipWarn+slipRow+'</td>'
+      +'<td class="r ts-mono" style="font-weight:800">'
+        +(m.cxl?('<span style="text-decoration:line-through;opacity:.45">'+money(m.target)+'</span>'):money(m.target))
+        +'<div class="ts-tel">'+(m.cxl?'ไม่นับ · เก็บไม่ได้':e(parts.join(' · ')))+'</div></td>'
+      // §tsCotSettle · โน้ต COT + ช่องตัดสินการจัดการเงินก้อนนี้
+      +'<td>'+((m.M.cot>0)
+          ? ((String(m.M.note||'').trim())
+              ? ('<div class="ts-cotn">'+e(String(m.M.note).trim())+'</div>')
+              : '<div class="ts-cotn empty">ไม่มีโน้ต</div>')
+          : '<span style="color:var(--zn400)">—</span>')+'</td>'
+      /* §cotNoCol · เดิมตัดจบให้เองว่า "ไม่ต้องตัดสิน" · แต่ยอด COT ยังค้างอยู่ในระบบ
+         และไม่มีที่บันทึกว่าเก็บไม่ได้เพราะอะไร · ให้กดปิดพร้อมเหตุผลได้ */
+      +'<td class="ts-cotcol">'+tsCotCell(b, m.M, date, money, e, m.r)+'</td>'
+      +'<td class="c">'+(m.cxl
+        ? ('<span class="ts-chip r">'+m.cxlKind+'</span><div class="ts-tel" style="margin-top:3px">ไม่นับเข้ายอดวันนี้</div>')
+        : m.due>0
+        ? ('<span class="ts-chip a">รอเก็บ '+money(m.due)+'</span>')
+        : (m.target<=0 && m.paid<=0 && m.S.got>0
+            ? ('<span class="ts-chip g">ขายเพิ่ม '+money(m.S.got)+'</span>')
+            : ('<span class="ts-chip g">เก็บครบ '+money(m.paid)+'</span>')))
+        + (m.S.due>0?('<div style="margin-top:3px"><span class="ts-chip a">upgrade รอเก็บ '+money(m.S.due)+'</span></div>'):'')+'</td>'
+      +'</tr>';
+  }
+/* lifted out of renderTravelSum by tools/lift.mjs (var:rPills) · reads: rTotN, rOrder, rMap */
+function tsRoutePills(C){
+  const { rTotN, rOrder, rMap } = C;
+  return '<div class="ts-rt"><span class="ts-rtl">เส้นทาง</span>'
+    +'<button class="ts-rb'+(_tsRoute?'':' on')+'" onclick="tsPickRoute(\'\')">ทุกเส้นทาง'
+      +'<i>'+rTotN+' ใบ</i></button>'
+    + rOrder.map(function(k){
+        var on=(k===_tsRoute), c=tsRouteColor(k), empty=(rMap[k].n===0);
+        // §tsRouteChip · สีประจำเส้นทางติดอยู่กับชิปตลอด · ตอนเลือกแค่เข้มขึ้นและมีเส้นขอบหนา
+        // §tsRefFollowVat · เส้นทางที่ไม่มีใบในชุดภาษีที่เลือก หรี่ลงให้เห็นว่าว่าง
+        return '<button class="ts-rb'+(on?' on':'')+'" onclick="tsPickRoute(\''+String(k).replace(/'/g,"")+'\')"'
+          + ' style="border-color:'+c+(on?'':'59')+';background:'+c+(on?'26':'0f')+';'
+          + (empty?'opacity:.42;':'')
+          + (on?('box-shadow:inset 0 0 0 1px '+c+';'):'')+'">'
+          + '<i class="ts-dot" style="border-radius:50%;background:'+c+';margin-right:6px"></i>'
+          + ckEsc(tsRouteName(k))+'<i>'+rMap[k].n+' ใบ · '+rMap[k].pax+' คน</i></button>';
+      }).join('')+'</div>';
+}
 function renderTravelSum(){
   var host=document.getElementById('travelsum-host'); if(!host) return;
   var e=ckEsc, date=_tsDate, money=function(n){ return '฿'+Number(n||0).toLocaleString('en-US'); };
@@ -4869,91 +5077,9 @@ function renderTravelSum(){
   // ══ ส่วน 3 · เงินหน้างาน ══
   var PM={ cash:['เงินสด','e'], transfer:['โอนเงิน','b'], card:['บัตรเครดิต','p'] };
   var mbody='';
-  mRows.forEach(function(m){
-    var r=m.r, b=r.b;
-    var ag=(typeof sbGetAgent==='function')?sbGetAgent(b.agentId):null;
-    var agName=ag?(ag.name||ag.code||'—'):(b.channel||'walk-in');
-    var agColor=(b.agentId&&typeof bkV2AgentColor==='function')?bkV2AgentColor(b.agentId):'#64748B';
-    var agInk=(typeof bkV2ContrastInk==='function')?bkV2ContrastInk(agColor):'#fff';
-    var veh=r.van?((typeof vehGet==='function'?vehGet(r.van):null)||{}):null;
-    var boat=r.boat?((typeof getBoat==='function'?getBoat(r.boat):null)||{}):null;
-    var mchips=m.pays.map(function(p){ var x=PM[p.method||'cash']||['อื่นๆ','n'];
-      return '<span class="ts-chip '+x[1]+'" title="'+e((p.at?pckHHMM(p.at)+' · ':'')+(p.by||'')+(p.note?(' · '+p.note):''))+'">'
-        + x[0]+' '+money(p.amount)+((+p.fee>0)?(' <i style="font-style:normal;opacity:.7">+fee '+money(p.fee)+'</i>'):'')+'</span>';
-    }).join('');
-    // §tsSalePayChip · เงินของที่ขายเพิ่มหน้างานเก็บอยู่บนตัวรายการ ไม่ได้อยู่ใน pierPayments
-    //   ถ้าไม่เติมตรงนี้ ใบที่ขายแต่ของเพิ่มจะขึ้นว่า "ยังไม่เก็บ" ทั้งที่รับเงินไปแล้ว
-    var _sby={};
-    m.S.list.forEach(function(x){ if(!x.done) return; var k=x.method||'cash'; _sby[k]=(_sby[k]||0)+x.amt; });
-    Object.keys(_sby).forEach(function(k){ var x=PM[k]||['อื่นๆ','n'];
-      mchips+='<span class="ts-chip '+x[1]+'" title="เงินจากของที่ขายเพิ่มหน้างาน">'
-        + x[0]+' '+money(_sby[k])+' <i style="font-style:normal;opacity:.7">ขายเพิ่ม</i></span>'; });
-    // §tsInvPaid · ใบที่จ่ายผ่านบิลมาแล้ว อย่าขึ้น "ยังไม่เก็บ" ให้คนหน้าท่าไปตามซ้ำ
-    if(!mchips) mchips=(m.inv&&m.inv.settled)
-      ? ('<span class="ts-chip g" title="'+e('รับเงินครบตามใบแจ้งหนี้ '+m.inv.no)+'">&#10003; จ่ายผ่านบิล</span>')
-      : '<span class="ts-chip n">ยังไม่เก็บ</span>';
-    var _noSlip=(+m.M.noSlip||0)+(+m.S.noSlip||0);
-    var slipWarn=(_noSlip>0)?('<span class="ts-chip a" title="โอน/บัตรที่ยังไม่แนบสลิป · รวมของที่ขายเพิ่ม">ขาดสลิป '+_noSlip+'</span>'):'';
-    // §tsSlipAdd · แถวปุ่มแนบสลิปของแต่ละก้อนเงินที่ไม่ใช่เงินสด · แนบได้จากหน้านี้เลย
-    var _slipBits=[];
-    m.pays.forEach(function(p){
-      if((p.method||'cash')==='cash') return;
-      var n=((p.slips||[]).length), lb=(PM[p.method||'cash']||['อื่นๆ'])[0]+' '+money(p.amount);
-      /* §slipView · มีสลิปแล้ว = กดเปิดดูได้เลย ไม่ต้องไปสแกนซัมลงไดร์ฟ */
-      _slipBits.push(n
-        ? ('<span class="ts-slipok" style="cursor:pointer" '+laSlipClickAttr(p.slips, lb)
-           +' title="'+e(lb+' · มีสลิปแล้ว '+n+' ไฟล์ · กดเพื่อเปิดดู')+'">&#128206; '+e(lb)+'</span>')
-        : ('<label class="ts-slipb" title="'+e('แนบสลิป · '+lb)+'">&#128206; แนบสลิป '+e(lb)
-           +'<input type="file" accept="image/*,application/pdf" style="display:none"'
-           +' onchange="tsSlipPick(\'p\',\''+b.id+'\',\''+(p.id||'')+'\',this)"></label>'));
-    });
-    m.S.list.forEach(function(x){
-      if(x.kind!=='ex' || !x.id) return;
-      if((x.method||'cash')==='cash') return;
-      var lb=String(x.t||'ขายเพิ่ม')+' '+money(x.amt);
-      _slipBits.push((+x.nSlip>0)
-        ? ('<span class="ts-slipok" style="cursor:pointer" '+laSlipClickAttr(x.slips, lb)
-           +' title="'+e(lb+' · มีสลิปแล้ว · กดเพื่อเปิดดู')+'">&#128206; '+e(lb)+'</span>')
-        : ('<label class="ts-slipb" title="'+e('แนบสลิป · '+lb)+'">&#128206; แนบสลิป '+e(lb)
-           +'<input type="file" accept="image/*,application/pdf" style="display:none"'
-           +' onchange="tsSlipPick(\'x\',\''+b.id+'\',\''+x.id+'\',this)"></label>'));
-    });
-    var slipRow=_slipBits.length?('<div class="ts-slips">'+_slipBits.join('')+'</div>'):'';
-    var parts=[]; if(m.M.cot>0) parts.push('COT '+money(m.M.cot));
-    if(m.M.balance>0) parts.push('ค้าง '+money(m.M.balance));
-    if(m.M.upDue>0) parts.push('upgrade '+money(m.M.upDue));
-    mbody+='<tr class="'+(m.cxl?'ts-cxl':(m.due>0?'need':''))+'">'
-      +'<td><span class="ts-vch">'+e(b.voucherRef||b.code||'—')+'</span></td>'
-      +'<td>'+(((typeof laAgencyMark==='function')&&laAgencyMark(b,16,{pad:'5px 7px',margin:false}))||('<span class="ts-ag" style="background:'+agColor+';color:'+agInk+'" title="'+e(agName)+'">'+e(agName)+'</span>'))+'</td>'
-      +'<td><div class="ts-lead">'+e(b.leadPax||'—')+'</div><div class="ts-tel">'+e(b.leadPhone||b.phone||'')+'</div></td>'
-      +'<td><div style="font-size:11px">'+e(b.hotelName||b.pickup||'—')+'</div>'
-        +'<div class="ts-tel">'+(veh?e(veh.name||r.van):'มาเอง')+(boat?(' · '+e(boat.name||r.boat)):'')+'</div></td>'
-      +'<td class="ts-aocol">'+tsSaleCell(m.S, money, e)+'</td>'
-      +'<td class="ts-mono" style="font-size:10.5px">'+(e([m.who].concat(m.S.list.map(function(x){return x.who;}))
-          .filter(function(v,i,a){ return v && a.indexOf(v)===i; }).join(' · '))||'<span style="color:var(--zn400)">—</span>')+'</td>'
-      +'<td>'+mchips+slipWarn+slipRow+'</td>'
-      +'<td class="r ts-mono" style="font-weight:800">'
-        +(m.cxl?('<span style="text-decoration:line-through;opacity:.45">'+money(m.target)+'</span>'):money(m.target))
-        +'<div class="ts-tel">'+(m.cxl?'ไม่นับ · เก็บไม่ได้':e(parts.join(' · ')))+'</div></td>'
-      // §tsCotSettle · โน้ต COT + ช่องตัดสินการจัดการเงินก้อนนี้
-      +'<td>'+((m.M.cot>0)
-          ? ((String(m.M.note||'').trim())
-              ? ('<div class="ts-cotn">'+e(String(m.M.note).trim())+'</div>')
-              : '<div class="ts-cotn empty">ไม่มีโน้ต</div>')
-          : '<span style="color:var(--zn400)">—</span>')+'</td>'
-      /* §cotNoCol · เดิมตัดจบให้เองว่า "ไม่ต้องตัดสิน" · แต่ยอด COT ยังค้างอยู่ในระบบ
-         และไม่มีที่บันทึกว่าเก็บไม่ได้เพราะอะไร · ให้กดปิดพร้อมเหตุผลได้ */
-      +'<td class="ts-cotcol">'+tsCotCell(b, m.M, date, money, e, m.r)+'</td>'
-      +'<td class="c">'+(m.cxl
-        ? ('<span class="ts-chip r">'+m.cxlKind+'</span><div class="ts-tel" style="margin-top:3px">ไม่นับเข้ายอดวันนี้</div>')
-        : m.due>0
-        ? ('<span class="ts-chip a">รอเก็บ '+money(m.due)+'</span>')
-        : (m.target<=0 && m.paid<=0 && m.S.got>0
-            ? ('<span class="ts-chip g">ขายเพิ่ม '+money(m.S.got)+'</span>')
-            : ('<span class="ts-chip g">เก็บครบ '+money(m.paid)+'</span>')))
-        + (m.S.due>0?('<div style="margin-top:3px"><span class="ts-chip a">upgrade รอเก็บ '+money(m.S.due)+'</span></div>'):'')+'</td>'
-      +'</tr>';
-  });
+  { const _lfC = { PM, e, money, date }, _lfS = { mbody };
+  mRows.forEach((...a) => tsMoneyRow(_lfC, _lfS, ...a));
+  mbody = _lfS.mbody; }
   var PC=function(cls,ic,lb,tag,val,note){
     return '<div class="ts-p '+cls+'"><div class="ph"><span class="pl">'+ic+' '+lb+'</span><span class="pt">'+tag+'</span></div>'
       +'<div class="pv">'+val+'</div><div class="pn">'+note+'</div></div>';
@@ -5034,105 +5160,9 @@ function renderTravelSum(){
     var ok=(actual>=total);
     return '<span class="ts-chip '+(ok?'g':'r')+'">'+actual+'/'+total+'</span>';
   };
-  mrows.forEach(function(r){
-    var b=r.b;
-    if(r.routeId!==prevRoute){
-      prevRoute=r.routeId;
-      var rt=(typeof getRoute==='function'?getRoute(r.routeId):null)||{};
-      var grp=mrows.filter(function(x){ return x.routeId===r.routeId && !x.cxlRow; });
-      var gX=mrows.filter(function(x){ return x.routeId===r.routeId && x.cxlRow && !x.mvRow; });
-      var gM=mrows.filter(function(x){ return x.routeId===r.routeId && x.mvRow; });
-      var gB=grp.reduce(function(a,x){ return a+x.booked; },0), gT=grp.reduce(function(a,x){ return a+x.travelled; },0);
-      body+='<tr class="ts-grow"><td colspan="16" style="padding:7px 11px">'
-        +'<span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:'+(rt.color||'var(--zn700)')+'">'
-        +'<i class="ts-dot" style="border-radius:50%;background:'+(rt.color||'#999')+'"></i>'+e(rt.name||r.routeId||'—')+'</span>'
-        +'<span style="float:right" class="ts-tel">'+grp.length+' booking · จอง '+gB+' → เดินทางจริง '+gT+(gB-gT>0?(' · หาย '+(gB-gT)):'')
-        +(gX.length?(' · <b style="color:var(--rs700)">ยกเลิกทั้งใบ '+gX.length+' ใบ</b>'):'')
-        +(gM.length?(' · <b style="color:var(--pu700)">เลื่อนวันไปแล้ว '+gM.length+' ใบ</b>'):'')+'</span>'
-        +'</td></tr>';
-    }
-    var ag=(typeof sbGetAgent==='function')?sbGetAgent(b.agentId):null;
-    var agName=ag?(ag.name||ag.code||'—'):(b.channel||'walk-in');
-    var agColor=(b.agentId&&typeof bkV2AgentColor==='function')?bkV2AgentColor(b.agentId):'#64748B';
-    var agInk=(typeof bkV2ContrastInk==='function')?bkV2ContrastInk(agColor):'#fff';
-    var veh=r.van?((typeof vehGet==='function'?vehGet(r.van):null)||{}):null;
-    var boat=r.boat?((typeof getBoat==='function'?getBoat(r.boat):null)||{}):null;
-    var dec=r.dec, mm=tsMoneyOf(b,date);
-    var stat = r.mvRow ? ('<span class="ts-chip p">&#10007; เลื่อนวัน</span>'
-        +(r.mvTo?('<div class="ts-tel" style="margin-top:3px">ไป '+e((typeof ckDayShortTh==='function')?ckDayShortTh(r.mvTo):r.mvTo)+'</div>'):''))
-      : r.cxlRow ? '<span class="ts-chip r">CXL &middot; ยกเลิก</span>' : r.issue
-      ? (dec ? '<span class="ts-chip '+DEC[dec.decision][1]+'">'+DEC[dec.decision][0]+(dec.decision==='postpone'?'':(' · '+money(dec.amount)))+'</span>'
-             : '<span class="ts-chip r">รอตัดสิน</span>')
-      : (mm.due>0 ? '<span class="ts-chip a">รอเก็บ '+money(mm.due)+'</span>'
-                  : '<span class="ts-chip g">&#10003; เรียบร้อย</span>');
-    var px=tsPaxSplit(r, date);
-    var pxCell=function(k){
-      var v=px[k];
-      if(!v.b) return '<td class="c ts-px zero">·</td>';
-      if(r.cxlRow) return '<td class="c ts-px zero" title="'+(r.mvRow?'เลื่อนวันออกไปแล้ว':'ยกเลิกทั้งใบ')+' · จอง '+v.b+'">'+v.b+'</td>';
-      if(v.l===v.b) return '<td class="c ts-px">'+v.b+'</td>';
-      return '<td class="c ts-px lost" title="จอง '+v.b+' → ไปจริง '+v.l+'">'+v.l+'<em>/'+v.b+'</em></td>';
-    };
-    var dep=tsDepTime(r.routeId), sb=tsSendBack(b, date);
-    // §tsNoBoard · ใบนี้ได้ขึ้นรถ/ขึ้นเรือจริงไหม
-    //   เดิมป้ายรถ/เรือหน้าตาเหมือนกันหมดไม่ว่าคนจะขึ้นจริงหรือเปล่า คนอ่านใบปิดวันแยกไม่ออก
-    var _lost=(typeof ckLostByType==='function')?ckLostByType(b,date):null;
-    var _gone = r.cxlRow || r.travelled<=0 || (r.booked>0 && _lost && _lost.total>=r.booked);
-    var noVan  = _gone || (r.vanDone  && (r.vanActual!=null)  && r.vanActual<=0)
-                       || (!!r.vanCk  && (typeof ckEventTally==='function') && ckEventTally(r.vanCk).total>=r.booked && r.booked>0);
-    var noBoat = _gone || (r.pierDone && (r.pierActual!=null) && r.pierActual<=0)
-                       || (!!r.pierCk && (typeof ckEventTally==='function') && ckEventTally(r.pierCk).total>=r.booked && r.booked>0);
-    var room=b.roomNo||b.room||b.roomNumber||'';
-    body+='<tr'+(r.mvRow?' class="ts-cxlrow ts-mvrow"':(r.cxlRow?' class="ts-cxlrow"':''))+'>'
-      +'<td><span class="ts-vch">'+e(b.voucherRef||b.code||'—')+'</span></td>'
-      +'<td>'+(((typeof laAgencyMark==='function')&&laAgencyMark(b,16,{pad:'5px 7px',margin:false}))||('<span class="ts-ag" style="background:'+agColor+';color:'+agInk+'" title="'+e(agName)+'">'+e(agName)+'</span>'))+'</td>'
-      +'<td><div class="ts-lead">'+e(b.leadPax||'—')+'</div><div class="ts-tel">'+e(b.leadPhone||b.phone||'')+'</div></td>'
-      + pxCell('ad') + pxCell('chd') + pxCell('inf') + pxCell('foc')
-      +'<td class="c ts-mono" style="font-weight:800">'+(r.cxlRow?('<span style="color:var(--rs700)">0</span> / '+r.booked):(r.travelled+' / '+r.booked))+'</td>'
-      +'<td style="max-width:168px">'
-        +(r.ovnBack?('<div><span class="ts-chip" style="background:#EDE7FB;color:#5B289A;font-weight:800" title="ขากลับค้างคืน &middot; ขึ้นเรือที่ท่าเกาะ ไม่มีรถไปรับ &middot; ไม่คิดเงินซ้ำ">&#8617; OVN ขากลับ</span></div>'
-             +(r.ovnOut?('<div class="ts-tel">ไปเมื่อ '+e((typeof ovnDayTh==='function')?ovnDayTh(r.ovnOut):r.ovnOut)+'</div>'):'')):'')
-        +((b.hotelName||b.pickup)
-            ? (e(b.hotelName||b.pickup)+(room?('<span class="ts-room">ห้อง '+e(room)+'</span>'):''))
-            : '<span class="ts-chip n" title="ใบนี้ไม่มีจุดรับ · ลูกค้ามาเองที่ท่า">No pickup</span>')+'</td>'
-      +'<td style="max-width:150px">'+(sb?('<div class="ts-sbk">'+e(sb.t)+'</div><span class="ts-chip '+sb.cls+'">'+e(sb.tag)+'</span>')
-        :'<span style="color:var(--zn400)">จุดเดิม</span>')+'</td>'
-      +'<td class="ts-aocol">'+tsAddonCell(r, date)+'</td>'
-      +'<td>'+((veh?('<span class="ts-chip n'+(noVan?' ts-nb':'')+'"'+(noVan?' title="ไม่ได้ขึ้นรถ"':'')
-              +'>&#128656; '+e(veh.name||r.van)+'</span>'):(r.cxlRow?'':'<span class="ts-chip p">มาเอง</span>'))
-         +(boat?('<span class="ts-chip g'+(noBoat?' ts-nb':'')+'"'+(noBoat?' title="ไม่ได้ขึ้นเรือ"':'')
-              +'>&#128676; '+e(boat.name||r.boat)+'</span>')
-              :(r.cxlRow?'':'<span class="ts-chip r">ยังไม่จัดเรือ</span>'))
-         +((r.cxlRow&&!veh&&!boat)?'<span style="color:var(--zn400)">—</span>':''))+'</td>'
-      /* §tsManMv · เงินย้ายไปกับวันใหม่แล้ว · โชว์ซ้ำที่นี่จะอ่านเป็นยอดของวันนี้ */
-      +'<td class="ts-paycol">'+(r.mvRow
-          ? '<span style="color:var(--zn400);font-size:10.5px">ยอดเงินไปอยู่กับวันใหม่แล้ว</span>'
-          : tsPayCell(r, date))+'</td>'
-      +(function(){
-          if(r.mvRow) return '<td class="r ts-mono" style="font-weight:800;color:var(--zn400)">&mdash;</td>';
-          var T=tsTotalOf(r, date), N=tsNetOf(r);
-          // §tsNetRate · ที่มาของยอด Net ในรูป "จำนวน × เรตต่อคน" · หาเรตไม่เจอใส่ขีด ไม่เดา
-          /* §b2bPromo · บอกให้เห็นว่าบรรทัดนี้ขายด้วยโปรตัวไหน · เอกสารข้อ 6 */
-          var pl=(N&&N.promo)?N.promo:'';
-          var nr='<span class="ts-net" title="'
-                 +(N?('ยอด Net '+money(N.tot)+(pl?(' · โปร: '+e(pl)+(N.promoSold?' (ล็อกไว้ตอนขาย)':'')):' ตาม Rate Type')):'ไม่มีเรตใน Rate Type')
-                 +'">('+(N?e(N.txt):'&mdash;')+')</span>'
-                 +(pl?('<span class="ts-net" style="color:#9A5410" title="'+e(pl)+'"> PROMO</span>'):'');
-          var tip='booking '+money(T.base)
-            +(T.site?(' · '+T.parts.map(function(p){ return p[0]+' '+money(p[1]); }).join(' · ')):'')
-            +(N?(' · Net '+money(N.tot)+' = '+N.txt):' · ไม่มีเรตใน Rate Type')
-            +(pl?(' · โปร: '+pl):'');
-          return '<td class="r ts-mono ts-totc" style="font-weight:800" title="'+e(tip)+'">'+money(T.all)
-            +(T.site?('<span class="ts-totb">'+money(T.base)+'<em>+'+money(T.site)+'</em></span>'):'')
-            +nr+'</td>';
-        })()
-      +'<td style="max-width:170px">'+(r.mvRow
-          ? ('<span class="ts-chip p">เลื่อนวันแล้ว</span>'
-             +(r.mvWhy?('<div class="ts-tel" style="margin-top:3px">'+e(r.mvWhy)+'</div>'):''))
-          : tsCxlCell(r, date, DEC, money))+'</td>'
-      +'<td class="c">'+stat+'</td>'
-      +'</tr>';
-  });
+  { const _lfC = { mrows, e, date, DEC, money }, _lfS = { prevRoute, body };
+  mrows.forEach((...a) => tsManifestRow(_lfC, _lfS, ...a));
+  prevRoute = _lfS.prevRoute; body = _lfS.body; }
   var manifest='<div class="ts-sec"><div class="ts-sech"><div>'
     +'<div class="ts-sect"><span class="ts-sn">04</span>Manifest ประจำวัน</div>'
     +'<div class="ts-secd">รายการทั้งหมดของวันเรียงตามเส้นทาง (Agency A-Z) — แยกจำนวนตามประเภทผู้โดยสาร · จุดรับและจุดส่งกลับ · '
@@ -5163,20 +5193,7 @@ function renderTravelSum(){
   var dNice=date; try{ dNice=new Date(date+'T12:00:00').toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); }catch(_){}
 
   // §tsRoute · ปุ่มเลือกเส้นทาง
-  var rPills='<div class="ts-rt"><span class="ts-rtl">เส้นทาง</span>'
-    +'<button class="ts-rb'+(_tsRoute?'':' on')+'" onclick="tsPickRoute(\'\')">ทุกเส้นทาง'
-      +'<i>'+rTotN+' ใบ</i></button>'
-    + rOrder.map(function(k){
-        var on=(k===_tsRoute), c=tsRouteColor(k), empty=(rMap[k].n===0);
-        // §tsRouteChip · สีประจำเส้นทางติดอยู่กับชิปตลอด · ตอนเลือกแค่เข้มขึ้นและมีเส้นขอบหนา
-        // §tsRefFollowVat · เส้นทางที่ไม่มีใบในชุดภาษีที่เลือก หรี่ลงให้เห็นว่าว่าง
-        return '<button class="ts-rb'+(on?' on':'')+'" onclick="tsPickRoute(\''+String(k).replace(/'/g,"")+'\')"'
-          + ' style="border-color:'+c+(on?'':'59')+';background:'+c+(on?'26':'0f')+';'
-          + (empty?'opacity:.42;':'')
-          + (on?('box-shadow:inset 0 0 0 1px '+c+';'):'')+'">'
-          + '<i class="ts-dot" style="border-radius:50%;background:'+c+';margin-right:6px"></i>'
-          + ckEsc(tsRouteName(k))+'<i>'+rMap[k].n+' ใบ · '+rMap[k].pax+' คน</i></button>';
-      }).join('')+'</div>';
+  var rPills=tsRoutePills({ rTotN, rOrder, rMap });
   // §tsVatFilter · ชิปกรองภาษี · ใช้แทนการแบ่งเอกสารเป็นสองก้อน
   var _vgap=tsVatGap(allDay);
   var vPills='<div class="ts-rt"><span class="ts-rtl">ภาษี</span>'

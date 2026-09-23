@@ -7,6 +7,7 @@
 //   var:NAME    the initializer of a top-level `var/let/const NAME = …` in outerFn's body
 //   return      the argument of outerFn's last top-level `return …`
 //   fn:NAME     a function declaration at the top level of outerFn's body
+//   each:LINE   the callback of a top-level `X.forEach(function(…){…})` statement starting on LINE
 //
 // Two shapes of result:
 //   closure-free function  →  `function newName(…){…}` at top level; the site becomes `NAME = newName`
@@ -14,11 +15,18 @@
 //   anything else          →  `function newName(C){ const {a, b} = C; return <expr>; }`; the site becomes
 //                             `newName({a, b})`, C being every outer binding the expression reads.
 //
+//   each:LINE              →  `function newName(C, S, …params){…}`; outer variables the callback updates
+//                             (running totals, `body += …`, `prev = …`) are read and written through S,
+//                             and copied back right after the loop. C holds the read-only ones.
+//
 // Refuses (exit 1, nothing written) when the move could change behavior:
 //   - the piece uses `this`/`arguments` that belong to outerFn
 //   - it reads an outer binding that is ever reassigned (C would hold a stale copy)
 //   - it reads an outer let/const/var declared at or after the site (TDZ / hoisted-undefined differences)
 //   - fn:NAME that reads outer bindings (it is hoisted; a C-factory could not be called before its line)
+//   - each:LINE whose updated variables are also touched by another closure in outerFn (it would see
+//     them mid-loop), whose callback uses its own this/arguments, or holds nested functions that
+//     touch an updated variable (they could outlive the loop and read S instead of the variable)
 // References are resolved with a real scope walk (params, var hoisting, block let/const/class, catch,
 // named function expressions), not by name matching.
 import fs from 'node:fs';
@@ -157,7 +165,17 @@ if (target === 'return'){
   fnDecl = body.find(s => s.type === 'FunctionDeclaration' && s.id.name === nm);
   if (!fnDecl) fail(`no top-level function declaration ${nm} inside ${outerName}`);
   stmt = fnDecl; expr = fnDecl;
+} else if (target.startsWith('each:')){
+  const line = +target.slice(5);
+  stmt = body.find(s => s.type === 'ExpressionStatement' && s.loc.start.line === line);
+  const call = stmt && stmt.expression;
+  if (!call || call.type !== 'CallExpression' || call.callee.type !== 'MemberExpression' || call.callee.computed
+      || call.callee.property.name !== 'forEach' || call.arguments.length !== 1 || !isFn(call.arguments[0]))
+    fail('no top-level X.forEach(fn) statement starting on line ' + line);
+  expr = call.arguments[0];
+  if (expr.type === 'FunctionExpression' && expr.id) fail('named callback');
 } else fail('bad target ' + target);
+const eachMode = target.startsWith('each:');
 
 // ── analyze ─────────────────────────────────────────────────────────────────────────────────
 const refs = resolveAll(outer);
@@ -185,6 +203,29 @@ for (const r of refs.filter(inside)) if (!r.this && isOuter(r)){
   if (fnDecl && b && b.node === fnDecl) continue;
   captured.set(r.id.name, b);
 }
+// each: the outer bindings the callback writes become loop state (S)
+const state = new Map();
+if (eachMode){
+  for (const r of refs.filter(inside)) if (r.write && isOuter(r)) state.set(r.id.name, r.scope.names.get(r.id.name));
+  const fnsInOuter = []; (function walk(n){ for (const [c] of children(n)){ if (isFn(c)) fnsInOuter.push(c); walk(c); } })(outer.body);
+  const inCb = n => n.start >= expr.start && n.end <= expr.end;
+  for (const [nm, b] of state){
+    if (!b || (b.kind !== 'var' && b.kind !== 'let')) fail('callback writes ' + nm + ' (' + (b && b.kind) + ') — only var/let state is supported');
+    if (!((b.node && b.node.end) <= stmt.start)) fail('callback writes ' + nm + ', declared at or after the loop');
+    for (const r of refs) if (!r.this && isOuter(r) && r.id.name === nm && r.scope.names.get(nm) === b){
+      const holder = fnsInOuter.filter(f => r.id.start >= f.start && r.id.end <= f.end && f !== expr);
+      if (!inCb(r.id) && holder.length) fail(nm + ' is also used by another closure in ' + outerName + ' (line ' + r.id.loc.start.line + ')');
+      if (inCb(r.id) && holder.some(inCb)) fail(nm + ' is used by a nested function inside the callback (line ' + r.id.loc.start.line + ')');
+    }
+    captured.delete(nm);
+  }
+  for (const r of refs) if (inside(r) && !r.this && r.id.name === 'arguments' && !r.scope){
+    let owner = null; (function find(n, st){ if (!n || typeof n.type !== 'string') return; if (n === r.id){ owner = st[st.length - 1]; return; }
+      const nx = (isFn(n) && n.type !== 'ArrowFunctionExpression') ? [...st, n] : st; for (const [c] of children(n)) find(c, nx); })(outer, []);
+    if (owner === expr) fail('callback uses its own arguments');
+  }
+  if (expr.type === 'FunctionExpression' && refs.some(r => r.this && inside(r) && r.scope && r.scope.owner === expr)) fail('callback uses its own this');
+}
 // reassigned anywhere in outerFn?
 const writes = new Set(refs.filter(r => r.write && isOuter(r)).map(r => r.id.name));
 const varDeclCount = {}; (function walk(n){ for (const [c] of children(n)){ if (c.type === 'VariableDeclarator') patNames(c.id).forEach(id => varDeclCount[id.name] = (varDeclCount[id.name] || 0) + 1); if (!isFn(c)) walk(c); } })(outer.body);
@@ -201,7 +242,32 @@ const cap = [...captured.keys()];
 const text = n => src.slice(n.start, n.end);
 let lifted, siteText;
 const closureFree = cap.length === 0;
-if (fnDecl){
+if (eachMode){
+  const st = [...state.keys()];
+  // rewrite every reference to a state binding inside the callback → S.name (shorthand props expanded)
+  const cbEdits = [];
+  const stateRef = id => state.has(id.name) && refs.some(r => r.id === id && isOuter(r) && r.scope.names.get(id.name) === state.get(id.name));
+  (function walk(n){
+    for (const [c, k] of children(n)){
+      if (c.type === 'Property' && c.shorthand){
+        const v = c.value.type === 'AssignmentPattern' ? c.value.left : c.value;
+        if (v.type === 'Identifier' && stateRef(v)){ cbEdits.push([c.key.start, c.key.end, v.name + ': S.' + v.name]); if (c.value.type === 'AssignmentPattern') walk(c.value.right); continue; }
+      }
+      if (c.type === 'Identifier' && stateRef(c) && !(n.type === 'MemberExpression' && k === 'property' && !n.computed) && !(n.type === 'Property' && k === 'key' && !n.computed)){ cbEdits.push([c.start, c.end, 'S.' + c.name]); continue; }
+      walk(c);
+    }
+  })(expr.body);
+  let bodyText = src.slice(expr.body.start, expr.body.end);
+  for (const [a, z, t] of cbEdits.sort((x, y) => y[0] - x[0])) bodyText = bodyText.slice(0, a - expr.body.start) + t + bodyText.slice(z - expr.body.start);
+  if (expr.body.type !== 'BlockStatement') bodyText = '{ return ' + bodyText + '; }';
+  const params = expr.params.map(p => text(p)).join(', ');
+  lifted = 'function ' + newName + '(C, S' + (params ? ', ' + params : '') + ')'
+    + bodyText.replace(/^\{/, '{' + NL + (cap.length ? '  const { ' + cap.join(', ') + ' } = C;' + NL : ''));
+  siteText = '{ const _lfC = { ' + cap.join(', ') + ' }, _lfS = { ' + st.join(', ') + ' };' + NL
+    + '  ' + text(stmt.expression.callee) + '((...a) => ' + newName + '(_lfC, _lfS, ...a));' + NL
+    + '  ' + st.map(n => n + ' = _lfS.' + n + ';').join(' ') + ' }';
+}
+else if (fnDecl){
   if (!closureFree) fail(`${target} reads outer bindings (${cap.join(', ')}) — function declarations are hoisted, so it cannot become a C-factory`);
   lifted = 'function ' + newName + text(fnDecl).slice(text(fnDecl).indexOf('('));
 } else if (exprIsFn && closureFree && !(expr.type === 'FunctionExpression' && expr.id) && !(expr.type === 'ArrowFunctionExpression' && refs.some(r => r.this && inside(r)))){
@@ -215,7 +281,7 @@ if (fnDecl){
   siteText = newName + '({ ' + cap.join(', ') + ' })';
 }
 
-const header = `/* lifted out of ${outerName} by tools/lift.mjs (${target}) · ${closureFree ? 'closure-free' : 'reads: ' + cap.join(', ')} */` + NL;
+const header = `/* lifted out of ${outerName} by tools/lift.mjs (${target}) · ${closureFree ? 'closure-free' : 'reads: ' + cap.join(', ')}${eachMode ? ' · updates: ' + [...state.keys()].join(', ') : ''} */` + NL;
 const edits = [];
 if (fnDecl){
   // delete the inner declaration (with its line) and rename its references inside outerFn
@@ -225,6 +291,8 @@ if (fnDecl){
   const alone = /^\s*$/.test(src.slice(a, fnDecl.start)) && /^\s*$/.test(src.slice(fnDecl.end, z));
   edits.push(alone ? [a, Math.min(z + 1, src.length), ''] : [fnDecl.start, fnDecl.end, '']);
   for (const r of refs) if (!r.this && r.scope && r.scope.names.get(r.id.name) && r.scope.names.get(r.id.name).node === fnDecl && r.id !== fnDecl.id) edits.push([r.id.start, r.id.end, newName]);
+} else if (eachMode){
+  edits.push([stmt.start, stmt.end, siteText]);
 } else edits.push([expr.start, expr.end, siteText]);
 let at = outer.start; while (at > 0 && src[at - 1] !== '\n') at--;
 edits.push([at, at, header + lifted + NL]);
