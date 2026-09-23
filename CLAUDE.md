@@ -57,7 +57,7 @@ LOVE_Andaman_Workspace/        ← repo root · Railway builds THIS (Nixpacks) a
 │
 ├── allotment_v2/              ← THE STAFF APP · this is what "the app" means in this file
 │   ├── allotment_v2.html      ← markup + the <link>/<script src> tags (~2.9k lines)
-│   ├── js/01..08-*.js         ← ALL the app code (~80k lines) · see js/README.md
+│   ├── js/01..10-*.js         ← ALL the app code (~107k lines) · 08-app.js split into 08a..08j by domain · see js/README.md
 │   ├── css/01-base.css        ← base sheet · css/02-skins.css = the 14 re-skin layers
 │   ├── start_server.command   ← static local server, no /api (§4)
 │   ├── docs/workflows/        ← per-domain workflow docs (see ARCHITECTURE.md)
@@ -151,7 +151,7 @@ Key fields: `id`, `name`, `code`, `companyInfo{legalName,taxId,address}`, `conta
 
 ## 5. Working with the file, look & feel, comms
 
-- The files are huge (`js/08-app.js` alone is ~47k lines) — never read one whole. `grep -rn` over `allotment_v2/js/` to locate → read a 30–50 line window → targeted `str_replace` with unique surrounding context → re-read only the changed section. Verify with `node --check <that file>`.
+- The files are huge (`js/05-fleet.js` ~25k lines, `js/08a-booking.js` ~15k) — never read one whole. `grep -rn` over `allotment_v2/js/` to locate → read a 30–50 line window → targeted `str_replace` with unique surrounding context → re-read only the changed section. Verify with `node --check <that file>`.
 - **Line citations written before 2026-08-27** (`bkV2InferZone:69054`, `pjOf:82102`, …, all over this file and `docs/workflows/`) point into the pre-split HTML. Translate with `node tools/js-split-linemap.mjs 69054`, or ignore the number and grep the function name — every citation carries one.
 - **Visual system:** DM Sans body / DM Mono for numbers; brand accent recolored coral→**Ocean blue `#1683C7`** via the reversible `softui-ocean-skin` layer. The CSS lives in `allotment_v2/css/`: `01-base.css` is the base sheet, `02-skins.css` holds the 14 re-skin layers in cascade order, each behind a `/* ==== <id> ==== */` marker — **delete the marked section to revert a skin** (they were `<style id="...-skin">` blocks in the HTML before 2026-08-27; same layers, same order). Two tiny `<style>` blocks remain inline in `<body>` on purpose. **No Tabler webfont in the app** — icons are inline SVG.
 - **Comms:** concise, show snippets, ask before big refactors, remind about backups before core-data edits, state the diff after edits (e.g. "added 3 entries to `FL_DEFAULT_ENGINES` at line 3045").
