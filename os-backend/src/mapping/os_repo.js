@@ -160,6 +160,40 @@ function fleetDailyDecompose(blob, out) {
   }
 }
 
+// ---------- trips__boat special-case (2026-08) ----------
+// Boat Operation deployments live in trips[date][boatId] = {route,type,booked,charterBookingId,…} —
+// an open-ended boat map that the generated mapping flattened into one fixed column triple per boat
+// that happened to exist when it was written (b1_route … b15_booked). Any boat added AFTER that had
+// nowhere to land, so decomposeBlob dropped its deployment on every save: the boat looked assigned in
+// Boat Operation, then vanished on the next /api/load, the route never gained an allotment, and the
+// program could not be booked. Hit for real with Tri Star 01 (b1784877193883), the Ranong charter that
+// runs the Myanmar day trips (Se La Va · Nyaung Oo Phee).
+// Same fix as fleet_daily__boat: one row per (date, boat) with the whole op object as JSON — lossless
+// for any boat and any field, past or future. The old b*_ columns are LEFT IN PLACE and still written,
+// so nothing depends on the DDL having run before the first save.
+const TRIPS_BOAT = 'trips__boat';
+function tripsAssembleFix(blob, tablesData) {
+  const tp = blob.trips; if (!tp || typeof tp !== 'object') return;
+  for (const day of Object.values(tp)) { if (day && typeof day === 'object') delete day.boats; }   // bogus merged day-level key (generic artifact)
+  for (const row of (tablesData[TRIPS_BOAT] || [])) {
+    if (row.trips_id == null || row.key == null) continue;
+    const v = safeParse(row.value); if (!v || typeof v !== 'object') continue;
+    Object.assign(((tp[row.trips_id] ||= {})[row.key] ||= {}), v);
+  }
+}
+function tripsDecompose(blob, out) {
+  out[TRIPS_BOAT] = [];
+  const tp = blob.trips; if (!tp || typeof tp !== 'object') return;
+  for (const [day, dayObj] of Object.entries(tp)) {
+    if (!dayObj || typeof dayObj !== 'object') continue;
+    for (const [boatId, op] of Object.entries(dayObj)) {
+      if (!op || typeof op !== 'object') continue;
+      out[TRIPS_BOAT].push({ trips_id: day, key: boatId,
+                             value: JSON.stringify(op), row_pk: rowPk(TRIPS_BOAT) });
+    }
+  }
+}
+
 // ---------- ASSEMBLE: rows -> blob ----------
 function buildElement(p, row) {
   if (p.elementScalar) return row[p.elementScalar];         // array-of-scalars element
@@ -174,11 +208,38 @@ function buildElement(p, row) {
 }
 function safeParse(s) { try { return JSON.parse(s); } catch (_) { return s; } }
 
+// §fkIndex · attachChildren เดิมหา row ลูกด้วย .filter() ทั้งตาราง "ต่อ parent หนึ่งตัว"
+//   → O(parents x children) และแปลง String() สองครั้งต่อการเทียบหนึ่งครั้ง
+//   sb_bookings อย่างเดียว: 3,766 parent x ~25,000 row ลูก ~= 94 ล้านรอบต่อการ rebuild หนึ่งครั้ง
+//   วัดบนเครื่อง 11 ก.ย. 2026: assembleBlob = 3,168ms (บน prod 1,344ms) และบล็อก event loop ทั้งก้อน
+//   ระหว่างนั้น Node ไม่ accept TCP ใหม่ → Railway edge ได้ "connection dial timeout" → 502
+//   ที่แย่กว่าคือมันโตแบบกำลังสอง · sb_bookings__history เป็น audit trail ที่มีแต่เพิ่ม
+//   ทุกวันที่ผ่านไป rebuild ก็ช้าลงเรื่อย ๆ โดยไม่มีใครแตะโค้ดเลย
+// ทำ index ของตารางลูกตาม fk ครั้งเดียวต่อ tablesData แล้วค่อย lookup แบบ O(1)
+//   เก็บใน WeakMap คีย์ด้วยตัว tablesData เอง → ไม่ต้องแก้ signature ของใคร ไม่มี state ค้างข้ามรอบ
+//   เรียงในถังทีเดียวตอนสร้าง index แทนที่จะเรียงใหม่ทุก parent (ผลลัพธ์เท่าเดิม)
+const FK_IDX = new WeakMap();   // tablesData -> Map<childTable, Map<fkString, rows[]>>
+function childRowsByFk(tablesData, childT, cp, parentPkVal) {
+  let per = FK_IDX.get(tablesData);
+  if (!per) { per = new Map(); FK_IDX.set(tablesData, per); }
+  let idx = per.get(childT);
+  if (!idx) {
+    idx = new Map();
+    for (const r of (tablesData[childT] || [])) {
+      const k = String(r[cp.fkCol]);
+      let a = idx.get(k);
+      if (!a) { a = []; idx.set(k, a); }
+      a.push(r);
+    }
+    for (const a of idx.values()) a.sort((x, y) => (x[cp.idxCol] ?? 0) - (y[cp.idxCol] ?? 0));
+    per.set(childT, idx);
+  }
+  return idx.get(String(parentPkVal)) || [];
+}
 function attachChildren(table, parentEl, parentPkVal, tablesData, pkIndex) {
   for (const childT of (CHILDREN[table] || [])) {
     const cp = PLAN[childT];
-    const rows = (tablesData[childT] || []).filter(r => String(r[cp.fkCol]) === String(parentPkVal));
-    rows.sort((a, b) => (a[cp.idxCol] ?? 0) - (b[cp.idxCol] ?? 0));
+    const rows = childRowsByFk(tablesData, childT, cp, parentPkVal);   // §fkIndex · เดิม .filter ทั้งตารางต่อ parent หนึ่งตัว
     if (!rows.length) continue;                       // no rows -> don't fabricate an empty nested field
     if (cp.container === 'map') {
       const mapObj = {};
@@ -237,6 +298,7 @@ function assembleBlob(tablesData) {
     }
   }
   fleetDailyAssembleFix(blob, tablesData);   // rebuild the boat dimension the mapping dropped
+  tripsAssembleFix(blob, tablesData);        // §openMap · เรือที่เพิ่มมาทีหลัง ไม่มีคอลัมน์ b*_ ของตัวเอง
   return blob;
 }
 
@@ -316,6 +378,7 @@ function decomposeBlob(blob) {
     }
   }
   fleetDailyDecompose(blob, out);   // emit one row per (day, boat, trip) — overrides the generic (which can't see boats)
+  tripsDecompose(blob, out);        // one row per (date, boat) — carries boats the b*_ columns can't
   return out;
 }
 

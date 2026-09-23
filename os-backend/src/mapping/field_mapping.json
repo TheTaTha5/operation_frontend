@@ -27,6 +27,12 @@
       "kind": "scalar",
       "db_type": "text"
     },
+    "mealvenueid": {
+      "source": "mealVenueId",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "ร้านอาหารกลางวันประจำเส้นทางนี้ · อ้าง meal_venues.id · ว่าง = เส้นทางนี้ไม่มีอาหารกลางวัน"
+    },
     "color": {
       "source": "color",
       "kind": "scalar",
@@ -37,10 +43,40 @@
       "kind": "scalar",
       "db_type": "text"
     },
+    "kind": {
+      "source": "kind",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "§routeKind · ชนิดของโปรแกรม · marine = ทริปเรือ · land = ไม่ใช้เรือ (City Tour / Transfer) · null = ยังไม่เคยตั้ง ถอยไปดู pier='other' แบบเดิม"
+    },
+    "dailycap": {
+      "source": "dailyCap",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "§otherPier · โควตาที่นั่งต่อวันของโปรแกรมบก (ไม่มีเรือให้นับ) · null = ไม่จำกัด · เส้นทางเรือไม่ใช้ค่านี้"
+    },
+    "familyid": {
+      "source": "familyId",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "§famField · กลุ่มโปรแกรมที่เส้นทางนี้สังกัด · เดิมเดาจากชื่อเส้นทางตอน render · null = ยังไม่เคยตั้ง (ถอยไปใช้การเดา) · empty string = ตั้งใจไม่ผูกกลุ่ม"
+    },
     "sort": {
       "source": "sort",
       "kind": "scalar",
       "db_type": "bigint"
+    },
+    "code": {
+      "source": "code",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "รหัสสั้นที่ผู้ใช้ตั้งเอง · ใช้แสดงในช่องวันของตารางการทำงาน · ไม่ตั้งก็เดาจากชื่อเส้นทาง"
+    },
+    "extid": {
+      "source": "extId",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "§b2cCatalog · id ของสินค้า/ตัวย่อยฝั่ง B2C ที่เส้นทางนี้ถูกสร้างขึ้นมาให้ (POW-008) · null = สร้างเองในหน้า Config ไม่ได้มาจาก B2C · เป็นกุญแจกันสร้างซ้ำของ POST /api/b2c/routes"
     }
   },
   "routes__times": {
@@ -110,6 +146,11 @@
     },
     "name": {
       "source": "name",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "nameth": {
+      "source": "nameTh",
       "kind": "scalar",
       "db_type": "text"
     },
@@ -245,6 +286,11 @@
     },
     "owneraddr": {
       "source": "ownerAddr",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "note": {
+      "source": "note",
       "kind": "scalar",
       "db_type": "text"
     },
@@ -3540,6 +3586,41 @@
       "source": "originalPlanTo",
       "kind": "scalar",
       "db_type": "text"
+    },
+    "docs": {
+      "source": "docs",
+      "kind": "json_text",
+      "db_type": "text"
+    },
+    "vendorvisits": {
+      "source": "vendorVisits",
+      "kind": "json_text",
+      "db_type": "text"
+    },
+    "phase": {
+      "source": "phase",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "holdreason": {
+      "source": "holdReason",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "holdsince": {
+      "source": "holdSince",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "cancelreason": {
+      "source": "cancelReason",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "cancelledon": {
+      "source": "cancelledOn",
+      "kind": "scalar",
+      "db_type": "text"
     }
   },
   "fleet_projects__log": {
@@ -4421,6 +4502,16 @@
       "kind": "scalar",
       "db_type": "text"
     },
+    "paymentsnapshot_deposit": {
+      "source": "paymentSnapshot.deposit",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "paymentsnapshot_balance": {
+      "source": "paymentSnapshot.balance",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
     "pricebreakdown_seat": {
       "source": "priceBreakdown.seat",
       "kind": "scalar",
@@ -4930,6 +5021,11 @@
       "source": "b2cOverride",
       "kind": "json_text",
       "db_type": "text"
+    },
+    "specialmeals_allergylist": {
+      "source": "specialMeals.allergyList",
+      "kind": "json_text",
+      "db_type": "text"
     }
   },
   "sb_bookings__passengers": {
@@ -5125,6 +5221,26 @@
       "kind": "scalar",
       "db_type": "bigint"
     },
+    "nat_ad": {
+      "source": "trips[].nat.ad",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "nat_chd": {
+      "source": "trips[].nat.chd",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "nat_inf": {
+      "source": "trips[].nat.inf",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "nat_foc": {
+      "source": "trips[].nat.foc",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
     "lockdrawsel": {
       "source": "trips[].lockDrawSel",
       "kind": "json_text",
@@ -5199,6 +5315,12 @@
       "source": "trips[].ops.pierNote",
       "kind": "json_text",
       "db_type": "text"
+    },
+    "promoid": {
+      "source": "trips[].promoId",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "the promotion that priced this trip when it was sold · NULL = none, or sold before 029"
     }
   },
   "sb_bookings__addons": {
@@ -5241,6 +5363,18 @@
       "source": "addOns[].note",
       "kind": "scalar",
       "db_type": "text"
+    },
+    "jad": {
+      "source": "addOns[].jAd",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "longtail-join · ผู้ใหญ่ที่ลงหางยาวจริง · ว่าง = ไม่ได้ระบุ ตัวอ่านคิดทุกหัวเหมือนเดิม"
+    },
+    "jchd": {
+      "source": "addOns[].jChd",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "longtail-join · เด็กที่ลงหางยาวจริง · ว่าง = ไม่ได้ระบุ"
     }
   },
   "sb_bookings__history": {
@@ -5995,6 +6129,12 @@
       "kind": "scalar",
       "db_type": "text"
     },
+    "costperday": {
+      "source": "costPerDay",
+      "kind": "scalar",
+      "db_type": "numeric",
+      "note": "ค่ารถต่อวันของคันนี้ · รถบริษัทคิดน้ำมัน+คนขับ รถเช่าคิดค่าเช่า · ว่าง = ใช้ค่าตั้งต้นตามประเภท"
+    },
     "partnername": {
       "source": "partnerName",
       "kind": "scalar",
@@ -6576,6 +6716,36 @@
       "source": "docId",
       "kind": "scalar",
       "db_type": "text"
+    },
+    "pricemode": {
+      "source": "priceMode",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "rate | own | discount · missing = rate (every promo written before 029)"
+    },
+    "rates": {
+      "source": "rates",
+      "kind": "json_text",
+      "db_type": "text",
+      "note": "{routeId:{zone:{paxType:price}}} · price_mode=own only · zone left out falls back to the standard rate"
+    },
+    "discount": {
+      "source": "discount",
+      "kind": "json_text",
+      "db_type": "text",
+      "note": "{mode:'pct'|'amt', value} · price_mode=discount only · always off the main contract price"
+    },
+    "bonus": {
+      "source": "bonus",
+      "kind": "json_text",
+      "db_type": "text",
+      "note": "{on,buy,free,basis} · buy-N-get-1 · system counts and warns, never adds the free seat itself"
+    },
+    "bookwin": {
+      "source": "bookWin",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "1 = enforce the booking window on programPeriods · older rows stay NULL so their bookings do not reprice"
     }
   },
   "sb_contracts__programperiods": {
@@ -6725,6 +6895,11 @@
       "kind": "scalar",
       "db_type": "text"
     },
+    "slips": {
+      "source": "ts_cot[key].slips",
+      "kind": "json_text",
+      "db_type": "text"
+    },
     "by": {
       "source": "ts_cot[key].by",
       "kind": "scalar",
@@ -6733,6 +6908,28 @@
     "at": {
       "source": "ts_cot[key].at",
       "kind": "scalar",
+      "db_type": "text"
+    }
+  },
+  "trips__boat": {
+    "trips_id": {
+      "source": "(link) trips.id",
+      "kind": "fk",
+      "db_type": "text"
+    },
+    "key": {
+      "source": "(map key of trips[key].boats)",
+      "kind": "map_key",
+      "db_type": "text"
+    },
+    "row_pk": {
+      "source": "(generated child key)",
+      "kind": "synthetic-pk",
+      "db_type": "text"
+    },
+    "value": {
+      "source": "trips[key][boat] whole op object",
+      "kind": "map_value_json",
       "db_type": "text"
     }
   },
@@ -6755,6 +6952,781 @@
     "value": {
       "source": "fleet_daily[key][boat] scalars",
       "kind": "map_value_json",
+      "db_type": "text"
+    }
+  },
+  "pier_items": {
+    "id": {
+      "source": "pier_items[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "pier": {
+      "source": "pier",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "kind": {
+      "source": "kind",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "label": {
+      "source": "label",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "total": {
+      "source": "total",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "active": {
+      "source": "active",
+      "kind": "scalar",
+      "db_type": "boolean"
+    },
+    "note": {
+      "source": "note",
+      "kind": "scalar",
+      "db_type": "text"
+    }
+  },
+  "pier_kinds": {
+    "id": {
+      "source": "pier_kinds[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "name": {
+      "source": "name",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "ชื่อประเภท เช่น ตีนกบ · หน้ากาก · เสื้อชูชีพ"
+    },
+    "name_en": {
+      "source": "name_en",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "ชื่อภาษาอังกฤษ · ใช้เป็นหัวคอลัมน์ในใบเซ็นซึ่งพิมพ์เป็นภาษาอังกฤษทั้งใบ · เว้นว่างได้ จะถอยไปใช้ชื่อไทย"
+    },
+    "unit": {
+      "source": "unit",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "หน่วยนับของประเภทนี้ เช่น คู่ · ชิ้น · ตัว"
+    },
+    "color": {
+      "source": "color",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "สีป้ายของประเภทนี้"
+    },
+    "ord": {
+      "source": "ord",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "ลำดับที่แสดงในตารางและบนใบเบิก"
+    },
+    "active": {
+      "source": "active",
+      "kind": "scalar",
+      "db_type": "boolean"
+    }
+  },
+  "meal_venues": {
+    "id": {
+      "source": "ทะเบียนร้านอาหาร · meal_venues[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "name": {
+      "source": "name",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "ชื่อร้าน"
+    },
+    "place": {
+      "source": "place",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "เกาะ / จุดจอดที่ขึ้นกินข้าว"
+    },
+    "price_ad": {
+      "source": "priceAd",
+      "kind": "scalar",
+      "db_type": "numeric",
+      "note": "ราคาต่อหัว ผู้ใหญ่"
+    },
+    "price_ch": {
+      "source": "priceCh",
+      "kind": "scalar",
+      "db_type": "numeric",
+      "note": "ราคาต่อหัว เด็ก"
+    },
+    "phone": {
+      "source": "phone",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "เบอร์ติดต่อร้าน"
+    },
+    "eta": {
+      "source": "eta",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "เวลาที่เรือถึงร้านโดยประมาณ เช่น 09:30 · ไปขึ้นบนใบสั่งอาหารให้ร้านเตรียมของทัน · ระบบรู้แค่เวลาออกจากท่า"
+    },
+    "note": {
+      "source": "note",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "active": {
+      "source": "active",
+      "kind": "scalar",
+      "db_type": "boolean",
+      "note": "ปิดร้านแทนการลบ · ทริปเก่ายังอ่านราคาที่ใช้จริงตอนนั้นได้"
+    }
+  },
+  "pier_moves": {
+    "id": {
+      "source": "pier_moves[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "date": {
+      "source": "date",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "pier": {
+      "source": "pier",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "itemid": {
+      "source": "itemId",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "boatid": {
+      "source": "boatId",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "type": {
+      "source": "type",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "qty": {
+      "source": "qty",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "frombucket": {
+      "source": "from",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "fine": {
+      "source": "fine",
+      "kind": "scalar",
+      "db_type": "double precision"
+    },
+    "finepaid": {
+      "source": "finePaid",
+      "kind": "scalar",
+      "db_type": "boolean"
+    },
+    "note": {
+      "source": "note",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "by": {
+      "source": "by",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "at": {
+      "source": "at",
+      "kind": "scalar",
+      "db_type": "text"
+    }
+  },
+  "pier_staff": {
+    "id": {
+      "source": "pier_staff[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "pier": {
+      "source": "pier",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "nick": {
+      "source": "nick",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "name": {
+      "source": "name",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "role": {
+      "source": "role",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "phone": {
+      "source": "phone",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "active": {
+      "source": "active",
+      "kind": "scalar",
+      "db_type": "boolean"
+    },
+    "defcode": {
+      "source": "defCode",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "รหัสตั้งต้นในตารางการทำงาน เมื่อวันนั้นมีใบงานแล้วแต่คนนี้ไม่ได้ลงเรือ"
+    },
+    "sect": {
+      "source": "sect",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "กลุ่ม (pier_sect.id) ที่คนนี้อยู่ในตารางการทำงาน · ว่าง = ยังไม่จัดกลุ่ม"
+    },
+    "note": {
+      "source": "note",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "ช่อง REMARKS ในตารางการทำงาน · เช่น ลาออก · กลับมาช่วงไฮซีซัน"
+    },
+    "ord": {
+      "source": "ord",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "ลำดับของคนในกลุ่ม · ผู้ใช้ลากจัดเอง · ว่าง = ยังไม่เคยจัด ให้เรียงตามทะเบียน"
+    }
+  },
+  "pier_sect": {
+    "id": {
+      "source": "pier_sect[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "pier": {
+      "source": "pier",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "ท่าเรือที่กลุ่มนี้เป็นของ"
+    },
+    "name": {
+      "source": "name",
+      "kind": "scalar",
+      "db_type": "text",
+      "note": "ชื่อกลุ่มที่แสดงเป็นแถบคั่นในตาราง เช่น OFFICE · BOAT CREW"
+    },
+    "ord": {
+      "source": "ord",
+      "kind": "scalar",
+      "db_type": "bigint",
+      "note": "ลำดับของแถบคั่นในตาราง"
+    }
+  },
+  "pier_duty": {
+    "id": {
+      "source": "pier_duty map key (generated id)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "key": {
+      "source": "pier_duty map key (original)",
+      "kind": "map_key",
+      "db_type": "text"
+    },
+    "value": {
+      "source": "pier_duty[key] value",
+      "kind": "map_value_json",
+      "db_type": "text",
+      "note": "ค่าเป็น array ของ staffId — เก็บทั้งก้อนเป็น JSON text เหมือน vanjob_sent · เพิ่มคนหรือเปลี่ยนรูปแบบไม่ต้องแตะ DB"
+    }
+  },
+  "pier_team": {
+    "id": {
+      "source": "pier_team map key (generated id)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "key": {
+      "source": "pier_team map key (original)",
+      "kind": "map_key",
+      "db_type": "text"
+    },
+    "value": {
+      "source": "pier_team[key] value",
+      "kind": "map_value_json",
+      "db_type": "text"
+    }
+  },
+  "pier_job": {
+    "id": {
+      "source": "pier_job map key (generated id)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "key": {
+      "source": "pier_job map key (original)",
+      "kind": "map_key",
+      "db_type": "text"
+    },
+    "value": {
+      "source": "pier_job[key] value",
+      "kind": "map_value_json",
+      "db_type": "text"
+    }
+  },
+  "trip_actuals": {
+    "id": {
+      "source": "trip_actuals map key (generated id)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "key": {
+      "source": "trip_actuals map key (original)",
+      "kind": "map_key",
+      "db_type": "text",
+      "note": "'YYYY-MM-DD::boatId' · คีย์เดียวกับ trips / fleet_daily / pier_job"
+    },
+    "value": {
+      "source": "trip_actuals[key] value",
+      "kind": "map_value_json",
+      "db_type": "text",
+      "note": "ของจริงรายทริป · ตอนนี้มี meal (ต้นทุนอาหารที่ส่งร้านจริง) · หน้า P&L ใช้ทับค่าประมาณจากสูตร"
+    }
+  },
+  "pier_sheet": {
+    "id": {
+      "source": "pier_sheet map key (generated id)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "key": {
+      "source": "pier_sheet map key (original)",
+      "kind": "map_key",
+      "db_type": "text",
+      "note": "'YYYY-MM-DD::boatId' · คีย์เดียวกับ trip_actuals / pier_job / fleet_daily"
+    },
+    "value": {
+      "source": "pier_sheet[key] value",
+      "kind": "map_value_json",
+      "db_type": "text",
+      "note": "ใบเบิก–คืนรายลำ · rows[] ต่อใบจอง + เงินมัดจำ + size[] แยกไซส์ · pier_moves คือตัวจริงของสต็อก"
+    }
+  },
+  "pier_cfg": {
+    "id": {
+      "source": "pier_cfg map key (generated id)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "key": {
+      "source": "pier_cfg map key (original)",
+      "kind": "map_key",
+      "db_type": "text"
+    },
+    "value": {
+      "source": "pier_cfg[key] value",
+      "kind": "map_value_json",
+      "db_type": "text"
+    }
+  },
+  "pier_lic_types": {
+    "id": {
+      "source": "pier_lic_types[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "side": {
+      "source": "side",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "short": {
+      "source": "short",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "formal": {
+      "source": "formal",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "perboat": {
+      "source": "perBoat",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "active": {
+      "source": "active",
+      "kind": "scalar",
+      "db_type": "boolean"
+    }
+  },
+  "pier_lic_classes": {
+    "id": {
+      "source": "pier_lic_classes[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "typeid": {
+      "source": "typeId",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "name": {
+      "source": "name",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "maxgt": {
+      "source": "maxGt",
+      "kind": "scalar",
+      "db_type": "double precision"
+    },
+    "maxbhp": {
+      "source": "maxBhp",
+      "kind": "scalar",
+      "db_type": "double precision"
+    },
+    "ord": {
+      "source": "ord",
+      "kind": "scalar",
+      "db_type": "bigint"
+    }
+  },
+  "pier_licenses": {
+    "id": {
+      "source": "pier_licenses[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "staffid": {
+      "source": "staffId",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "classid": {
+      "source": "classId",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "no": {
+      "source": "no",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "exp": {
+      "source": "exp",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "issuedat": {
+      "source": "issuedAt",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "issuer": {
+      "source": "issuer",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "note": {
+      "source": "note",
+      "kind": "scalar",
+      "db_type": "text"
+    }
+  },
+  "pier_codes": {
+    "id": {
+      "source": "pier_codes[].id (record id; generated if absent)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "code": {
+      "source": "code",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "label": {
+      "source": "label",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "color": {
+      "source": "color",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "bg": {
+      "source": "bg",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "kind": {
+      "source": "kind",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "ord": {
+      "source": "ord",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "active": {
+      "source": "active",
+      "kind": "scalar",
+      "db_type": "boolean"
+    }
+  },
+  "pier_shift": {
+    "id": {
+      "source": "pier_shift map key (generated id)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "key": {
+      "source": "pier_shift map key (original)",
+      "kind": "map_key",
+      "db_type": "text"
+    },
+    "value": {
+      "source": "pier_shift[key] value",
+      "kind": "map_value_json",
+      "db_type": "text"
+    }
+  },
+  "van_bill": {
+    "id": {
+      "source": "van_bill map key (generated id)",
+      "kind": "pk",
+      "db_type": "text"
+    },
+    "key": {
+      "source": "van_bill map key (original)",
+      "kind": "map_key",
+      "db_type": "text"
+    },
+    "value": {
+      "source": "van_bill[key] value",
+      "kind": "map_value_json",
+      "db_type": "text",
+      "note": "ทั้งก้อนเป็น JSON text เหมือน vanjob_sent — perPax/rate/rows/extra/by/at เพิ่มช่องได้โดยไม่ต้องแตะ DB"
+    }
+  },
+  "po_cash_rows": {
+    "id": {
+      "source": "po_cash_rows[].id (record id)",
+      "kind": "pk",
+      "db_type": "text",
+      "note": "pier petty cash day ledger · one row per entry · was one JSON string per pier, which the server replaced wholesale so two people at one pier erased each other"
+    },
+    "pier": {
+      "source": "po_cash_rows[].pier",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "date": {
+      "source": "po_cash_rows[].date",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "kind": {
+      "source": "po_cash_rows[].kind",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "txt": {
+      "source": "po_cash_rows[].txt",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "amt": {
+      "source": "po_cash_rows[].amt",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "at": {
+      "source": "po_cash_rows[].at",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "by": {
+      "source": "po_cash_rows[].by",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "ts": {
+      "source": "po_cash_rows[].ts",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "src": {
+      "source": "po_cash_rows[].src",
+      "kind": "scalar",
+      "db_type": "text"
+    }
+  },
+  "po_cash_lt": {
+    "id": {
+      "source": "po_cash_lt[].id (record id)",
+      "kind": "pk",
+      "db_type": "text",
+      "note": "longtail sheet · id is pier|date|boat so the same cell from two devices merges instead of duplicating"
+    },
+    "pier": {
+      "source": "po_cash_lt[].pier",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "date": {
+      "source": "po_cash_lt[].date",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "bid": {
+      "source": "po_cash_lt[].bid",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "n": {
+      "source": "po_cash_lt[].n",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "nj": {
+      "source": "po_cash_lt[].nj",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "nc": {
+      "source": "po_cash_lt[].nc",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "amt": {
+      "source": "po_cash_lt[].amt",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "note": {
+      "source": "po_cash_lt[].note",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "by": {
+      "source": "po_cash_lt[].by",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "ts": {
+      "source": "po_cash_lt[].ts",
+      "kind": "scalar",
+      "db_type": "text"
+    }
+  },
+  "po_cash_pk": {
+    "id": {
+      "source": "po_cash_pk[].id (record id)",
+      "kind": "pk",
+      "db_type": "text",
+      "note": "park fee sheet · both sides kept · what the booking says vs what was paid at the gate"
+    },
+    "pier": {
+      "source": "po_cash_pk[].pier",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "date": {
+      "source": "po_cash_pk[].date",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "bid": {
+      "source": "po_cash_pk[].bid",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "ad_th": {
+      "source": "po_cash_pk[].ad_th",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "chd_th": {
+      "source": "po_cash_pk[].chd_th",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "inf_th": {
+      "source": "po_cash_pk[].inf_th",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "foc_th": {
+      "source": "po_cash_pk[].foc_th",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "ad_fr": {
+      "source": "po_cash_pk[].ad_fr",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "chd_fr": {
+      "source": "po_cash_pk[].chd_fr",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "inf_fr": {
+      "source": "po_cash_pk[].inf_fr",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "foc_fr": {
+      "source": "po_cash_pk[].foc_fr",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "amt": {
+      "source": "po_cash_pk[].amt",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "dock": {
+      "source": "po_cash_pk[].dock",
+      "kind": "scalar",
+      "db_type": "bigint"
+    },
+    "by": {
+      "source": "po_cash_pk[].by",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "ts": {
+      "source": "po_cash_pk[].ts",
+      "kind": "scalar",
+      "db_type": "text"
+    },
+    "src": {
+      "source": "po_cash_pk[].src",
+      "kind": "scalar",
       "db_type": "text"
     }
   }

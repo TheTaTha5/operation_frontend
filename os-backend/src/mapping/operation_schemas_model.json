@@ -29,6 +29,10 @@
         "type": "text"
       },
       {
+        "name": "mealvenueid",
+        "type": "text"
+      },
+      {
         "name": "color",
         "type": "text"
       },
@@ -39,6 +43,26 @@
       {
         "name": "sort",
         "type": "bigint"
+      },
+      {
+        "name": "code",
+        "type": "text"
+      },
+      {
+        "name": "familyid",
+        "type": "text"
+      },
+      {
+        "name": "dailycap",
+        "type": "bigint"
+      },
+      {
+        "name": "kind",
+        "type": "text"
+      },
+      {
+        "name": "extid",
+        "type": "text"
       }
     ],
     "primary_key": "id",
@@ -121,6 +145,10 @@
       },
       {
         "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "nameth",
         "type": "text"
       },
       {
@@ -229,6 +257,10 @@
       },
       {
         "name": "owneraddr",
+        "type": "text"
+      },
+      {
+        "name": "note",
         "type": "text"
       },
       {
@@ -3279,6 +3311,34 @@
       {
         "name": "originalplanto",
         "type": "text"
+      },
+      {
+        "name": "docs",
+        "type": "text"
+      },
+      {
+        "name": "vendorvisits",
+        "type": "text"
+      },
+      {
+        "name": "phase",
+        "type": "text"
+      },
+      {
+        "name": "holdreason",
+        "type": "text"
+      },
+      {
+        "name": "holdsince",
+        "type": "text"
+      },
+      {
+        "name": "cancelreason",
+        "type": "text"
+      },
+      {
+        "name": "cancelledon",
+        "type": "text"
       }
     ],
     "primary_key": "id",
@@ -4041,6 +4101,10 @@
         "type": "text"
       },
       {
+        "name": "specialmeals_allergylist",
+        "type": "text"
+      },
+      {
         "name": "largeluggage",
         "type": "bigint"
       },
@@ -4075,6 +4139,14 @@
       {
         "name": "paymentsnapshot_paidstatus",
         "type": "text"
+      },
+      {
+        "name": "paymentsnapshot_deposit",
+        "type": "bigint"
+      },
+      {
+        "name": "paymentsnapshot_balance",
+        "type": "bigint"
       },
       {
         "name": "pricebreakdown_seat",
@@ -4656,6 +4728,22 @@
         "type": "bigint"
       },
       {
+        "name": "nat_ad",
+        "type": "bigint"
+      },
+      {
+        "name": "nat_chd",
+        "type": "bigint"
+      },
+      {
+        "name": "nat_inf",
+        "type": "bigint"
+      },
+      {
+        "name": "nat_foc",
+        "type": "bigint"
+      },
+      {
         "name": "lockdrawsel",
         "type": "text"
       },
@@ -4714,6 +4802,10 @@
       {
         "name": "ops_piernote",
         "type": "text"
+      },
+      {
+        "name": "promoid",
+        "type": "text"
       }
     ],
     "primary_key": "row_pk",
@@ -4758,6 +4850,14 @@
       {
         "name": "note",
         "type": "text"
+      },
+      {
+        "name": "jad",
+        "type": "bigint"
+      },
+      {
+        "name": "jchd",
+        "type": "bigint"
       }
     ],
     "primary_key": "row_pk",
@@ -5515,6 +5615,10 @@
         "type": "text"
       },
       {
+        "name": "costperday",
+        "type": "numeric"
+      },
+      {
         "name": "partnername",
         "type": "text"
       },
@@ -6100,6 +6204,26 @@
       {
         "name": "docid",
         "type": "text"
+      },
+      {
+        "name": "pricemode",
+        "type": "text"
+      },
+      {
+        "name": "rates",
+        "type": "text"
+      },
+      {
+        "name": "discount",
+        "type": "text"
+      },
+      {
+        "name": "bonus",
+        "type": "text"
+      },
+      {
+        "name": "bookwin",
+        "type": "bigint"
       }
     ],
     "primary_key": "id",
@@ -6247,10 +6371,42 @@
       {
         "name": "at",
         "type": "text"
+      },
+      {
+        "name": "slips",
+        "type": "text"
       }
     ],
     "primary_key": "id",
     "foreign_keys": [],
+    "rows": 0
+  },
+  "trips__boat": {
+    "columns": [
+      {
+        "name": "trips_id",
+        "type": "text"
+      },
+      {
+        "name": "key",
+        "type": "text"
+      },
+      {
+        "name": "row_pk",
+        "type": "text"
+      },
+      {
+        "name": "value",
+        "type": "text"
+      }
+    ],
+    "primary_key": "row_pk",
+    "foreign_keys": [
+      {
+        "column": "trips_id",
+        "references": "trips.id"
+      }
+    ],
     "rows": 0
   },
   "fleet_daily__boat": {
@@ -6279,6 +6435,717 @@
         "references": "fleet_daily.id"
       }
     ],
+    "rows": 0
+  },
+  "pier_items": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "kind",
+        "type": "text"
+      },
+      {
+        "name": "label",
+        "type": "text"
+      },
+      {
+        "name": "total",
+        "type": "bigint"
+      },
+      {
+        "name": "active",
+        "type": "boolean"
+      },
+      {
+        "name": "note",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_kinds": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "name_en",
+        "type": "text"
+      },
+      {
+        "name": "unit",
+        "type": "text"
+      },
+      {
+        "name": "color",
+        "type": "text"
+      },
+      {
+        "name": "ord",
+        "type": "bigint"
+      },
+      {
+        "name": "active",
+        "type": "boolean"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "meal_venues": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "place",
+        "type": "text"
+      },
+      {
+        "name": "price_ad",
+        "type": "numeric"
+      },
+      {
+        "name": "price_ch",
+        "type": "numeric"
+      },
+      {
+        "name": "phone",
+        "type": "text"
+      },
+      {
+        "name": "eta",
+        "type": "text"
+      },
+      {
+        "name": "note",
+        "type": "text"
+      },
+      {
+        "name": "active",
+        "type": "boolean"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_moves": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "date",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "itemid",
+        "type": "text"
+      },
+      {
+        "name": "boatid",
+        "type": "text"
+      },
+      {
+        "name": "type",
+        "type": "text"
+      },
+      {
+        "name": "qty",
+        "type": "bigint"
+      },
+      {
+        "name": "frombucket",
+        "type": "text"
+      },
+      {
+        "name": "fine",
+        "type": "double precision"
+      },
+      {
+        "name": "finepaid",
+        "type": "boolean"
+      },
+      {
+        "name": "note",
+        "type": "text"
+      },
+      {
+        "name": "by",
+        "type": "text"
+      },
+      {
+        "name": "at",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_staff": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "nick",
+        "type": "text"
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "role",
+        "type": "text"
+      },
+      {
+        "name": "phone",
+        "type": "text"
+      },
+      {
+        "name": "active",
+        "type": "boolean"
+      },
+      {
+        "name": "defcode",
+        "type": "text"
+      },
+      {
+        "name": "sect",
+        "type": "text"
+      },
+      {
+        "name": "note",
+        "type": "text"
+      },
+      {
+        "name": "ord",
+        "type": "bigint"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_duty": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "key",
+        "type": "text"
+      },
+      {
+        "name": "value",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_team": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "key",
+        "type": "text"
+      },
+      {
+        "name": "value",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_job": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "key",
+        "type": "text"
+      },
+      {
+        "name": "value",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "trip_actuals": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "key",
+        "type": "text"
+      },
+      {
+        "name": "value",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_sheet": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "key",
+        "type": "text"
+      },
+      {
+        "name": "value",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_cfg": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "key",
+        "type": "text"
+      },
+      {
+        "name": "value",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_lic_types": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "side",
+        "type": "text"
+      },
+      {
+        "name": "short",
+        "type": "text"
+      },
+      {
+        "name": "formal",
+        "type": "text"
+      },
+      {
+        "name": "perboat",
+        "type": "bigint"
+      },
+      {
+        "name": "active",
+        "type": "boolean"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_lic_classes": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "typeid",
+        "type": "text"
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "maxgt",
+        "type": "double precision"
+      },
+      {
+        "name": "maxbhp",
+        "type": "double precision"
+      },
+      {
+        "name": "ord",
+        "type": "bigint"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_licenses": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "staffid",
+        "type": "text"
+      },
+      {
+        "name": "classid",
+        "type": "text"
+      },
+      {
+        "name": "no",
+        "type": "text"
+      },
+      {
+        "name": "exp",
+        "type": "text"
+      },
+      {
+        "name": "issuedat",
+        "type": "text"
+      },
+      {
+        "name": "issuer",
+        "type": "text"
+      },
+      {
+        "name": "note",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_codes": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "code",
+        "type": "text"
+      },
+      {
+        "name": "label",
+        "type": "text"
+      },
+      {
+        "name": "color",
+        "type": "text"
+      },
+      {
+        "name": "bg",
+        "type": "text"
+      },
+      {
+        "name": "kind",
+        "type": "text"
+      },
+      {
+        "name": "ord",
+        "type": "bigint"
+      },
+      {
+        "name": "active",
+        "type": "boolean"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_shift": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "key",
+        "type": "text"
+      },
+      {
+        "name": "value",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "pier_sect": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "name",
+        "type": "text"
+      },
+      {
+        "name": "ord",
+        "type": "bigint"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "van_bill": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "key",
+        "type": "text"
+      },
+      {
+        "name": "value",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "po_cash_rows": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "date",
+        "type": "text"
+      },
+      {
+        "name": "kind",
+        "type": "text"
+      },
+      {
+        "name": "txt",
+        "type": "text"
+      },
+      {
+        "name": "amt",
+        "type": "bigint"
+      },
+      {
+        "name": "at",
+        "type": "text"
+      },
+      {
+        "name": "by",
+        "type": "text"
+      },
+      {
+        "name": "ts",
+        "type": "text"
+      },
+      {
+        "name": "src",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "po_cash_lt": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "date",
+        "type": "text"
+      },
+      {
+        "name": "bid",
+        "type": "text"
+      },
+      {
+        "name": "n",
+        "type": "bigint"
+      },
+      {
+        "name": "nj",
+        "type": "bigint"
+      },
+      {
+        "name": "nc",
+        "type": "bigint"
+      },
+      {
+        "name": "amt",
+        "type": "bigint"
+      },
+      {
+        "name": "note",
+        "type": "text"
+      },
+      {
+        "name": "by",
+        "type": "text"
+      },
+      {
+        "name": "ts",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
+    "rows": 0
+  },
+  "po_cash_pk": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "text"
+      },
+      {
+        "name": "pier",
+        "type": "text"
+      },
+      {
+        "name": "date",
+        "type": "text"
+      },
+      {
+        "name": "bid",
+        "type": "text"
+      },
+      {
+        "name": "ad_th",
+        "type": "bigint"
+      },
+      {
+        "name": "chd_th",
+        "type": "bigint"
+      },
+      {
+        "name": "inf_th",
+        "type": "bigint"
+      },
+      {
+        "name": "foc_th",
+        "type": "bigint"
+      },
+      {
+        "name": "ad_fr",
+        "type": "bigint"
+      },
+      {
+        "name": "chd_fr",
+        "type": "bigint"
+      },
+      {
+        "name": "inf_fr",
+        "type": "bigint"
+      },
+      {
+        "name": "foc_fr",
+        "type": "bigint"
+      },
+      {
+        "name": "amt",
+        "type": "bigint"
+      },
+      {
+        "name": "dock",
+        "type": "bigint"
+      },
+      {
+        "name": "by",
+        "type": "text"
+      },
+      {
+        "name": "ts",
+        "type": "text"
+      },
+      {
+        "name": "src",
+        "type": "text"
+      }
+    ],
+    "primary_key": "id",
+    "foreign_keys": [],
     "rows": 0
   }
 }
