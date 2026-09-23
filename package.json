@@ -33,7 +33,8 @@
     "test:vbdrop": "node test/ui/t_vbdrop.mjs",
     "test:cklive": "node test/ui/t_cklive.mjs",
     "test:perm": "node test/ui/t_perm.mjs",
-    "test:pjwb": "node test/ui/t_pjwb.mjs"
+    "test:pjwb": "node test/ui/t_pjwb.mjs",
+    "test:pjwbsave": "node test/ui/t_pjwbsave.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"
