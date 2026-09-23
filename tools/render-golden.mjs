@@ -3,6 +3,7 @@
 //
 //   node tools/render-golden.mjs record  <dir>     render every scenario, write <dir>/<scenario>.html
 //   node tools/render-golden.mjs compare <dir>     render again and diff against <dir>
+//   ... <dir> name1,name2                           only those scenarios
 //
 // Seeds the page (static server + seed data, like test/ui) with a deterministic set of synthetic
 // zz_test_ bookings on one travel date — every route, seat + charter, several agents/zones, van and
@@ -17,9 +18,13 @@ const [cmd, dir] = process.argv.slice(2);
 if (!['record', 'compare'].includes(cmd) || !dir){ console.log('usage: record|compare <dir>'); process.exit(2); }
 
 const DATE = '2026-10-15';
+// The page clock is pinned (page.clock.setFixedTime) so "today", "last 47 days" etc. are the same on
+// every run. PAST dates carry a lighter load so month / analysis views have history to report.
+const NOW = '2026-10-16T09:00:00+07:00';
+const PAST = ['2026-09-02', '2026-09-09', '2026-09-16', '2026-09-23', '2026-09-30', '2026-10-07', '2026-10-12'];
 
 // Runs in the page. Builds bookings from whatever seed entities exist so it survives seed changes.
-function seed(DATE){
+function seed([DATE, PAST]){
   const routes = (typeof DEFAULT_ROUTES !== 'undefined' ? DEFAULT_ROUTES : []).map(r => r.id);
   const boats = (typeof BOATS !== 'undefined' ? BOATS : []).map(b => b.id);
   const agents = (SB_AGENTS || []).map(a => a.id);
@@ -28,8 +33,9 @@ function seed(DATE){
   const statuses = ['confirmed', 'confirmed', 'confirmed', 'pending_approval', 'cancelled', 'confirmed'];
   const out = [];
   let n = 0;
-  for (const rid of routes){
-    for (let k = 0; k < 7; k++){
+  const plan = [[DATE, 7], ...PAST.map(d => [d, 2])];
+  for (const [date, perRoute] of plan) for (const rid of routes){
+    for (let k = 0; k < perRoute; k++){
       n++;
       const area = areas[(n * 3) % Math.max(areas.length, 1)] || {};
       const charter = k === 6;
@@ -41,7 +47,7 @@ function seed(DATE){
         hotelName: 'Zz Hotel ' + (n % 9), roomNumber: String(100 + n), pickupAreaId: self ? null : (area.id || null),
         pickupZone: self ? 'NoTransfer' : (area.zone || 'PK'), pickupSelf: self,
         status: statuses[n % statuses.length], bookingDate: '2026-09-01',
-        trips: [{ routeId: rid, date: DATE, bookingMode: charter ? 'charter' : 'seat',
+        trips: [{ routeId: rid, date, bookingMode: charter ? 'charter' : 'seat',
           pax: { ad_fr: n % 4, ad_th: 1 + (n % 3), chd_fr: n % 2, chd_th: 0, inf_fr: n % 5 === 0 ? 1 : 0, inf_th: 0, foc: n % 7 === 0 ? 1 : 0 },
           charterBoatId: charter ? boats[n % boats.length] : undefined }],
         passengers: [], addOns: [], adjustments: [],
@@ -62,35 +68,95 @@ function seed(DATE){
   }
   SB_BOOKINGS.length = 0;
   out.forEach(b => SB_BOOKINGS.push(b));
+  // Boat Operation schedule (TRIPS) for every boat that carries a live booking · what Trip P&L reads
+  for (const b of out){
+    if (['cancelled', 'cancelled_weather', 'rejected'].includes(b.status) || !b.ops.boatId) continue;
+    const t = b.trips[0], op = getOp(t.date, b.ops.boatId);
+    if (!op.route) op.route = t.routeId;
+  }
   return out.length;
 }
 
+// Each scenario runs in the page and returns the HTML to compare. Keep them read-only: nothing here
+// may persist, open a real window, or raise a dialog (alert/confirm block the harness).
+const bookingTab = (tab, modes = {}) => [(DATE, a) => {
+  _bkV2.detailId = null; _bkV2.filterDate = DATE;
+  _bkV2.boatAssignMode = !!a.boat; _bkV2.vanAssignMode = !!a.van; _bkV2.reconfirmMode = !!a.rc;
+  _bkV2.tab = a.tab; bkV2Render();
+  return (document.querySelector('#view-booking') || {}).innerHTML || '';
+}, { tab, ...modes }];
 const SCENARIOS = {
-  'bytrip':           { tab: 'bytrip' },
-  'bytrip-van':       { tab: 'bytrip', van: true },
-  'bytrip-boat':      { tab: 'bytrip', boat: true },
-  'bytrip-reconfirm': { tab: 'bytrip', rc: true },
-  'all':              { tab: 'all' },
-  'cal':              { tab: 'cal' },
+  'bytrip':           bookingTab('bytrip'),
+  'bytrip-van':       bookingTab('bytrip', { van: true }),
+  'bytrip-boat':      bookingTab('bytrip', { boat: true }),
+  'bytrip-reconfirm': bookingTab('bytrip', { rc: true }),
+  'all':              bookingTab('all'),
+  'cal':              bookingTab('cal'),
+  // bkV2RenderBookingDetail · a spread of the seeded bookings (seat/charter, self-arrive, alt pickups, statuses)
+  'booking-detail': [(DATE) => {
+    const out = [];
+    for (const id of SB_BOOKINGS.map(b => b.id).filter((_, i) => i % 5 === 0)){
+      _bkV2.tab = 'all'; _bkV2.detailId = id; bkV2Render();
+      out.push('<!-- ' + id + ' -->' + ((document.querySelector('#view-booking') || {}).innerHTML || ''));
+    }
+    _bkV2.detailId = null;
+    return out.join('\n');
+  }],
+  // renderTravelSum
+  'travelsum': [(DATE) => {
+    const el = document.querySelector('.nav-item[data-view="travelsum"]'); if (el) nav(el);
+    _tsDate = DATE; renderTravelSum();
+    return (document.getElementById('travelsum-host') || {}).innerHTML || '';
+  }],
+  // renderTripPL · daily / monthly / analysis (pxAnalysis)
+  'trippl': [(DATE) => {
+    const el = document.querySelector('.nav-item[data-view="trippl"]'); if (el) nav(el);
+    const out = [];
+    for (const tab of ['d', 'm', 'a']){
+      _px.date = DATE; _px.mon = DATE.slice(0, 7); _px.tab = tab; renderTripPL();
+      out.push('<!-- tab ' + tab + ' -->' + ((document.getElementById('trippl-host') || {}).innerHTML || ''));
+    }
+    return out.join('\n');
+  }],
+  // ctPlanHtml (Costing · plan tab)
+  'costing': [(DATE) => {
+    const el = document.querySelector('.nav-item[data-view="costing"]'); if (el) nav(el);
+    _ct.tab = 'plan'; ctRender();
+    return (document.getElementById('view-costing') || {}).innerHTML || '';
+  }],
+  // pjPrint · the boat job sheet written into a pop-up · captured by stubbing window.open
+  'pjprint': [(DATE) => {
+    const out = [], wOpen = window.open, wAlert = window.alert, sT = window.setTimeout;
+    let buf = '';
+    window.open = () => ({ document: { open(){}, write(h){ buf += h; }, close(){} }, focus(){} });
+    window.alert = m => { buf += '[alert] ' + m; };
+    try {
+      for (const P of PO_PIERS){ for (const f of ['all', 'go']){
+        buf = ''; _poDate = DATE; _poPier = P.k; _pjF = f; pjPrint();
+        out.push('<!-- ' + P.k + ' ' + f + ' -->' + buf);
+      } }
+    } finally { window.open = wOpen; window.alert = wAlert; }
+    return out.join('\n');
+  }],
 };
 
 const { page, errors, close } = await open();
+await page.clock.setFixedTime(new Date(NOW));
+// ids minted with Math.random() (e.g. a default costing plan) must match between runs
+await page.evaluate(() => { let x = 42; Math.random = () => ((x = (x * 16807) % 2147483647) / 2147483647); });
 await page.evaluate(() => { const el = document.querySelector('.nav-item[data-view="booking"]'); if (el) nav(el); });
 await page.waitForTimeout(400);
-const n = await page.evaluate(seed, DATE);
-console.log(`seeded ${n} bookings on ${DATE}`);
+const n = await page.evaluate(seed, [DATE, PAST]);
+console.log(`seeded ${n} bookings · main date ${DATE} · ${PAST.length} past dates · clock ${NOW}`);
 fs.mkdirSync(dir, { recursive: true });
 let diffs = 0;
-for (const [name, s] of Object.entries(SCENARIOS)){
+const only = process.argv[4] ? process.argv[4].split(',') : null;
+for (const [name, [run, arg]] of Object.entries(SCENARIOS)){
+  if (only && !only.includes(name)) continue;
   errors.length = 0;
-  const html = await page.evaluate(([s, DATE]) => {
-    _bkV2.filterDate = DATE;
-    _bkV2.boatAssignMode = !!s.boat; _bkV2.vanAssignMode = !!s.van; _bkV2.reconfirmMode = !!s.rc;
-    _bkV2.tab = s.tab;
-    bkV2Render();
-    const v = document.querySelector('#view-booking') || document.querySelector('.view.active');
-    return v ? v.innerHTML : '';
-  }, [s, DATE]);
+  let html;
+  try { html = await page.evaluate(([src, DATE, arg]) => (0, eval)('(' + src + ')')(DATE, arg || {}), [run.toString(), DATE, arg]); }
+  catch (e){ html = '<!-- THROW ' + String(e).slice(0, 300) + ' -->'; }
   await page.waitForTimeout(150);
   const norm = html.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, 'HH:MM') + (errors.length ? '\n<!-- errors: ' + [...new Set(errors)].join(' | ') + ' -->' : '');
   const f = path.join(dir, name + '.html');

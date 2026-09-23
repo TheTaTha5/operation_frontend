@@ -1672,160 +1672,10 @@ function pjApplyIdle(list, date){
 function pjDate(v){ if(v) _poDate=v; renderPierJob(); }
 function pjShift(n){ var d=new Date(_poDate+'T12:00:00'); d.setDate(d.getDate()+n); _poDate=poYMD(d); renderPierJob(); }
 function pjToday(){ _poDate=poYMD(new Date()); renderPierJob(); }
-function pjPrint(){
-  var P=PO_PIERS.filter(function(p){ return p.k===_poPier; })[0]||PO_PIERS[0];
-  var e=poE;
-  /* §pjSheet2 · ใช้ชุดเดียวกับที่หน้าจอโชว์ · เลือกทั้งหมดบนจอ = ปริ้นออกทุกลำ */
-  var all=pjAllBoats(_poDate,_poPier);
-  /* §pjHideIdle · ไม่ต้องกรองซ้ำตรงนี้ · ใบพิมพ์มีกติกาของตัวเองอยู่แล้ว (§pjSplit ด้านล่าง)
-     ซึ่งเข้มกว่า: เก็บเฉพาะลำที่ออกทริป หรือลำที่ซ่อมแล้วมีช่างถูกจ่ายงาน
-     ลำที่ยังไม่วางอะไรไปสรุปเป็นกล่องด้านบนของใบแทนอยู่แล้ว ไม่ได้กินคอลัมน์
-     ใส่ตัวกรองทับอีกชั้นจะกลายเป็นสองกติกาที่ต้องตามให้ตรงกันตลอดไปโดยไม่ได้อะไรเพิ่ม */
-  var boats=(_pjF==='all')?all:all.filter(function(B){ return pjGrp(B._st.k)===_pjF; });
-  if(!boats.length){ alert('ไม่มีเรือที่ตรงตัวกรองนี้ในวันที่เลือก'); return; }
-  var FLT={all:'ทุกลำของท่านี้',go:'เฉพาะเรือที่วิ่ง',ready:'เฉพาะเรือที่พร้อม',
-           work:'เฉพาะลำที่ซ่อมบำรุง · ใช้คน',down:'เฉพาะลำที่ไม่พร้อม'};
-
-  var isGo=function(B){ return !!((B.route||{}).id); };
-  var GO=boats.filter(isGo), nGo=GO.length;
-  var n=0;   /* §pjCharter · นับหลังกรองเรือเช่าออกแล้ว · ตั้งค่าจริงด้านล่าง */
-  var J=GO.map(function(B){ return pjOf(_poDate,B.bid); });
-  /* §pjRead · ของเดิมเก็บแค่ชื่อ · ใบ Excel ที่ทีมใช้แยกแถวเป็น Guide TH / CN / RUS
-     และ Student/Trainee · ข้อมูลนั้นมีอยู่แล้วใน pjGuidesFull (langs + role)
-     ของเดิมทิ้งไปตอน map เอาแต่ชื่อ */
-  var GsF=GO.map(function(B){ try{ return pjGuidesFull(_poDate,B.bid)||[]; }catch(_){ return []; } });
-  var Gs=GsF.map(function(a){ return a.map(function(x){ return x.name; }); });
-  /* §pjGdOrder (2026-09-12) · "ให้เรียง"
-     ของเดิมจัดแถวไกด์บนใบพิมพ์ตามภาษา/บทบาท (ไกด์·EN / ·RU / ·CN / นักศึกษาฝึกงาน / สตาฟ)
-     ซึ่งเป็นคนละโครงกับการ์ดบนจอที่เป็น Guide 1..N / Trainee-Staff 1..M
-     ผลคือสองอย่าง: ชื่อช่องที่ตั้งเองบนการ์ดไปไม่ถึงกระดาษ · และลำดับคนบนกระดาษ
-     ไม่ตรงกับลำดับที่จัดไว้บนจอ คนถือใบต้องไล่หาชื่อเอง
-
-     เปลี่ยนเป็นเรียงตามช่องจริงของการ์ด · กลุ่มไกด์ก่อน แล้วต่อด้วย Trainee/Staff
-     ลำดับภายในกลุ่มคือลำดับใน A.g เหมือนที่การ์ดใช้ (pjGdPick นับตำแหน่งแบบเดียวกัน)
-     คนแรกของกลุ่มไกด์ยังเป็นผู้รับผิดชอบใบสั่งงานเหมือนเดิม (§gdLead)
-     ภาษาที่พูดได้ย้ายไปห้อยท้ายชื่อทั้งหมด · เดิมตัดภาษาที่ตรงกับหัวแถวออก
-     ตอนนี้หัวแถวไม่ได้บอกภาษาแล้ว จึงต้องโชว์ให้ครบ */
-  var GB=GsF.map(function(list){
-    var g=[], t=[];
-    (list||[]).forEach(function(x){ (x.guide?g:t).push(x); });
-    return {g:g, t:t};
-  });
-  var _nGdR=0, _nTrR=0;
-  GB.forEach(function(b){ if(b.g.length>_nGdR) _nGdR=b.g.length; if(b.t.length>_nTrR) _nTrR=b.t.length; });
-  var GD_ROWS=[];
-  for(var _gi=0;_gi<_nGdR;_gi++) GD_ROWS.push({kind:'gd', idx:_gi});
-  for(var _ti=0;_ti<_nTrR;_ti++) GD_ROWS.push({kind:'tr', idx:_ti});
-  var gdCell=function(i,R){
-    var g=(GB[i][R.kind==='gd'?'g':'t']||[])[R.idx]; if(!g) return '';
-    var L=(g.langs||[]);
-    return e(g.name||'')+(L.length?(' <span class="rl">'+e(L.join('/'))+'</span>'):''); };
-  var PX=GO.map(function(B){ var p=pjPax(_poDate,B.bid,_poPier); p.all=p.ad+p.chd+p.inf+p.foc; return p; });
-  var totPax=0; PX.forEach(function(p){ totPax+=p.all; });
-  var mx=function(a){ var m=0; a.forEach(function(v){ if(v>m) m=v; }); return m; };
-
-  /* §pjWork2 · ทีมช่างของลำที่ไม่ได้ออก · ตำแหน่งเรียงตรงกับช่องลูกเรือพอดี */
-  var WROLE=['หัวหน้าช่าง','ช่าง 1','ช่าง 2','ช่วยงาน 1','ช่วยงาน 2','ช่วยงาน 3','ช่วยงาน 4'];
-  /* §pjWkLb (2026-09-12) · "อันนี้แก้ แต่ใบทีปริ้นออกไม่ได้แก้ตาม"
-     ชื่อช่องของลำที่ "ไม่ได้ออก" เก็บอยู่คนละชุดกับลำที่ออก · การ์ดบันทึกด้วย kind='wk'
-     (หัวหน้าช่าง · ช่าง 1 · ช่วยงาน 1 ...) แต่ใบพิมพ์อ่านจาก WROLE ที่ฝังไว้ตายตัว
-     §pjLbSheet รอบก่อนต่อสายให้เฉพาะ kind='go' · ฝั่ง 'wk' จึงยังไม่ตามมา
-
-     ที่นี่ไม่มีปัญหา "หัวแถวมีได้ค่าเดียว" แบบฝั่ง go เพราะป้ายตำแหน่งของลำที่จอด
-     พิมพ์ติดท้ายชื่อคนในช่องของลำนั้นเอง · แต่ละลำจึงถือชื่อช่องของตัวเองได้ตรง ๆ */
-  var WSLOT=['cap','asst','crew0','crew1','crew2','island0','island1'];
-  var wrole=function(bid,i){
-    try{ return pjSlotLb('wk', WSLOT[i], WROLE[i], bid, _poDate); }catch(_){ return WROLE[i]; } };
-  var WK={};
-  boats.forEach(function(B){
-    if(isGo(B)) return;
-    var R=(typeof pjRaw==='function')?pjRaw(_poDate,B.bid):null; if(!R) return;
-    var ids=[R.cap||'', R.asst||''];
-    for(var c=0;c<3;c++) ids.push((R.crew||[])[c]||'');
-    for(var c=0;c<2;c++) ids.push((R.island||[])[c]||'');
-    /* §wkPack · ลำที่จอด · ชื่อคนต้องเรียงชิดบนสุดของช่วงคน ไม่เว้นรูตามช่องบนจอ
-       ช่องบนการ์ดเว้นได้ตามใจคนจ่ายงาน (จ่ายช่อง "ช่าง 2" ทั้งที่ "ช่าง 1" ว่าง)
-       แต่บนกระดาษรูตรงกลางอ่านเหมือนลืมเขียน · ชื่อตำแหน่งจริงติดท้ายชื่อคนอยู่แล้ว
-       จึงย้ายขึ้นได้โดยไม่เสียความหมาย */
-    var pk=[];
-    ids.forEach(function(id,i){ if(id) pk.push({id:id, role:wrole(B.bid,i)}); });
-    if(pk.length) WK[B.bid]={ids:ids, p:pk, note:R.note||''};
-  });
-  var isWk=function(B){ return !!WK[B.bid]; };
-  var WKL=Object.keys(WK).map(function(k){ return WK[k]; });
-  var nWk=WKL.length;
-  /* §pjSplit · ใบนี้มี 12 คอลัมน์ แต่ลำที่มีคนทำงานจริงวันนั้นมีแค่ 4
-     อีก 8 ลำกินที่คอลัมน์ละเท่ากันทั้งที่ทุกช่องเป็นขีดกลาง
-     ตารางจึงเก็บเฉพาะ "ลำที่มีคนอยู่กับมันวันนี้" — ออกทริป หรือ ซ่อมแล้วมีช่างถูกจ่ายงาน
-     ลำที่ว่าง/จอด/ไม่พร้อมและไม่มีใครทำอะไรด้วย ไปสรุปเป็นกล่องด้านบนแทน */
-  n = boats.length;   /* §pjCharter · เรือเช่าที่ไม่ได้เช่าวันนั้น ถูกกรองที่ pjAllBoats แล้ว */
-  var REST = boats.filter(function(B){ return !isGo(B) && !isWk(B); });
-  boats    = boats.filter(function(B){ return  isGo(B) ||  isWk(B); });
-  /* §gdIdle · ลำที่ไม่ได้ออกแต่จ่ายไกด์ไว้ · เดิมช่วงไกด์ของคอลัมน์นี้เป็นช่องรวมช่องเดียว
-     ชื่อไกด์เลยไม่มีที่ลง · ทำให้คอลัมน์นี้พิมพ์แถวไกด์จริง แล้วเลื่อนช่องรวมงานซ่อม
-     ไปเริ่มที่แถว "ร้านอาหาร" แทน · ลำที่ไม่มีไกด์ยังรวมยาวเหมือนเดิม */
-  var WKG={};
-  boats.forEach(function(B){
-    if(isGo(B)) return;
-    var g=[]; try{ g=(pjGuides(_poDate,B.bid)||[]).filter(Boolean); }catch(_){}
-    if(g.length) WKG[B.bid]=g;
-  });
-  /* ลำที่มีแต่ไกด์ ไม่มีทีมช่าง · ต้องมีที่นั่งใน WK ด้วย ไม่งั้นทั้งคอลัมน์ถูกรวมตั้งแต่แถวแรก */
-  Object.keys(WKG).forEach(function(k){
-    if(WK[k]) return;
-    var R=null; try{ R=(typeof pjRaw==='function')?pjRaw(_poDate,k):null; }catch(_){}
-    WK[k]={ids:['','','','','','',''], p:[], note:(R&&R.note)||''};
-  });
-
-  /* ลำที่จอดก็กินช่องเด็กเรือ/ประจำเกาะเหมือนกัน · ไม่นับด้วยแถวจะขาด ชื่อช่างหาย
-     §wkPack · นับจากคิวที่ชิดบนแล้ว ไม่ใช่ช่องดิบ · คน 3 คนที่กระจายอยู่ช่อง 1/3/5
-     ต้องการแค่แถว "เด็กเรือ 1" แถวเดียว ไม่ใช่ลากยาวไปถึงประจำเกาะ */
-  var CJ=J.concat(WKL.map(function(w){ var P=(w.p||[]).map(function(x){ return x.id; });
-    return {crew:[P[2]||'',P[3]||'',P[4]||''], island:[P[5]||'',P[6]||'']}; }));
-  var nCrew=Math.max(2, Math.min(4, mx(CJ.map(function(j){ return (j.crew||[]).filter(Boolean).length; }))));
-  var nIsl =Math.max(1, Math.min(2, mx(CJ.map(function(j){ return (j.island||[]).filter(Boolean).length; }))));
-  /* §gdRole · เดิมล็อก 3 · ลำที่จ่ายไกด์ 5 คนจะหายไป 2 คนเงียบ ๆ · ปล่อยตามจริง กัน 8 ไว้กันตารางบาน */
-  var GsAll=Gs.concat(Object.keys(WKG).map(function(k){ return WKG[k]; }));   /* §gdIdle */
-  var nGd  =Math.max(1, Math.min(8, mx(GsAll.map(function(g){ return g.filter(Boolean).length; }))));
-  /* จำนวนแถวในตัวตาราง · ช่องของลำที่ไม่ออกต้องคลุมให้ครบพอดี ไม่งั้นตารางเบี้ยว
-     §pjRead · ของเดิมนับ nGd กับ "ลค 1 แถว" · ตอนนี้ช่องไกด์นับจาก GD_ROWS (§pjGdOrder)
-     และผู้โดยสารเป็นหลายแถว ต้องนับจากตัวจริง ไม่งั้นช่องลำที่จอดสั้นกว่าตาราง */
-  /* §pjRead · ประเภทผู้โดยสารที่วันนั้นมีคนจริง · ใช้ทั้งตอนคิดขนาดตัวอักษรและตอนวาดแถว */
-  /* §pjPaxRow · ทั้งสี่ประเภทอยู่บรรทัดเดียว จึงไม่ต้องคัดประเภทที่ไม่มีคนออกอีก
-     เลข 0 ยังต้องเห็น เพราะ "ไม่มีเด็ก" กับ "ยังไม่ได้กรอก" ไม่เหมือนกัน */
-  var PXKIND=[{k:'ad'},{k:'chd'},{k:'inf'},{k:'foc'}];
-  var PXROW=2;   /* แถวเรียง + แถวรวม */
-
-  var GDSUM=GD_ROWS.length;   /* §pjGdOrder · หนึ่งช่อง = หนึ่งแถว ไม่ต้องบวกทีละถัง */
-  /* §pjSect · นับจากแถวสถานะลงไปจนจบตาราง
-     ทริป/เวลา/เส้นทาง 3 + แถบ2 1 + กัปตัน/ผู้ช่วย 2 + เด็กเรือ + ประจำเกาะ
-     + แถบ3 1 + ช่องไกด์ + ร้านอาหาร 1 + แถบ4 1 + สายรัด/ภาษา 2 + ผู้โดยสาร + หมายเหตุ 1 */
-  var SPAN = 12 + nCrew + nIsl + GDSUM + PXROW;
-  /* §pjWork2 · ลำที่มีทีมช่าง · ช่องบนพิมพ์จริง เหลือช่วงไกด์+ลูกค้าที่คลุมเป็นช่องเดียว
-     หัวไกด์ + ไกด์ nGd + หัวลูกค้า + สายรัด + ภาษา + ลค + หัวหมายเหตุ = nGd + 6
-     แถวหมายเหตุไม่รวม · ลำที่จอดก็เขียนหมายเหตุได้เหมือนกัน */
-  var WKSPAN = 1 /*แถบ3*/ + GDSUM + 1 /*ร้านอาหาร*/ + 1 /*แถบ4*/ + 2 + PXROW;
-
-  /* §pjSheet2 · ลำที่ออกจริงได้คอลัมน์กว้างเป็นสองเท่า · ลำที่จอดไม่มีอะไรให้อ่าน */
-  /* §pjSheet3 · GAP เป็นพิกเซลจริง · ต้องหักออกจากเปอร์เซ็นต์ ไม่งั้นตารางล้นหน้ากระดาษ
-     SHEETW = ความกว้างเนื้อหาของ A4 แนวนอนขอบ 8 มม. โดยประมาณ · ตีต่ำไว้ปลอดภัยกว่าตีสูง */
-  /* §pjBig · กว้างขึ้นตามขนาดตัวอักษร · ไม่งั้นชื่อคนตกบรรทัดทุกช่อง */
-  /* §pjFlat · ไฟล์ต้นแบบเป็นตารางเส้นต่อเนื่อง ไม่ใช่การ์ดแยกคอลัมน์ */
-  var GAP=0, SHEETW=1760;
-  var gapPct=(boats.length+2)*GAP/SHEETW*100, avail=100-gapPct;
-  /* §pjLbl · ป้ายแถวมีคำกำกับไทยต่อท้ายแล้ว · 7.6% = 143px ตัด "WRISTBAND \u0e2a\u0e32\u0e22\u0e23\u0e31\u0e14\u0e02\u0e49\u0e2d\u0e21\u0e37\u0e2d" หายครึ่งคำ */
-  var LW=11.4*avail/100, WT=boats.map(function(B){ return isGo(B)?2:(isWk(B)?1.5:1); });
-  var SUM=0; WT.forEach(function(w){ SUM+=w; });
-  var cols='<colgroup><col style="width:'+LW+'%">'
-    + WT.map(function(w){ return '<col style="width:'+((avail-LW)*w/SUM).toFixed(3)+'%">'; }).join('')
-    + '</colgroup>';
-  /* §pjBig · ใบนี้ไม่ได้ถูกปริ้นลง A4 แล้ว · ทีมแคปเป็นรูปส่งไลน์
-     ข้อจำกัดจึงไม่ใช่ "สูงเท่าหน้ากระดาษ" · เป็น "อ่านออกบนจอมือถือ"
-     ตัวหนังสือเดิม 7.5–9.6px เล็กเพราะต้องยัดลงกระดาษแผ่นเดียว · ปล่อยให้ใหญ่ได้แล้ว
-     ยังลดตามจำนวนคอลัมน์อยู่ เพราะความกว้างเป็นข้อจำกัดจริง (ยิ่งลำเยอะ ช่องยิ่งแคบ) */
-  var fs = SUM<=12?17 : (SUM<=18?15 : (SUM<=26?13 : 11.5));
-
-  var css='@page{size:A4 landscape;margin:8mm}'
+/* lifted out of pjPrint by tools/lift.mjs (var:css) · reads: fs, GAP */
+function pjPrintCss(C){
+  const { fs, GAP } = C;
+  return '@page{size:A4 landscape;margin:8mm}'
    /* §poSign3 · สีในใบนี้เป็นข้อมูล ไม่ใช่ของประดับ · แถบสีคือโปรแกรมของแต่ละลำ
       เบราว์เซอร์ตัดสีพื้นหลังทิ้งตอนพิมพ์เป็นค่าเริ่มต้น ต้องบังคับให้พิมพ์สีเสมอ */
    +'*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}'
@@ -2094,7 +1944,286 @@ function pjPrint(){
    +'.secbar:first-child{margin-top:0}'
    +'.secbar span{font-size:'+(fs-1.5)+'px;font-weight:800;color:#111;letter-spacing:.15em;'
      +'text-transform:uppercase}'
-   +'.secbar em{font-style:normal;font-size:'+(fs-3.5)+'px;font-weight:600;letter-spacing:0;color:#8994A6}'
+   +'.secbar em{font-style:normal;font-size:'+(fs-3.5)+'px;font-weight:600;letter-spacing:0;color:#8994A6}';
+}
+/* lifted out of pjPrint by tools/lift.mjs (var:progBox) · reads: GO, PX, J, e */
+function pjPrintProgBox(C){
+  const { GO, PX, J, e } = C;
+  return function(){
+    if(!GO.length) return '';
+    var rows=GO.map(function(B,i){
+      var rt=B.route||{}, dep=String(B.dep||'');
+      var P=null; try{ P=pjPrep(_poDate,B.bid,_poPier); }catch(_){}
+      P=P||{lang:{},halal:0,veg:0,vegan:0,allerg:0,lt:0};
+      var pax=(PX[i]&&PX[i].all)||0, cap=(+(B.boat.cap)||0);
+      /* §pjOver · ยอดเกินความจุ = จ่ายงานผิด ต้องรู้ตั้งแต่ก่อนออกเรือ
+         ของเดิมพิมพ์ "120/65" ด้วยสีเดียวกับทุกช่อง อ่านผ่านได้ง่ายมาก */
+      var over=(cap>0 && pax>cap) ? (pax-cap) : 0;
+      var wbc=(J[i]&&J[i].wbc)||'', wbn=(J[i]&&J[i].wb)||'';
+
+      /* ของที่ต้องเตรียมล่วงหน้า · รู้ได้ตั้งแต่ตอนออกใบ */
+      return { dep:(dep||'~'), html:
+        '<tr class="br">'
+        +'<td class="c-t">'+e(dep||'--:--')+'</td>'
+        +'<td class="c-b"><span class="bpill" style="background:'
+          +((typeof pckBoatColor==='function')?pckBoatColor(B.bid):'#185FA5')+'">'
+          +e(B.boat.name||B.bid)+'</span></td>'
+        +'<td class="c-p">'+e(rt.name||'\u2014')+'</td>'
+        +'<td class="c-x'+(over?' over':'')+'"><b>'+pax+'</b><s>/'+cap+'</s>'
+          +(over?('<em>เกิน '+over+'</em>'):'')+'</td>'
+        /* §pjBand · สีสายรัดข้อมือ · ของที่ต้องหยิบมาเตรียมก่อนแขกมาถึง
+           คนที่ท่าเทียบ "สี" กับข้อมือแขก จึงต้องเห็นสีจริง ไม่ใช่อ่านชื่อสี */
+        +'<td class="c-w">'+(wbn
+            ? ('<span class="bandc"><i style="background:'+e(wbc||'#CBD5E1')+'"></i>'+e(wbn)+'</span>')
+            : '<span class="pcnone">-</span>')+'</td>'
+        +'</tr>' }; });
+    rows.sort(function(a,b){ return a.dep<b.dep?-1:(a.dep>b.dep?1:0); });
+
+    return '<div class="fb pg"><div class="fb-h">Departures<b>'+GO.length+'</b></div>'
+      +'<table class="brd">'
+      +'<colgroup><col style="width:78px"><col style="width:158px"><col>'
+        +'<col style="width:82px"><col style="width:118px"></colgroup>'
+      +'<thead><tr><th>Time</th><th>Boat</th><th class="h-p">Programme</th><th>Pax</th><th>Band</th></tr></thead>'
+      +'<tbody>'+rows.map(function(r){ return r.html; }).join('')+'</tbody></table></div>';
+  };
+}
+/* lifted out of pjPrint by tools/lift.mjs (var:fleetBox) · reads: REST, e */
+function pjPrintFleetBox(C){
+  const { REST, e } = C;
+  return function(){
+    if(!REST.length) return '';
+    var ready=[], down=[];
+    REST.forEach(function(B){
+      var SM=PJ_ST[B._st.k]||PJ_ST.idle;
+      var why=[B._st.loc||'', B._st.note||''].filter(function(x){
+        var v=String(x||'').trim(); return v && v!=='-' && v!=='\u2014'; }).join(' \u00b7 ');
+      var it={ n:(B.boat.name||B.bid), t:SM.t, why:why, bg:SM.bg, fg:SM.fg, bd:SM.bd, grp:(SM.grp||'') };
+      if(it.grp==='ready') ready.push(it); else down.push(it);
+    });
+    var cell=function(x,showWhy){
+      return '<span class="fbi" style="background:'+x.bg+';color:'+x.fg+';border-color:'+(x.bd||'transparent')+'">'
+        +'<b>'+e(x.n)+'</b>'
+        +(showWhy?('<i>'+e(x.t)+(x.why?(' \u00b7 '+x.why):'')+'</i>'):'')
+        +'</span>'; };
+    var box=function(th,list,showWhy,cls){
+      if(!list.length) return '';
+      return '<div class="fb '+cls+'"><div class="fb-h">'+th+'<b>'+list.length+'</b></div>'
+        +'<div class="fb-l">'+list.map(function(x){ return cell(x,showWhy); }).join('')+'</div></div>'; };
+    /* §pjHideIdle · "ตัวใบงานนี้ด้วย สามารถซ่อน Not Available"
+       กล่องนี้กินที่เยอะที่สุดใน Section A เพราะแต่ละลำห้อยเหตุผลยาว
+       (ขึ้นคาน · อู่ไหน · เลขใบซ่อม) ทั้งที่คนอ่านใบนี้คือคนจ่ายงานให้ลำที่ออก
+       ผูกกับปุ่มเดียวกับที่ซ่อนการ์ดบนจอ · จะได้มีสวิตช์เดียว ไม่ใช่สองที่ต้องจำ
+
+       ซ่อนแล้วไม่ทิ้งจำนวน · เหลือบรรทัดเดียวบอกว่ามีกี่ลำ
+       ใบนี้ถูกแคปส่งไลน์และใช้เถียงกันย้อนหลัง · "ไม่มีกล่อง" กับ "วันนั้นเรือพร้อมหมด"
+       ต้องแยกออกจากกันได้ · กดปุ่มเปิดเมื่อไหร่ก็เห็นรายชื่อครบเหมือนเดิม */
+    var dnBox = down.length
+      ? (_pjHideIdle
+          ? ('<div class="fb dn slim"><div class="fb-h">Not available<b>'+down.length+'</b></div></div>')
+          : box('Not available',down,1,'dn'))
+      : '';
+    return box('Ready',ready,0,'ok') + dnBox;
+  };
+}
+/* lifted out of pjPrint by tools/lift.mjs (var:offLbl) · reads: isWk, e */
+function pjPrintOffLbl(C){
+  const { isWk, e } = C;
+  return function(B){
+    var SM=PJ_ST[B._st.k]||PJ_ST.idle, sub='';
+    if(isWk(B)){ var mj=(B._st.mj||[]), M=null;
+      try{ M=pjMjOf(_poDate,B.bid,mj); }catch(_){}
+      sub=[ M?((M.no?(M.no+' · '):'')+(M.title||M.type||'')).trim():'', B._st.loc||'' ]
+        .filter(function(x){ var v=String(x||'').trim(); return v&&v!=='-'&&v!=='—'; }).join(' \u00b7 ');
+    } else {
+      sub = B._away
+        ? ('ไปวิ่งที่ '+e(((PO_PIERS.filter(function(x){ return x.k===(B._away.route.pier||''); })[0])||{}).n||'ท่าอื่น'))
+        : e([B._st.loc||'', B._st.note||''].filter(function(x){
+            var v=String(x||'').trim(); return v&&v!=='-'&&v!=='—'; }).join(' \u00b7 '));
+    }
+    return '<td class="v ctr offr" style="background:'+SM.bg+';color:'+SM.fg+'">'
+      +'<span class="lb">'+e(SM.t)+'</span>'
+      +(sub?('<span class="sub">'+sub+'</span>'):'')+'</td>';
+  };
+}
+/* lifted out of pjPrint by tools/lift.mjs (var:sheet) · reads: e, P, _pjWd, _pjDay, _pjMo, progBox, fleetBox, cols, head, body */
+function pjPrintSheet(C){
+  const { e, P, _pjWd, _pjDay, _pjMo, progBox, fleetBox, cols, head, body } = C;
+  return '<div class="sheet" id="sheet">'
+    /* §pjTop · โครงเดียวกับหัวหน้า Booking · เลขวันตัวใหญ่ซ้าย แบรนด์กลาง ชิปขวา
+       ต่างที่พื้นเป็นสีขาว ไม่ใช่ navy เพราะใบนี้ถูกแคปเป็นรูปส่งไลน์และปริ้นด้วย */
+    +'<div class="shead">'
+      /* §pjTop3 · t เป็น "Visit Panwa \u00b7 \u0e20\u0e39\u0e40\u0e01\u0e47\u0e15" · เอาเฉพาะชื่อท่าหน้าจุดคั่น */
+      +'<div class="sh-c"><b>LOVE ANDAMAN</b><span>'
+        +e(String(P.t||P.n||'').split('\u00b7')[0].trim()||(P.n||''))+'</span></div>'
+    +'</div>'
+    /* §pjDate · แถบวันที่ · ของชิ้นเดียวที่กินเต็มความกว้างของใบ */
+    +'<div class="dstrip"><b>'+e(_pjWd)+'</b><u>'+_pjDay+'</u><i>'+e(_pjMo)+'</i></div>'
+    /* §pjSecbar · ใบนี้มีสองส่วนจริง ๆ · ภาพรวมของวัน กับ ใบจ่ายงานรายคน
+       ตั้งชื่อทั้งคู่ จะได้รู้ว่าอ่านถึงไหนแล้ว ไม่ใช่ตั้งชื่อแค่ส่วนล่าง */
+    +'<div class="secbar"><span>Section A \u00b7 Departures &amp; fleet status</span>'
+      +'<em>\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e02\u0e2d\u0e07\u0e27\u0e31\u0e19</em></div>'
+    + '<div class="fleet">'+progBox()+fleetBox()+'</div>'
+    /* §pjSplit2 · หัวใบกับตารางจ่ายงานเป็นคนละเรื่องกัน · หัวใบคือภาพรวมของวัน
+       ตารางคือใบจ่ายงานรายคน · คั่นด้วยแถบชื่อให้เห็นว่าเปลี่ยนเรื่องแล้ว */
+    +'<div class="secbar"><span>Section B \u00b7 Crew assignment</span>'
+      +'<em>\u0e01\u0e32\u0e23\u0e08\u0e31\u0e14\u0e01\u0e33\u0e25\u0e31\u0e07\u0e1e\u0e25\u0e1b\u0e23\u0e30\u0e08\u0e33\u0e40\u0e23\u0e37\u0e2d</em></div>'
+    +'<table>'+cols+head+body+'</table>'
+    +'</div>';
+}
+function pjPrint(){
+  var P=PO_PIERS.filter(function(p){ return p.k===_poPier; })[0]||PO_PIERS[0];
+  var e=poE;
+  /* §pjSheet2 · ใช้ชุดเดียวกับที่หน้าจอโชว์ · เลือกทั้งหมดบนจอ = ปริ้นออกทุกลำ */
+  var all=pjAllBoats(_poDate,_poPier);
+  /* §pjHideIdle · ไม่ต้องกรองซ้ำตรงนี้ · ใบพิมพ์มีกติกาของตัวเองอยู่แล้ว (§pjSplit ด้านล่าง)
+     ซึ่งเข้มกว่า: เก็บเฉพาะลำที่ออกทริป หรือลำที่ซ่อมแล้วมีช่างถูกจ่ายงาน
+     ลำที่ยังไม่วางอะไรไปสรุปเป็นกล่องด้านบนของใบแทนอยู่แล้ว ไม่ได้กินคอลัมน์
+     ใส่ตัวกรองทับอีกชั้นจะกลายเป็นสองกติกาที่ต้องตามให้ตรงกันตลอดไปโดยไม่ได้อะไรเพิ่ม */
+  var boats=(_pjF==='all')?all:all.filter(function(B){ return pjGrp(B._st.k)===_pjF; });
+  if(!boats.length){ alert('ไม่มีเรือที่ตรงตัวกรองนี้ในวันที่เลือก'); return; }
+  var FLT={all:'ทุกลำของท่านี้',go:'เฉพาะเรือที่วิ่ง',ready:'เฉพาะเรือที่พร้อม',
+           work:'เฉพาะลำที่ซ่อมบำรุง · ใช้คน',down:'เฉพาะลำที่ไม่พร้อม'};
+
+  var isGo=function(B){ return !!((B.route||{}).id); };
+  var GO=boats.filter(isGo), nGo=GO.length;
+  var n=0;   /* §pjCharter · นับหลังกรองเรือเช่าออกแล้ว · ตั้งค่าจริงด้านล่าง */
+  var J=GO.map(function(B){ return pjOf(_poDate,B.bid); });
+  /* §pjRead · ของเดิมเก็บแค่ชื่อ · ใบ Excel ที่ทีมใช้แยกแถวเป็น Guide TH / CN / RUS
+     และ Student/Trainee · ข้อมูลนั้นมีอยู่แล้วใน pjGuidesFull (langs + role)
+     ของเดิมทิ้งไปตอน map เอาแต่ชื่อ */
+  var GsF=GO.map(function(B){ try{ return pjGuidesFull(_poDate,B.bid)||[]; }catch(_){ return []; } });
+  var Gs=GsF.map(function(a){ return a.map(function(x){ return x.name; }); });
+  /* §pjGdOrder (2026-09-12) · "ให้เรียง"
+     ของเดิมจัดแถวไกด์บนใบพิมพ์ตามภาษา/บทบาท (ไกด์·EN / ·RU / ·CN / นักศึกษาฝึกงาน / สตาฟ)
+     ซึ่งเป็นคนละโครงกับการ์ดบนจอที่เป็น Guide 1..N / Trainee-Staff 1..M
+     ผลคือสองอย่าง: ชื่อช่องที่ตั้งเองบนการ์ดไปไม่ถึงกระดาษ · และลำดับคนบนกระดาษ
+     ไม่ตรงกับลำดับที่จัดไว้บนจอ คนถือใบต้องไล่หาชื่อเอง
+
+     เปลี่ยนเป็นเรียงตามช่องจริงของการ์ด · กลุ่มไกด์ก่อน แล้วต่อด้วย Trainee/Staff
+     ลำดับภายในกลุ่มคือลำดับใน A.g เหมือนที่การ์ดใช้ (pjGdPick นับตำแหน่งแบบเดียวกัน)
+     คนแรกของกลุ่มไกด์ยังเป็นผู้รับผิดชอบใบสั่งงานเหมือนเดิม (§gdLead)
+     ภาษาที่พูดได้ย้ายไปห้อยท้ายชื่อทั้งหมด · เดิมตัดภาษาที่ตรงกับหัวแถวออก
+     ตอนนี้หัวแถวไม่ได้บอกภาษาแล้ว จึงต้องโชว์ให้ครบ */
+  var GB=GsF.map(function(list){
+    var g=[], t=[];
+    (list||[]).forEach(function(x){ (x.guide?g:t).push(x); });
+    return {g:g, t:t};
+  });
+  var _nGdR=0, _nTrR=0;
+  GB.forEach(function(b){ if(b.g.length>_nGdR) _nGdR=b.g.length; if(b.t.length>_nTrR) _nTrR=b.t.length; });
+  var GD_ROWS=[];
+  for(var _gi=0;_gi<_nGdR;_gi++) GD_ROWS.push({kind:'gd', idx:_gi});
+  for(var _ti=0;_ti<_nTrR;_ti++) GD_ROWS.push({kind:'tr', idx:_ti});
+  var gdCell=function(i,R){
+    var g=(GB[i][R.kind==='gd'?'g':'t']||[])[R.idx]; if(!g) return '';
+    var L=(g.langs||[]);
+    return e(g.name||'')+(L.length?(' <span class="rl">'+e(L.join('/'))+'</span>'):''); };
+  var PX=GO.map(function(B){ var p=pjPax(_poDate,B.bid,_poPier); p.all=p.ad+p.chd+p.inf+p.foc; return p; });
+  var totPax=0; PX.forEach(function(p){ totPax+=p.all; });
+  var mx=function(a){ var m=0; a.forEach(function(v){ if(v>m) m=v; }); return m; };
+
+  /* §pjWork2 · ทีมช่างของลำที่ไม่ได้ออก · ตำแหน่งเรียงตรงกับช่องลูกเรือพอดี */
+  var WROLE=['หัวหน้าช่าง','ช่าง 1','ช่าง 2','ช่วยงาน 1','ช่วยงาน 2','ช่วยงาน 3','ช่วยงาน 4'];
+  /* §pjWkLb (2026-09-12) · "อันนี้แก้ แต่ใบทีปริ้นออกไม่ได้แก้ตาม"
+     ชื่อช่องของลำที่ "ไม่ได้ออก" เก็บอยู่คนละชุดกับลำที่ออก · การ์ดบันทึกด้วย kind='wk'
+     (หัวหน้าช่าง · ช่าง 1 · ช่วยงาน 1 ...) แต่ใบพิมพ์อ่านจาก WROLE ที่ฝังไว้ตายตัว
+     §pjLbSheet รอบก่อนต่อสายให้เฉพาะ kind='go' · ฝั่ง 'wk' จึงยังไม่ตามมา
+
+     ที่นี่ไม่มีปัญหา "หัวแถวมีได้ค่าเดียว" แบบฝั่ง go เพราะป้ายตำแหน่งของลำที่จอด
+     พิมพ์ติดท้ายชื่อคนในช่องของลำนั้นเอง · แต่ละลำจึงถือชื่อช่องของตัวเองได้ตรง ๆ */
+  var WSLOT=['cap','asst','crew0','crew1','crew2','island0','island1'];
+  var wrole=function(bid,i){
+    try{ return pjSlotLb('wk', WSLOT[i], WROLE[i], bid, _poDate); }catch(_){ return WROLE[i]; } };
+  var WK={};
+  boats.forEach(function(B){
+    if(isGo(B)) return;
+    var R=(typeof pjRaw==='function')?pjRaw(_poDate,B.bid):null; if(!R) return;
+    var ids=[R.cap||'', R.asst||''];
+    for(var c=0;c<3;c++) ids.push((R.crew||[])[c]||'');
+    for(var c=0;c<2;c++) ids.push((R.island||[])[c]||'');
+    /* §wkPack · ลำที่จอด · ชื่อคนต้องเรียงชิดบนสุดของช่วงคน ไม่เว้นรูตามช่องบนจอ
+       ช่องบนการ์ดเว้นได้ตามใจคนจ่ายงาน (จ่ายช่อง "ช่าง 2" ทั้งที่ "ช่าง 1" ว่าง)
+       แต่บนกระดาษรูตรงกลางอ่านเหมือนลืมเขียน · ชื่อตำแหน่งจริงติดท้ายชื่อคนอยู่แล้ว
+       จึงย้ายขึ้นได้โดยไม่เสียความหมาย */
+    var pk=[];
+    ids.forEach(function(id,i){ if(id) pk.push({id:id, role:wrole(B.bid,i)}); });
+    if(pk.length) WK[B.bid]={ids:ids, p:pk, note:R.note||''};
+  });
+  var isWk=function(B){ return !!WK[B.bid]; };
+  var WKL=Object.keys(WK).map(function(k){ return WK[k]; });
+  var nWk=WKL.length;
+  /* §pjSplit · ใบนี้มี 12 คอลัมน์ แต่ลำที่มีคนทำงานจริงวันนั้นมีแค่ 4
+     อีก 8 ลำกินที่คอลัมน์ละเท่ากันทั้งที่ทุกช่องเป็นขีดกลาง
+     ตารางจึงเก็บเฉพาะ "ลำที่มีคนอยู่กับมันวันนี้" — ออกทริป หรือ ซ่อมแล้วมีช่างถูกจ่ายงาน
+     ลำที่ว่าง/จอด/ไม่พร้อมและไม่มีใครทำอะไรด้วย ไปสรุปเป็นกล่องด้านบนแทน */
+  n = boats.length;   /* §pjCharter · เรือเช่าที่ไม่ได้เช่าวันนั้น ถูกกรองที่ pjAllBoats แล้ว */
+  var REST = boats.filter(function(B){ return !isGo(B) && !isWk(B); });
+  boats    = boats.filter(function(B){ return  isGo(B) ||  isWk(B); });
+  /* §gdIdle · ลำที่ไม่ได้ออกแต่จ่ายไกด์ไว้ · เดิมช่วงไกด์ของคอลัมน์นี้เป็นช่องรวมช่องเดียว
+     ชื่อไกด์เลยไม่มีที่ลง · ทำให้คอลัมน์นี้พิมพ์แถวไกด์จริง แล้วเลื่อนช่องรวมงานซ่อม
+     ไปเริ่มที่แถว "ร้านอาหาร" แทน · ลำที่ไม่มีไกด์ยังรวมยาวเหมือนเดิม */
+  var WKG={};
+  boats.forEach(function(B){
+    if(isGo(B)) return;
+    var g=[]; try{ g=(pjGuides(_poDate,B.bid)||[]).filter(Boolean); }catch(_){}
+    if(g.length) WKG[B.bid]=g;
+  });
+  /* ลำที่มีแต่ไกด์ ไม่มีทีมช่าง · ต้องมีที่นั่งใน WK ด้วย ไม่งั้นทั้งคอลัมน์ถูกรวมตั้งแต่แถวแรก */
+  Object.keys(WKG).forEach(function(k){
+    if(WK[k]) return;
+    var R=null; try{ R=(typeof pjRaw==='function')?pjRaw(_poDate,k):null; }catch(_){}
+    WK[k]={ids:['','','','','','',''], p:[], note:(R&&R.note)||''};
+  });
+
+  /* ลำที่จอดก็กินช่องเด็กเรือ/ประจำเกาะเหมือนกัน · ไม่นับด้วยแถวจะขาด ชื่อช่างหาย
+     §wkPack · นับจากคิวที่ชิดบนแล้ว ไม่ใช่ช่องดิบ · คน 3 คนที่กระจายอยู่ช่อง 1/3/5
+     ต้องการแค่แถว "เด็กเรือ 1" แถวเดียว ไม่ใช่ลากยาวไปถึงประจำเกาะ */
+  var CJ=J.concat(WKL.map(function(w){ var P=(w.p||[]).map(function(x){ return x.id; });
+    return {crew:[P[2]||'',P[3]||'',P[4]||''], island:[P[5]||'',P[6]||'']}; }));
+  var nCrew=Math.max(2, Math.min(4, mx(CJ.map(function(j){ return (j.crew||[]).filter(Boolean).length; }))));
+  var nIsl =Math.max(1, Math.min(2, mx(CJ.map(function(j){ return (j.island||[]).filter(Boolean).length; }))));
+  /* §gdRole · เดิมล็อก 3 · ลำที่จ่ายไกด์ 5 คนจะหายไป 2 คนเงียบ ๆ · ปล่อยตามจริง กัน 8 ไว้กันตารางบาน */
+  var GsAll=Gs.concat(Object.keys(WKG).map(function(k){ return WKG[k]; }));   /* §gdIdle */
+  var nGd  =Math.max(1, Math.min(8, mx(GsAll.map(function(g){ return g.filter(Boolean).length; }))));
+  /* จำนวนแถวในตัวตาราง · ช่องของลำที่ไม่ออกต้องคลุมให้ครบพอดี ไม่งั้นตารางเบี้ยว
+     §pjRead · ของเดิมนับ nGd กับ "ลค 1 แถว" · ตอนนี้ช่องไกด์นับจาก GD_ROWS (§pjGdOrder)
+     และผู้โดยสารเป็นหลายแถว ต้องนับจากตัวจริง ไม่งั้นช่องลำที่จอดสั้นกว่าตาราง */
+  /* §pjRead · ประเภทผู้โดยสารที่วันนั้นมีคนจริง · ใช้ทั้งตอนคิดขนาดตัวอักษรและตอนวาดแถว */
+  /* §pjPaxRow · ทั้งสี่ประเภทอยู่บรรทัดเดียว จึงไม่ต้องคัดประเภทที่ไม่มีคนออกอีก
+     เลข 0 ยังต้องเห็น เพราะ "ไม่มีเด็ก" กับ "ยังไม่ได้กรอก" ไม่เหมือนกัน */
+  var PXKIND=[{k:'ad'},{k:'chd'},{k:'inf'},{k:'foc'}];
+  var PXROW=2;   /* แถวเรียง + แถวรวม */
+
+  var GDSUM=GD_ROWS.length;   /* §pjGdOrder · หนึ่งช่อง = หนึ่งแถว ไม่ต้องบวกทีละถัง */
+  /* §pjSect · นับจากแถวสถานะลงไปจนจบตาราง
+     ทริป/เวลา/เส้นทาง 3 + แถบ2 1 + กัปตัน/ผู้ช่วย 2 + เด็กเรือ + ประจำเกาะ
+     + แถบ3 1 + ช่องไกด์ + ร้านอาหาร 1 + แถบ4 1 + สายรัด/ภาษา 2 + ผู้โดยสาร + หมายเหตุ 1 */
+  var SPAN = 12 + nCrew + nIsl + GDSUM + PXROW;
+  /* §pjWork2 · ลำที่มีทีมช่าง · ช่องบนพิมพ์จริง เหลือช่วงไกด์+ลูกค้าที่คลุมเป็นช่องเดียว
+     หัวไกด์ + ไกด์ nGd + หัวลูกค้า + สายรัด + ภาษา + ลค + หัวหมายเหตุ = nGd + 6
+     แถวหมายเหตุไม่รวม · ลำที่จอดก็เขียนหมายเหตุได้เหมือนกัน */
+  var WKSPAN = 1 /*แถบ3*/ + GDSUM + 1 /*ร้านอาหาร*/ + 1 /*แถบ4*/ + 2 + PXROW;
+
+  /* §pjSheet2 · ลำที่ออกจริงได้คอลัมน์กว้างเป็นสองเท่า · ลำที่จอดไม่มีอะไรให้อ่าน */
+  /* §pjSheet3 · GAP เป็นพิกเซลจริง · ต้องหักออกจากเปอร์เซ็นต์ ไม่งั้นตารางล้นหน้ากระดาษ
+     SHEETW = ความกว้างเนื้อหาของ A4 แนวนอนขอบ 8 มม. โดยประมาณ · ตีต่ำไว้ปลอดภัยกว่าตีสูง */
+  /* §pjBig · กว้างขึ้นตามขนาดตัวอักษร · ไม่งั้นชื่อคนตกบรรทัดทุกช่อง */
+  /* §pjFlat · ไฟล์ต้นแบบเป็นตารางเส้นต่อเนื่อง ไม่ใช่การ์ดแยกคอลัมน์ */
+  var GAP=0, SHEETW=1760;
+  var gapPct=(boats.length+2)*GAP/SHEETW*100, avail=100-gapPct;
+  /* §pjLbl · ป้ายแถวมีคำกำกับไทยต่อท้ายแล้ว · 7.6% = 143px ตัด "WRISTBAND \u0e2a\u0e32\u0e22\u0e23\u0e31\u0e14\u0e02\u0e49\u0e2d\u0e21\u0e37\u0e2d" หายครึ่งคำ */
+  var LW=11.4*avail/100, WT=boats.map(function(B){ return isGo(B)?2:(isWk(B)?1.5:1); });
+  var SUM=0; WT.forEach(function(w){ SUM+=w; });
+  var cols='<colgroup><col style="width:'+LW+'%">'
+    + WT.map(function(w){ return '<col style="width:'+((avail-LW)*w/SUM).toFixed(3)+'%">'; }).join('')
+    + '</colgroup>';
+  /* §pjBig · ใบนี้ไม่ได้ถูกปริ้นลง A4 แล้ว · ทีมแคปเป็นรูปส่งไลน์
+     ข้อจำกัดจึงไม่ใช่ "สูงเท่าหน้ากระดาษ" · เป็น "อ่านออกบนจอมือถือ"
+     ตัวหนังสือเดิม 7.5–9.6px เล็กเพราะต้องยัดลงกระดาษแผ่นเดียว · ปล่อยให้ใหญ่ได้แล้ว
+     ยังลดตามจำนวนคอลัมน์อยู่ เพราะความกว้างเป็นข้อจำกัดจริง (ยิ่งลำเยอะ ช่องยิ่งแคบ) */
+  var fs = SUM<=12?17 : (SUM<=18?15 : (SUM<=26?13 : 11.5));
+
+  var css=pjPrintCss({ fs, GAP })
    ;
 
   /* §pjSect · สีพื้นจาง ๆ จากสีเส้นทาง · ผสมกับขาว 86% แล้วยังบอกได้ว่าเป็นเส้นทางไหน
@@ -2122,22 +2251,7 @@ function pjPrint(){
   /* ช่องของลำที่ไม่ออก · โผล่แค่แถวแรก แล้วยาวคลุมลงมาทั้งตัวตาราง */
   /* §pjFlat · เหตุผลที่ลำนี้ไม่ได้ออกวันนี้ · อยู่ในช่องเดียวของแถวชื่อทริป
      ของเดิมเป็นบล็อกยาวพาดทั้งคอลัมน์ · ที่นี่ย่อเหลือป้ายเดียว รายละเอียดเป็นบรรทัดเล็ก */
-  var offLbl=function(B){
-    var SM=PJ_ST[B._st.k]||PJ_ST.idle, sub='';
-    if(isWk(B)){ var mj=(B._st.mj||[]), M=null;
-      try{ M=pjMjOf(_poDate,B.bid,mj); }catch(_){}
-      sub=[ M?((M.no?(M.no+' · '):'')+(M.title||M.type||'')).trim():'', B._st.loc||'' ]
-        .filter(function(x){ var v=String(x||'').trim(); return v&&v!=='-'&&v!=='—'; }).join(' \u00b7 ');
-    } else {
-      sub = B._away
-        ? ('ไปวิ่งที่ '+e(((PO_PIERS.filter(function(x){ return x.k===(B._away.route.pier||''); })[0])||{}).n||'ท่าอื่น'))
-        : e([B._st.loc||'', B._st.note||''].filter(function(x){
-            var v=String(x||'').trim(); return v&&v!=='-'&&v!=='—'; }).join(' \u00b7 '));
-    }
-    return '<td class="v ctr offr" style="background:'+SM.bg+';color:'+SM.fg+'">'
-      +'<span class="lb">'+e(SM.t)+'</span>'
-      +(sub?('<span class="sub">'+sub+'</span>'):'')+'</td>';
-  };
+  var offLbl=pjPrintOffLbl({ isWk, e });
   var offCell=function(B){
     var SM=PJ_ST[B._st.k]||PJ_ST.idle;
     var sub=B._away
@@ -2407,40 +2521,7 @@ function pjPrint(){
     +'</tbody>';
 
   /* §pjSplit · กล่องสรุปเหนือตาราง · แยกลำพร้อมใช้ ออกจากลำที่ซ่อม/ไม่พร้อม */
-  var fleetBox=function(){
-    if(!REST.length) return '';
-    var ready=[], down=[];
-    REST.forEach(function(B){
-      var SM=PJ_ST[B._st.k]||PJ_ST.idle;
-      var why=[B._st.loc||'', B._st.note||''].filter(function(x){
-        var v=String(x||'').trim(); return v && v!=='-' && v!=='\u2014'; }).join(' \u00b7 ');
-      var it={ n:(B.boat.name||B.bid), t:SM.t, why:why, bg:SM.bg, fg:SM.fg, bd:SM.bd, grp:(SM.grp||'') };
-      if(it.grp==='ready') ready.push(it); else down.push(it);
-    });
-    var cell=function(x,showWhy){
-      return '<span class="fbi" style="background:'+x.bg+';color:'+x.fg+';border-color:'+(x.bd||'transparent')+'">'
-        +'<b>'+e(x.n)+'</b>'
-        +(showWhy?('<i>'+e(x.t)+(x.why?(' \u00b7 '+x.why):'')+'</i>'):'')
-        +'</span>'; };
-    var box=function(th,list,showWhy,cls){
-      if(!list.length) return '';
-      return '<div class="fb '+cls+'"><div class="fb-h">'+th+'<b>'+list.length+'</b></div>'
-        +'<div class="fb-l">'+list.map(function(x){ return cell(x,showWhy); }).join('')+'</div></div>'; };
-    /* §pjHideIdle · "ตัวใบงานนี้ด้วย สามารถซ่อน Not Available"
-       กล่องนี้กินที่เยอะที่สุดใน Section A เพราะแต่ละลำห้อยเหตุผลยาว
-       (ขึ้นคาน · อู่ไหน · เลขใบซ่อม) ทั้งที่คนอ่านใบนี้คือคนจ่ายงานให้ลำที่ออก
-       ผูกกับปุ่มเดียวกับที่ซ่อนการ์ดบนจอ · จะได้มีสวิตช์เดียว ไม่ใช่สองที่ต้องจำ
-
-       ซ่อนแล้วไม่ทิ้งจำนวน · เหลือบรรทัดเดียวบอกว่ามีกี่ลำ
-       ใบนี้ถูกแคปส่งไลน์และใช้เถียงกันย้อนหลัง · "ไม่มีกล่อง" กับ "วันนั้นเรือพร้อมหมด"
-       ต้องแยกออกจากกันได้ · กดปุ่มเปิดเมื่อไหร่ก็เห็นรายชื่อครบเหมือนเดิม */
-    var dnBox = down.length
-      ? (_pjHideIdle
-          ? ('<div class="fb dn slim"><div class="fb-h">Not available<b>'+down.length+'</b></div></div>')
-          : box('Not available',down,1,'dn'))
-      : '';
-    return box('Ready',ready,0,'ok') + dnBox;
-  };
+  var fleetBox=pjPrintFleetBox({ REST, e });
 
   /* §pjBrd · บอร์ดเรือออก · โครงเดียวกับตารางขาออกสนามบิน
      หนึ่งแถว = หนึ่งลำที่ออก · ทุกอย่างอยู่แถวเดียวกัน ไม่มีบรรทัดรอง
@@ -2449,43 +2530,7 @@ function pjPrint(){
      §pjBrd4 · ใบนี้ออก "ก่อน" เริ่ม Operation จึงมีแต่ของที่รู้ล่วงหน้าได้
      สถานะเช็คอิน / ที่นั่งเหลือ / รถคันสุดท้ายถึงกี่โมง เป็นของที่เกิดตอนวันงาน
      ตอนพิมพ์ใบยังไม่มีค่า ใส่ไปก็เป็นเลขหลอก จึงไม่ใส่ */
-  var progBox=function(){
-    if(!GO.length) return '';
-    var rows=GO.map(function(B,i){
-      var rt=B.route||{}, dep=String(B.dep||'');
-      var P=null; try{ P=pjPrep(_poDate,B.bid,_poPier); }catch(_){}
-      P=P||{lang:{},halal:0,veg:0,vegan:0,allerg:0,lt:0};
-      var pax=(PX[i]&&PX[i].all)||0, cap=(+(B.boat.cap)||0);
-      /* §pjOver · ยอดเกินความจุ = จ่ายงานผิด ต้องรู้ตั้งแต่ก่อนออกเรือ
-         ของเดิมพิมพ์ "120/65" ด้วยสีเดียวกับทุกช่อง อ่านผ่านได้ง่ายมาก */
-      var over=(cap>0 && pax>cap) ? (pax-cap) : 0;
-      var wbc=(J[i]&&J[i].wbc)||'', wbn=(J[i]&&J[i].wb)||'';
-
-      /* ของที่ต้องเตรียมล่วงหน้า · รู้ได้ตั้งแต่ตอนออกใบ */
-      return { dep:(dep||'~'), html:
-        '<tr class="br">'
-        +'<td class="c-t">'+e(dep||'--:--')+'</td>'
-        +'<td class="c-b"><span class="bpill" style="background:'
-          +((typeof pckBoatColor==='function')?pckBoatColor(B.bid):'#185FA5')+'">'
-          +e(B.boat.name||B.bid)+'</span></td>'
-        +'<td class="c-p">'+e(rt.name||'\u2014')+'</td>'
-        +'<td class="c-x'+(over?' over':'')+'"><b>'+pax+'</b><s>/'+cap+'</s>'
-          +(over?('<em>เกิน '+over+'</em>'):'')+'</td>'
-        /* §pjBand · สีสายรัดข้อมือ · ของที่ต้องหยิบมาเตรียมก่อนแขกมาถึง
-           คนที่ท่าเทียบ "สี" กับข้อมือแขก จึงต้องเห็นสีจริง ไม่ใช่อ่านชื่อสี */
-        +'<td class="c-w">'+(wbn
-            ? ('<span class="bandc"><i style="background:'+e(wbc||'#CBD5E1')+'"></i>'+e(wbn)+'</span>')
-            : '<span class="pcnone">-</span>')+'</td>'
-        +'</tr>' }; });
-    rows.sort(function(a,b){ return a.dep<b.dep?-1:(a.dep>b.dep?1:0); });
-
-    return '<div class="fb pg"><div class="fb-h">Departures<b>'+GO.length+'</b></div>'
-      +'<table class="brd">'
-      +'<colgroup><col style="width:78px"><col style="width:158px"><col>'
-        +'<col style="width:82px"><col style="width:118px"></colgroup>'
-      +'<thead><tr><th>Time</th><th>Boat</th><th class="h-p">Programme</th><th>Pax</th><th>Band</th></tr></thead>'
-      +'<tbody>'+rows.map(function(r){ return r.html; }).join('')+'</tbody></table></div>';
-  };
+  var progBox=pjPrintProgBox({ GO, PX, J, e });
 
   var DW=pjDateWords(_poDate);
   /* §pjTop · เลขวัน / ชื่อวัน / เดือน-ปี แยกชิ้นสำหรับหัวใบ */
@@ -2494,27 +2539,7 @@ function pjPrint(){
   var _pjWd=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][_pjD.getDay()];
   var _pjMo=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST',
              'SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'][_pjD.getMonth()]+' '+_pjD.getFullYear();
-  var sheet='<div class="sheet" id="sheet">'
-    /* §pjTop · โครงเดียวกับหัวหน้า Booking · เลขวันตัวใหญ่ซ้าย แบรนด์กลาง ชิปขวา
-       ต่างที่พื้นเป็นสีขาว ไม่ใช่ navy เพราะใบนี้ถูกแคปเป็นรูปส่งไลน์และปริ้นด้วย */
-    +'<div class="shead">'
-      /* §pjTop3 · t เป็น "Visit Panwa \u00b7 \u0e20\u0e39\u0e40\u0e01\u0e47\u0e15" · เอาเฉพาะชื่อท่าหน้าจุดคั่น */
-      +'<div class="sh-c"><b>LOVE ANDAMAN</b><span>'
-        +e(String(P.t||P.n||'').split('\u00b7')[0].trim()||(P.n||''))+'</span></div>'
-    +'</div>'
-    /* §pjDate · แถบวันที่ · ของชิ้นเดียวที่กินเต็มความกว้างของใบ */
-    +'<div class="dstrip"><b>'+e(_pjWd)+'</b><u>'+_pjDay+'</u><i>'+e(_pjMo)+'</i></div>'
-    /* §pjSecbar · ใบนี้มีสองส่วนจริง ๆ · ภาพรวมของวัน กับ ใบจ่ายงานรายคน
-       ตั้งชื่อทั้งคู่ จะได้รู้ว่าอ่านถึงไหนแล้ว ไม่ใช่ตั้งชื่อแค่ส่วนล่าง */
-    +'<div class="secbar"><span>Section A \u00b7 Departures &amp; fleet status</span>'
-      +'<em>\u0e20\u0e32\u0e1e\u0e23\u0e27\u0e21\u0e02\u0e2d\u0e07\u0e27\u0e31\u0e19</em></div>'
-    + '<div class="fleet">'+progBox()+fleetBox()+'</div>'
-    /* §pjSplit2 · หัวใบกับตารางจ่ายงานเป็นคนละเรื่องกัน · หัวใบคือภาพรวมของวัน
-       ตารางคือใบจ่ายงานรายคน · คั่นด้วยแถบชื่อให้เห็นว่าเปลี่ยนเรื่องแล้ว */
-    +'<div class="secbar"><span>Section B \u00b7 Crew assignment</span>'
-      +'<em>\u0e01\u0e32\u0e23\u0e08\u0e31\u0e14\u0e01\u0e33\u0e25\u0e31\u0e07\u0e1e\u0e25\u0e1b\u0e23\u0e30\u0e08\u0e33\u0e40\u0e23\u0e37\u0e2d</em></div>'
-    +'<table>'+cols+head+body+'</table>'
-    +'</div>';
+  var sheet=pjPrintSheet({ e, P, _pjWd, _pjDay, _pjMo, progBox, fleetBox, cols, head, body });
 
   /* §pjShot · โค้ดฝั่งหน้าต่างที่เด้งขึ้นมา · ไม่แตะแอปหลัก */
   var fn=('boatjob_'+(P.k||_poPier||'pier')+'_'+_poDate).replace(/[^A-Za-z0-9_.-]+/g,'_');
