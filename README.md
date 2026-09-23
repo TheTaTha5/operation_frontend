@@ -1,7 +1,7 @@
 # LOVE Andaman — Allotment v2
 
 Phuket marine-tourism operations app (bookings, fleet, transfers, accounting).
-Front-end in `allotment_v2/` — `allotment_v2.html` (markup) plus `js/01..08-*.js` (all the app code) and `css/01-base.css` + `css/02-skins.css` — talking to a Node backend (`server.js`) backed by **Postgres — the durable source of truth**. The browser keeps a working copy of the current state in memory/`localStorage` for the UI to read, but every change is synced to Postgres; `localStorage` alone is not where the data lives. See `ARCHITECTURE.md` for the full data-flow write-up.
+Front-end in `allotment_v2/` — `allotment_v2.html` (markup) plus `js/01..08-*.js` (all the app code) and `css/01-base.css` + `css/02-skins.css` — talking to a Node backend (`server.js`) backed by **Postgres — the durable source of truth**. The browser keeps a working copy of the current state in memory/`localStorage` for the UI to read, but every change is synced to Postgres; `localStorage` alone is not where the data lives.
 
 ## Run locally
 ```bash

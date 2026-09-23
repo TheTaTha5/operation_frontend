@@ -36,8 +36,7 @@ has not been rebuilt/restored — that decision belongs to **LAM-73**. Until the
 - With `DATABASE_URL` set but the schema missing: skips with `"...blocked on LAM-73..."`.
 
 No code change is needed here once LAM-73 lands — `hasBookingSchema()` will start returning `true`
-and the test runs for real. See `docs/development/tasks/LAM-22.md` for the exact verification that
-was run (a real, fully-isolated ephemeral Postgres, not the target CI's) proving this skip logic
+and the test runs for real. LAM-22 ran the verification (a real, fully-isolated ephemeral Postgres, not the target CI's) proving this skip logic
 is correct and that `server.js` itself boots safely — without crashing — against a Postgres that
 has no `operation_schemas` tables at all.
 

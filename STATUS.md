@@ -661,8 +661,7 @@ they printed before.
 **The detector is the reusable part.** Two datasets, the second with a `ZZMARK` item added to every
 registry; boot one page fresh and drive `_laReloadData` on another; diff which globals contain the
 marker. What the fresh page has and the reloaded page doesn't **is** the stale-table list, with no
-code reading involved. It found `RT_ADDON_DEFS` on its own. Rebuild it when you touch the load path
-(the recipe is in `HANDOFF.md` §5).
+code reading involved. It found `RT_ADDON_DEFS` on its own. Rebuild it when you touch the load path.
 
 ### 2026-09-14 — data integrity, the seams
 
@@ -761,7 +760,7 @@ Root cause is fixed as of `f0eba63`, so the list should stop growing.
 | **Fields lost on booking save** | `bkV2CommitBooking` rebuilds the record from the form; anything the form doesn't render can be dropped. This one pattern caused three separate incidents (`ops.boatId`, `pierAt/pierBy`, the food note). | Each found instance fixed. **No systematic guard exists.** A diff-on-save audit — snapshot before, compare after, log dropped keys — would turn a whole bug class into a log line. Recommended next piece of work. |
 | **Same fact stored in two places** | Charter boat lived in `charterBoatId` *and* `ops.boatId`; allergies live in `allergyList` *and* `allergies`; slot labels lived globally *and* per-boat; a van lives in `ops.vanId` *or* inside `vanSplits`. Every one of these produced a bug where two screens disagreed. | Fixed case by case. The general fix is a single reader per fact (`bkBoatIdOf`, `bkV2AllergyText`, `ckGroupVanId` are the good examples) — **use them, don't re-read the raw fields.** |
 | **Pre-built lookups going stale** | `PO_KIND` and `RT_ADDON_DEFS` are assembled once from raw arrays that two different paths overwrite. Both went stale; one of them crashed a third of the stock-item buttons for months. | **Closed as a class.** `laRebuildDerived()` (`§laDerived`) is the single rebuild, called from the end of `_laReloadData` and the end of `08-app.js`. **Add any new pre-built lookup to that one function.** The `ZZMARK` detector re-runs in minutes and proves there are no others. |
-| **No automated test gate** | The regression suite is real and effective, but it is run by hand from a scratch directory. A new contributor would not know it exists. | `HANDOFF.md` §5. Moving `/tmp/w` into the repo and wiring CI is the obvious upgrade. |
+| **No automated test gate** | The regression suite is real and effective, but it is run by hand from a scratch directory. A new contributor would not know it exists. | Moving `/tmp/w` into the repo and wiring CI is the obvious upgrade. |
 | **Single 63k-line file** | `08-app.js` holds booking, pricing, pier, vans, accounting and printing. Changes are safe only because of the `§tag` comments and the patch-with-assert discipline. | Do **not** attempt a modularisation; 2,218 inline handlers depend on the global scope. Treat the tags as the module boundary instead. |
 | **Backup cadence** | The newest export is the only way to inspect live data from outside the app. On 2026-09-14 the gap was 3 days and a reported booking simply wasn't there yet. | Ask for a fresh export before investigating anything recent. |
 
@@ -790,8 +789,6 @@ Root cause is fixed as of `f0eba63`, so the list should stop growing.
 
 | Question | File |
 |---|---|
-| How do I work on this without breaking it? | `HANDOFF.md` |
 | How does it run / deploy / authenticate? | `README.md` |
-| How is it put together? | `ARCHITECTURE.md` → `allotment_v2/docs/workflows/README.md` |
+| How is it put together? | `CLAUDE.md` → `SYSTEM_MAP.md` |
 | Why is this odd block written this way? | `grep '§tagname' allotment_v2/js/` — the comment above it |
-| What was asked for and not built? | `BACKLOG.md` |

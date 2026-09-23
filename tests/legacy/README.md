@@ -65,8 +65,8 @@ This directory is fully self-contained: its own `package.json`
 (`"type":"module"`, scoped to this folder only — it does not touch or require
 any change to the repo root `package.json`), its own fixtures, its own test
 config. Nothing under `tests/legacy/` requires editing shared root
-configuration or CI wiring; see `docs/development/tasks/LAM-77.md` for the one
-CI-wiring item that is filed as a follow-up rather than done here.
+configuration or CI wiring; the one CI-wiring item (LAM-77) is filed as a follow-up
+rather than done here.
 
 ## File map
 

@@ -1,7 +1,7 @@
 # LOVE Andaman — allotment_v2
 
 > Cowork context file, loaded every session. Focus: the `allotment_v2` module.
-> Per-domain history and design live in `allotment_v2/docs/workflows/` (not auto-loaded — see **ARCHITECTURE.md** for the map) — grep the relevant doc when a task needs the detail behind a specific change. There is no `CHANGELOG.md`; it is not tracked in git (`git log --all -- CHANGELOG.md` returns nothing).
+> The per-domain workflow docs (`allotment_v2/docs/workflows/`), `ARCHITECTURE.md`, `BACKLOG.md`, the `HANDOFF*.md` notes and `docs/development/` were removed on 2026-09-23 — `git log` / `git show` recover them if you need the history behind a change. There is no `CHANGELOG.md`; it is not tracked in git (`git log --all -- CHANGELOG.md` returns nothing).
 
 ## 0. START HERE (new-chat orientation)
 
@@ -14,7 +14,7 @@
 
 **Embedding a single page elsewhere (`/embed/*`, 2026-09-19).** Another service on `*.loveandaman.com` can put one Booking page in an `<iframe>`: `/embed/calendar` and `/embed/bytrip?date=YYYY-MM-DD[&route=rN]` 302 to the app page with `?embed=1&view=…&tab=…`, and `allotment_v2/js/10-embed.js` — **the first `<script>` in `<head>`, ahead of `01-auth-sync.js`, and it must stay there** — strips the topbar/sidebar and lands on that view. Without `?embed=1` the file returns on its first line, so nothing else is affected. Two things to know: (1) the `sess` cookie is `SameSite=Lax`, so this only works when the host page is same-site — a genuinely different domain needs a token-based entry, not an iframe; (2) **`EMBED_ORIGINS` must be set on Railway** (comma-separated full origins) or `frame-ancestors 'self'` blocks every other subdomain, including `www.` — same-site for cookies is not the same as same-origin for CSP. **The embed defaults to read-only** (`edit=1` opts the action buttons back in) — it hides the Van/Boat/Re-confirm mode row and `+ New booking`, and overrides `bkV2Toggle{Van,Boat,Reconfirm}Mode` / `bkV2NewBooking` rather than chasing CSS selectors, because the entry points into van-assign are scattered across the mode row, the header warn-chips and the per-row "↩ กลับคันเดิม" badges. **That is UX, not a permission boundary.** The real boundary is the user account: `can_edit=false` with no `edit_areas` ⇒ `s.edit===false` ⇒ `/api/save` and `/api/v1/_batch` both return 403, so nothing that account does can persist, devtools included. ⚠ **Per-area edit rights are client-side only** — `editInfo()` sets `canEditAny = edit_areas.length > 0`, so a user with `editAreas:['sales']` is `edit:true` to the server and may write *anything*; only the browser confines them to Sales. For a view-only embed the account must be fully view-only, not "operations removed".
 
-**Embed token (`EMBED_TOKEN_SECRET`) — for viewers with no account here at all.** CS staff sign in on their own app and have no `rsvn` accounts; their server HMACs a short-lived ticket (`{exp}` in **ms**, ≤10 min ahead) onto the iframe `src` as `&t=…`, and `/embed/*` redeems it into a session for a **synthetic principal** — `username:'embed:cs'`, `perms:['booking','*explicit']`, `edit:false` — which has no row in `users` and needs none, because every read path reads the signed cookie and only login/OIDC ever query that table. The ticket carries no identity and none is trusted from it; the principal is fixed server-side, so it cannot escalate. Its secret is deliberately **not `SESSION_SECRET`** (that would let the other app mint an admin session). **An existing session always wins** — otherwise the iframe would overwrite a real staff member's cookie and sign them out of their own tab. The ticket is stripped from the redirect target. Unset the secret and the whole path is off; already-issued cookies still live out `EMBED_SESS_HOURS` (default 12, capped 24) — there is no per-session revocation for `embed:cs`. Hand `docs/development/tasks/EMBED_TOKEN.md` to whoever builds the other side. ⚠ Note `/api/v1` checks `if(!pool) return 503` **before** it computes `canWrite`, so the write-deny shows up as 503 on a DB-less box and 403 with a database — `/api/save` checks edit rights first and 403s either way. Confirmed against prod 2026-09-19: a real embed token gives `/api/me` → `{user:'embed:cs', role:'staff', canEdit:false, perms:['booking','*explicit']}` and `POST /api/v1/_batch` → `403 view only · ไม่มีสิทธิ์แก้ไข`; the deny lands before `readBody`, so an unauthorised write never even has its body parsed. Tests: `npm run test:embed` + `node --test test/unit/embed-token.test.mjs`.
+**Embed token (`EMBED_TOKEN_SECRET`) — for viewers with no account here at all.** CS staff sign in on their own app and have no `rsvn` accounts; their server HMACs a short-lived ticket (`{exp}` in **ms**, ≤10 min ahead) onto the iframe `src` as `&t=…`, and `/embed/*` redeems it into a session for a **synthetic principal** — `username:'embed:cs'`, `perms:['booking','*explicit']`, `edit:false` — which has no row in `users` and needs none, because every read path reads the signed cookie and only login/OIDC ever query that table. The ticket carries no identity and none is trusted from it; the principal is fixed server-side, so it cannot escalate. Its secret is deliberately **not `SESSION_SECRET`** (that would let the other app mint an admin session). **An existing session always wins** — otherwise the iframe would overwrite a real staff member's cookie and sign them out of their own tab. The ticket is stripped from the redirect target. Unset the secret and the whole path is off; already-issued cookies still live out `EMBED_SESS_HOURS` (default 12, capped 24) — there is no per-session revocation for `embed:cs`. ⚠ Note `/api/v1` checks `if(!pool) return 503` **before** it computes `canWrite`, so the write-deny shows up as 503 on a DB-less box and 403 with a database — `/api/save` checks edit rights first and 403s either way. Confirmed against prod 2026-09-19: a real embed token gives `/api/me` → `{user:'embed:cs', role:'staff', canEdit:false, perms:['booking','*explicit']}` and `POST /api/v1/_batch` → `403 view only · ไม่มีสิทธิ์แก้ไข`; the deny lands before `readBody`, so an unauthorised write never even has its body parsed. Tests: `npm run test:embed` + `node --test test/unit/embed-token.test.mjs`.
 
 **Starting a new chat:**
 1. Do NOT dump the changelog back at the user or re-read the whole file.
@@ -29,14 +29,14 @@
 - **Always `git fetch` + fast-forward before working.** Other sessions push to `lk-inbox` constantly, and a rejected push usually means someone already shipped the thing you were about to. Read their commit before re-doing the work — on 2026-08-17 an entire pier-check-in permission fix was written twice this way, and the upstream one was the better fix.
 - **Branch layout (2026-09-08).** `refactor/frontend` — the HTML→`js/`+`css/` split, Authentik SSO, `api-proxy.js`, the `platform/` scaffold — was merged into `lk-inbox` and shipped. It is no longer a long-lived side branch; new work branches from `lk-inbox`. Per-ticket work happens in a git worktree under `D:/projects/wt-*`, branched from `origin/lk-inbox`, never in the main checkout.
 - **Do NOT merge `lk-inbox` → `main`.** `main` is a stale snapshot (last merged 2026-08-12, ~100 commits behind) that nothing deploys from; merging would ship a hundred commits to prod in one shot. It carries one commit of its own (`7e7782e`, the 27 Jul B2C-availability COALESCE hotfix) whose fix already exists on `lk-inbox` — divergent history, not a missing fix.
-- `backend-db-implementation` is **dead** (last touched 2026-07-10, ~680 commits behind). Ignore it and `HANDOFF_2026-07-04.md`'s branch instructions.
+- `backend-db-implementation` is **dead** (last touched 2026-07-10, ~680 commits behind). Ignore it.
 - **Migrations run automatically at deploy** (boot runner in `server.js`, since 2026-08-12) — `db/migrations/*.sql` applies on prod the moment the push lands. `001`–`018` were **pruned** on 2026-09-08: they are already applied on prod and are snapshotted in `db/baseline/` (2026-08-20), so the directory now starts at `019`. That is safe because the runner's baseline shortcut is guarded by `if (!done.size)` and `allotment.schema_migrations` already holds those rows — pruning applied files is a no-op, but never prune one that has not shipped. A `field_mapping.json` entry whose migration file is missing takes `/api/load` down entirely, so ship the mapping and the migration in the same push.
 
 **Verifying what is actually live:** don't guess from branch names — check the prod DB. Its `OPS_DATABASE_URL` is in the B2C repo's `.env` (`D:/projects/Loveandaman-Kingdom/.env`); the URL in `db/rt.cjs` is dead. App tables are in schema `operation_schemas`; **`schema_migrations` is in schema `allotment`** (the boot runner creates it unqualified, so it lands in the connection's default schema). `SELECT name, applied_at FROM allotment.schema_migrations ORDER BY applied_at` is the fastest honest answer to "what code is prod actually running" — each row is a deploy that happened. That query is how the `lk-inbox`-is-prod fact above was established on 2026-08-17 (005→018 applied 13–15 Aug, all from `lk-inbox`-only commits, while `main` had not moved since 12 Aug).
 
 **Pending (not done):** move the Booking top-tab bar onto the same row as the date stepper — user wants 3 mockups (A merge tabs+date · B tabs in day-header · C keep 2 rows, tighten). Awaiting their pick.
 
-**Companion docs in the workspace:** `ARCHITECTURE.md` (points at `allotment_v2/docs/workflows/`, the real per-domain design/behavior docs), `SYSTEM_MAP.md` (AI-readable architecture map — keep in sync when adding modules), `BACKLOG.md` (pending items), `OPERATIONS_PIPELINE_DESIGN.md` (van-assign/grouping spec).
+**Companion docs in the workspace:** `SYSTEM_MAP.md` (AI-readable architecture map — keep in sync when adding modules), `OPERATIONS_PIPELINE_DESIGN.md` (van-assign/grouping spec).
 
 ---
 
@@ -48,7 +48,7 @@
 
 ```
 LOVE_Andaman_Workspace/        ← repo root · Railway builds THIS (Nixpacks) and runs `npm start`
-├── CLAUDE.md · ARCHITECTURE.md · SYSTEM_MAP.md · BACKLOG.md · OPERATIONS_PIPELINE_DESIGN.md
+├── CLAUDE.md · SYSTEM_MAP.md · OPERATIONS_PIPELINE_DESIGN.md
 │
 ├── server.js                  ← the monolith backend (~103 tables) · also the migration boot runner
 ├── api-proxy.js               ← strangler seam · API_PROXY_ROUTES forwards chosen /api prefixes
@@ -60,7 +60,6 @@ LOVE_Andaman_Workspace/        ← repo root · Railway builds THIS (Nixpacks) a
 │   ├── js/01..10-*.js         ← ALL the app code (~107k lines) · 08-app.js split into domain files (booking.js, agents.js, … boatjob.js) · see js/README.md
 │   ├── css/01-base.css        ← base sheet · css/02-skins.css = the 14 re-skin layers
 │   ├── start_server.command   ← static local server, no /api (§4)
-│   ├── docs/workflows/        ← per-domain workflow docs (see ARCHITECTURE.md)
 │   ├── assets/                ← hero images, per-route voucher overrides, favicons, logo
 │   ├── BACKUP/                ← timestamped pre-edit copies
 │   └── data_exports/          ← localStorage JSON exports (created on demand, gitignored)
@@ -72,8 +71,7 @@ LOVE_Andaman_Workspace/        ← repo root · Railway builds THIS (Nixpacks) a
 ├── os-backend/src/mapping/    ← field_mapping.json + os_repo.js — STILL LIVE, server.js reads these
 │                                (the rest of os-backend/ was deleted; these four files were not)
 ├── tools/                     ← dev-db · js-split-linemap · ci-boot-smoke · check-persist-gates …
-├── test/                      ← node:test · unit/ + e2e/ · `node --test`
-└── docs/development/tasks/    ← LAM-* task reports
+└── test/                      ← node:test · unit/ + e2e/ · `node --test`
 ```
 
 **Local dev:** `npm run dev:local` (`tools/dev-db.mjs`) brings up a throwaway Postgres via `docker-compose.yml` and runs `server.js` against it — that is the way to exercise `/api` without touching prod. `allotment_v2/start_server.command` is still the static-only fallback (§4).
@@ -124,7 +122,7 @@ Reusable price packages bound to agents via `agent.rateTypeId`. Shape: `{id, cod
 - **Persist** with `rtPersist()` (read-modify-write). Shared detail renderer `rtBuildDetailBody(rt)` feeds both the Rate Type page and the Agent Pricing Matrix tab.
 
 ### 3.3 Zone/region expansion
-Piers, rate-type zones, pickup zones, and pickup-setup areas are 4 overlapping "where" concepts stored separately; adding a real new zone touches ~5–6 places. Decision (2026-06-01, Option A): don't refactor to a central `SB_ZONES` until 2+ zones land at once or non-technical staff need UI zone CRUD. Until then follow the manual checklist — see `allotment_v2/docs/workflows/04-transfer-vans-pickup.md` (the four "where" concepts) / `SYSTEM_MAP.md`. (Pickup Setup UI adds **Areas** only, not zones; zones are hardcoded `['PK','KL','NoTransfer']`.)
+Piers, rate-type zones, pickup zones, and pickup-setup areas are 4 overlapping "where" concepts stored separately; adding a real new zone touches ~5–6 places. Decision (2026-06-01, Option A): don't refactor to a central `SB_ZONES` until 2+ zones land at once or non-technical staff need UI zone CRUD. Until then follow the manual checklist in `SYSTEM_MAP.md`. (Pickup Setup UI adds **Areas** only, not zones; zones are hardcoded `['PK','KL','NoTransfer']`.)
 
 ### 3.4 Booking (`SB_BOOKINGS`)
 Key fields: `id`, `schemaVer`, `agentId`, `channel`, `leadPax`, `leadNationality`, `leadPhone`, `leadEmail`, `hotelName`, `pickupAreaId`, `status` (`confirmed`/`pending_approval`/`cancelled`/`cancelled_weather`/`rejected`), `bookingDate`, `voucherRef`, `trips[]`, `passengers[]`, `addOns[]`, `adjustments[]`, `priceBreakdown{seat,addOn,focDiscount,discount,extra,total}`, `paymentSnapshot`, `marketSnapshot`, `history[]`, `ops{boatId,vanId,vanGroup,vanSeq,vanReturnId,vanSplits[],pfm{}}`.
@@ -152,7 +150,7 @@ Key fields: `id`, `name`, `code`, `companyInfo{legalName,taxId,address}`, `conta
 ## 5. Working with the file, look & feel, comms
 
 - The files are huge (`js/05-fleet.js` ~25k lines, `js/booking.js` ~15k) — never read one whole. `grep -rn` over `allotment_v2/js/` to locate → read a 30–50 line window → targeted `str_replace` with unique surrounding context → re-read only the changed section. Verify with `node --check <that file>`.
-- **Line citations written before 2026-08-27** (`bkV2InferZone:69054`, `pjOf:82102`, …, all over this file and `docs/workflows/`) point into the pre-split HTML. Translate with `node tools/js-split-linemap.mjs 69054`, or ignore the number and grep the function name — every citation carries one.
+- **Line citations written before 2026-08-27** (`bkV2InferZone:69054`, `pjOf:82102`, …, all over this file) point into the pre-split HTML. Translate with `node tools/js-split-linemap.mjs 69054`, or ignore the number and grep the function name — every citation carries one.
 - **Visual system:** DM Sans body / DM Mono for numbers; brand accent recolored coral→**Ocean blue `#1683C7`** via the reversible `softui-ocean-skin` layer. The CSS lives in `allotment_v2/css/`: `01-base.css` is the base sheet, `02-skins.css` holds the 14 re-skin layers in cascade order, each behind a `/* ==== <id> ==== */` marker — **delete the marked section to revert a skin** (they were `<style id="...-skin">` blocks in the HTML before 2026-08-27; same layers, same order). Two tiny `<style>` blocks remain inline in `<body>` on purpose. **No Tabler webfont in the app** — icons are inline SVG.
 - **Comms:** concise, show snippets, ask before big refactors, remind about backups before core-data edits, state the diff after edits (e.g. "added 3 entries to `FL_DEFAULT_ENGINES` at line 3045").
 
@@ -160,7 +158,7 @@ Key fields: `id`, `name`, `code`, `companyInfo{legalName,taxId,address}`, `conta
 
 ## 6. Gotchas & recurring patterns
 
-These bite repeatedly. Read the relevant one before touching that area; full context is in `allotment_v2/docs/workflows/` (see **ARCHITECTURE.md** for which doc covers which domain).
+These bite repeatedly. Read the relevant one before touching that area.
 
 **JS / render**
 - **`esc` / `escapeHTML` is NOT global** — it's declared locally per function. Any new top-level render fn that builds HTML with `esc(...)` must declare its own `const esc=...` or it throws silently on click.
@@ -202,4 +200,3 @@ Fleet: Boat Operation (`renderOp`), Transfer Fleet (`renderVehicles`), Van Job O
 
 Sidebar groups: OPERATIONS (Booking · Boat Operation · Transfer Fleet · Van Jobs · Pickup time setup) · SALES (Agent List · Rate Types · B2C · Staff & Welfare · Demand · FOC Detail · Insurance · Booking Flow · Pickup Map) · ACCOUNTING & FINANCE (Accounting · Daily PFM) · Fleet Management · Overview · Config.
 
-*Full per-domain design and behavior detail is in `allotment_v2/docs/workflows/` — see **ARCHITECTURE.md** for the map, then grep the relevant doc for the reasoning behind any specific behavior.*

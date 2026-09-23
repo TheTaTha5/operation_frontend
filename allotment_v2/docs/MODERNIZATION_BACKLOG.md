@@ -1,6 +1,6 @@
 # Love Andaman — Modernization Backlog
 
-Scrum epics and sprint plan derived **only** from `docs/workflows/01`–`08` and their cited code.
+Scrum epics and sprint plan derived **only** from `docs/workflows/01`–`08` (removed 2026-09-23; recover with `git log`) and their cited code.
 Every story below traces to a documented, line-cited finding. Nothing here is aspirational
 best-practice filler.
 
@@ -14,7 +14,7 @@ Baseline commit: `094dde1` on `refactor/booking-v2-migration`.
 | Team | 2–3 developers | Not specified in any local doc |
 | Capacity | ~40 points/sprint | Derived from the above; recalibrate after Sprint 1 |
 | Point scale | Fibonacci; 1 pt ≈ half a day | — |
-| Definition of Done | Change is covered by a test that fails without it, and the doc in `docs/workflows/` describing the behavior is updated in the same PR | The workflow docs are now the only surviving history — `CHANGELOG.md` does not exist |
+| Definition of Done | Change is covered by a test that fails without it | `CHANGELOG.md` and the workflow docs no longer exist — the test and the commit message are the record |
 
 **Sequencing constraint that overrides everything:** Sprint 1 is not negotiable. The server does not
 boot and there are no tests, so any story from a later epic shipped before Sprint 1 completes is
