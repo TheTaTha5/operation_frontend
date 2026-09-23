@@ -24,7 +24,7 @@ must stay off** applies here with a larger blast radius: Rocket Loader defers ex
 
 There is still exactly one global scope shared by ~3,100 top-level functions. Splitting the files
 bought load performance and editing ergonomics; it did not buy encapsulation. Real modularization is
-`MODERNIZATION_BACKLOG.md` B-15, and the strangler rewrite in `platform/` is the plan of record.
+`MODERNIZATION_BACKLOG.md` B-15. (The `platform/` strangler rewrite was removed from this fork on 2026-09-23.)
 
 ## Load order
 
