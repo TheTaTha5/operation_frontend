@@ -17,7 +17,7 @@ Staff web app for LOVE Andaman (Phuket marine tours: Similan, Surin, Phi Phi, Ph
 - New and converted screens use `laDelegate(host, actions)` (`08-app.js`) instead of inline handlers.
 - `js/10-embed.js` must stay the **first** script in `<head>`. It powers `/embed/*` iframes, which are read-only UX, not a permission boundary. Details are in the comments at `EMBED_ORIGINS` / `EMBED_TOKEN_SECRET` in `server.js`.
 - Off by default: `api-proxy.js` (forwards `API_PROXY_ROUTES` to another backend) and `auth/oidc.js` (Authentik SSO, active only when `AUTH_OIDC_*` is set).
-- `apps/web/` — isolated Next.js shell, now obsolete: the new frontend will be **Vue 3 + Vite + TypeScript** (Vue Router, Pinia), replacing `allotment_v2` page by page. It does not touch `allotment_v2`.
+- `apps/web/` — the new frontend: **Vue 3 + Vite + TypeScript** (Vue Router, Pinia), served under `/app/`, replacing `allotment_v2` page by page. Unmoved pages open via `allotment_v2.html?view=<data-view>` (`_laRestoreView`); both share the `sess` cookie. See `apps/web/README.md`.
 - `os-backend/src/mapping/` (`field_mapping.json`, `os_repo.js`) is **live** — `server.js` requires it.
 
 ## Working in the code

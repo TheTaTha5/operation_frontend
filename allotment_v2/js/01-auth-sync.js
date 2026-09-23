@@ -454,6 +454,13 @@
   window._laReload=function(){ try{_laSaveView();}catch(e){} location.reload(); };
   function _laRestoreView(){ if(window.__laEmbed) return;   /* §embed · ดูเหตุผลที่ _laSaveView */
    try{
+    /* §deepLink · the new Vue app links here as allotment_v2.html?view=<data-view>. The URL wins over the
+       saved screen; drop the param afterwards so a later reload returns to wherever the user went next. */
+    var qv=''; try{ qv=new URLSearchParams(location.search).get('view')||''; }catch(e){}
+    if(qv){ try{ var qs=new URLSearchParams(location.search); qs.delete('view'); var s=qs.toString(); history.replaceState(history.state,'',location.pathname+(s?'?'+s:'')+location.hash); }catch(e){}
+      if(!/^[a-z0-9-]+$/.test(qv) || (typeof laAllowed==='function' && !laAllowed(qv))) return;
+      var qel=document.querySelector('.nav-item[data-view="'+qv+'"]'); if(qel && qel.style.display!=='none') qel.click();
+      return; }
     var raw=sessionStorage.getItem('la_view'); if(!raw) return; var st=JSON.parse(raw); if(!st||!st.view) return;
     if(typeof laAllowed==='function' && !laAllowed(st.view)) return;          // respect role permissions
     var el=document.querySelector('.nav-item[data-view="'+st.view+'"]'); if(!el || el.style.display==='none') return;

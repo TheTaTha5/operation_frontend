@@ -1,33 +1,38 @@
 {
-  "name": "@love-andaman/web-shell",
+  "name": "@love-andaman/web",
   "version": "0.1.0",
   "private": true,
-  "description": "Next.js App Router shell for the LOVE Andaman modernization",
+  "type": "module",
+  "description": "Vue 3 + Vite app that replaces allotment_v2 page by page",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "dev": "vite",
+    "build": "vue-tsc --build && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --build",
+    "lint": "eslint . --max-warnings 0",
     "test": "vitest run"
   },
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=22.22.2"
   },
   "dependencies": {
-    "next": "16.3.1",
-    "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "pinia": "^4.0.3",
+    "vue": "^3.5.43",
+    "vue-router": "^5.3.1"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "6.8.0",
-    "@types/node": "22.15.30",
-    "@types/react": "19.1.10",
-    "@types/react-dom": "19.1.7",
-    "eslint": "9.35.0",
-    "eslint-config-next": "16.3.1",
-    "jsdom": "26.1.0",
-    "typescript": "5.9.2",
-    "vitest": "3.2.7"
+    "@tsconfig/node22": "^22.0.6",
+    "@types/node": "^26.6.2",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "@vue/test-utils": "^2.5.1",
+    "@vue/tsconfig": "^0.9.1",
+    "eslint": "^10.11.0",
+    "eslint-plugin-vue": "^10.11.0",
+    "jsdom": "^30.1.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1",
+    "vue-tsc": "^3.3.11"
   }
 }
