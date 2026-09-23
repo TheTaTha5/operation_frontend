@@ -33,7 +33,7 @@
  * that is only ever sold on the webshop needs no ops price to bill correctly.
  *
  * What an ops price buys you is two things, both real:
- *   1. Visibility. bkV2Routes() (js/08-app.js) builds the Booking calendar from routes referenced
+ *   1. Visibility. bkV2Routes() (js/08a-booking.js) builds the Booking calendar from routes referenced
  *      by an ACTIVE RATE TYPE or by an existing booking — nothing else. A brand-new route in no
  *      rate type is invisible on that screen until its first order arrives. Boat Operation is
  *      unaffected (it reads ROUTES directly), so boats can still be assigned.
@@ -95,7 +95,7 @@ function guessFamily(name) {
 }
 
 // ── Seat-rate shape ─────────────────────────────────────────────────────────────────────────────
-// seatRates[routeId][zone][paxType]. Zones depend on the pier (rtZonesForRoute, js/08-app.js:138).
+// seatRates[routeId][zone][paxType]. Zones depend on the pier (rtZonesForRoute, js/08c-rates.js).
 const PAX_TYPES = ['adult-thai', 'adult-fr', 'child-thai', 'child-fr', 'infant-thai', 'infant-fr'];
 function zonesForPier(pier) { return pier === 'ranong' ? ['RN', 'NoTransfer'] : ['PK', 'KL', 'NoTransfer']; }
 // A land programme is priced by the pickup zone the guest is collected from, never by a pier.
