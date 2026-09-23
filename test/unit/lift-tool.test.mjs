@@ -110,3 +110,37 @@ test('each: refuses const state and the callback\'s own this', () => {
   assert.ok(!lift('function f(rows){ const o = 1; rows.forEach(function(r){ o = r; }); }', 'f', 'each:1', false).ok);
   assert.ok(!lift('function f(rows){ var t; rows.forEach(function(r){ t = this; }); }', 'f', 'each:1', false).ok);
 });
+
+// tpl:A-B · a line range of a returned template literal
+test('tpl: a line range becomes its own template function, output unchanged', () => {
+  const code = [
+    'function f(b){',
+    '  const x = b.x, esc = s => String(s).replace(/</g, "&lt;");',
+    '  return `',
+    '    <h1>${esc(b.t)}</h1>',
+    '    <p>${x ? `yes ${x}` : "no"}</p>',
+    String.raw`    <i>\u00e9 \` </i>`,   // escapes inside the moved range must keep their meaning
+    '    <footer>${b.f}</footer>',
+    '  `;',
+    '}'].join('\n');
+  const r = lift(code, 'f', 'tpl:5-7');
+  assert.ok(r.ok, r.out);
+  for (const arg of ['{x:1,t:"<a>",f:"z"}', '{x:0,t:"t",f:""}']) assert.equal(run(r.code, `f(${arg})`), run(code, `f(${arg})`));
+});
+
+test('tpl: refuses a range that cuts through a ${…}', () => {
+  const code = ['function f(b){', '  return `', '    <p>${b.a ? `', '      <b>yes</b>', '    ` : ""}</p>', '  `;', '}'].join('\n');
+  assert.ok(!lift(code, 'f', 'tpl:4-5', false).ok);
+});
+
+test('a binding reassigned only before the site, in straight-line code, is captured', () => {
+  const code = 'function f(a){ let t = ""; if (a) t = "x"; for (const k of [1,2]) t += k; const s = t + "!"; return s; }';
+  const r = lift(code, 'f', 'var:s');
+  assert.ok(r.ok, r.out);
+  assert.equal(run(r.code, 'f(1)'), run(code, 'f(1)'));
+});
+
+test('a write inside an earlier closure still refuses (it could run after the site)', () => {
+  const r = lift('function f(){ let t = 1; const bump = () => { t++; }; const g = () => t; bump(); return g(); }', 'f', 'var:g', false);
+  assert.ok(!r.ok); assert.match(r.out, /reassigns/);
+});

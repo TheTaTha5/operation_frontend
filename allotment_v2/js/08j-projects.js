@@ -2070,6 +2070,139 @@ function pjPrintSheet(C){
     +'<table>'+cols+head+body+'</table>'
     +'</div>';
 }
+/* lifted out of pjPrint by tools/lift.mjs (var:body) · reads: tripRow, timeRow, row, e, band, lbRow, who, J, wkWho, nCrew, nIsl, GDSUM, GD_ROWS, gdCell, WKG, boats, isGo, PX, gi, PXKIND, isWk, WK */
+function pjPrintBody(C){
+  const { tripRow, timeRow, row, e, band, lbRow, who, J, wkWho, nCrew, nIsl, GDSUM, GD_ROWS, gdCell, WKG, boats, isGo, PX, gi, PXKIND, isWk, WK } = C;
+  return '<tbody>'
+    + tripRow() + timeRow()
+    /* §pjSheet4 · ร้านอาหารของลำนี้วันนี้ · ตั้งรายลำมาก่อนร้านประจำเส้นทางเสมอ
+       §pjRest · ย้ายขึ้นมาต่อจากเวลาออก · เดิมอยู่ท้ายหมวดไกด์ ซึ่งเป็นหมวด "คน"
+       แต่ร้านอาหารไม่ใช่คนที่ถูกจ่ายงาน · เป็นของที่ผูกกับทริปเหมือนโปรแกรมและเวลา
+       สามแถวบนสุดจึงตอบครบว่า วันนี้ลำนี้ไปไหน ออกกี่โมง กินที่ไหน */
+    + row('RESTAURANT|\u0e23\u0e49\u0e32\u0e19\u0e2d\u0e32\u0e2b\u0e32\u0e23',function(B,i){
+        var raw=''; try{ raw=mvTripRaw(_poDate,B.bid); }catch(_){}
+        if(raw==='-') return '<span class="rl">ไม่มีอาหารวันนี้</span>';
+        var V=null; try{ V=mvForTrip(_poDate,B.bid,B.rid); }catch(_){}
+        return V?e(V.name||''):'';
+      },0,function(){ return ''; })
+    + band('1','NAUTICAL CREW','#E7F1EC','#0F6E56','\u0e1d\u0e48\u0e32\u0e22\u0e40\u0e14\u0e34\u0e19\u0e40\u0e23\u0e37\u0e2d')
+    + lbRow('go','cap','Captain','CAPTAIN|\u0e01\u0e31\u0e1b\u0e15\u0e31\u0e19',function(B,i){ return who(J[i].cap,0); },0,function(B){ return wkWho(B,0); })
+    + lbRow('go','asst','Asst. Captain','ASST. CAPTAIN|\u0e1c\u0e39\u0e49\u0e0a\u0e48\u0e27\u0e22',function(B,i){ return who(J[i].asst,0); },0,function(B){ return wkWho(B,1); })
+    + (function(){ var o=''; for(var c=0;c<nCrew;c++){ (function(c){
+        o+=lbRow('go','crew'+c,'Crew '+(c+1),'CREW '+(c+1)+(c?'':'|\u0e25\u0e39\u0e01\u0e40\u0e23\u0e37\u0e2d'),function(B,i){ return who((J[i].crew||[])[c],0); },0,
+               (c<3)?function(B){ return wkWho(B,2+c); }:null); })(c); } return o; })()
+    + (function(){ var o=''; for(var c=0;c<nIsl;c++){ (function(c){
+        /* §pjLbl · "ISLAND STAFF 1 \u0e1b\u0e23\u0e30\u0e08\u0e33\u0e40\u0e01\u0e32\u0e30" ยาวเกินคอลัมน์ป้าย ตกสองบรรทัด
+           ดันแถวจาก 36px เป็น 51px · ป้ายอังกฤษตรงตัวอยู่แล้ว ไม่ต้องมีคำกำกับ */
+        o+=lbRow('go','island'+c,'Island Staff '+(c+1),'ISLAND STAFF'+(nIsl>1?(' '+(c+1)):''),
+               function(B,i){ return who((J[i].island||[])[c],0); },0,
+               (c<2)?function(B){ return wkWho(B,5+c); }:null); })(c); } return o; })()
+    /* §pjHead1 · ช่องรวมงานซ่อมเคยเริ่มที่แถวแถบ GUIDES · เนื้อในสูงกว่าแถวที่คลุมรวมกัน
+       เบราว์เซอร์เลยยัดส่วนเกินลงแถวแรก ทำให้แถบสีหนาเป็นบล็อก · เลื่อนไปเริ่มแถวไกด์แถวแรก */
+    /* §pjRest · ร้านอาหารย้ายขึ้นไปอยู่บนสุดแล้ว · หมวดนี้จึงเหลือแต่ไกด์
+       วันที่ยังไม่ได้จ่ายไกด์เลย แถบหมวดจะพาดอยู่โดยไม่มีแถวอยู่ข้างใต้ · ไม่ต้องพิมพ์ */
+    + (GDSUM ? band('2','GUIDES &amp; STAFF','#ECEAF7','#453B95','\u0e1d\u0e48\u0e32\u0e22\u0e21\u0e31\u0e04\u0e04\u0e38\u0e40\u0e17\u0e28\u0e01\u0e4c\u0e41\u0e25\u0e30\u0e1a\u0e23\u0e34\u0e01\u0e32\u0e23') : '')
+    /* §pjRead · ของเดิม "ไกด์ 1..4" · ลำดับไม่ได้บอกอะไร ต้องอ่านชื่อแล้วเดาเองว่าใครพูดภาษาไหน
+       เปลี่ยนเป็นช่องตามภาษา/บทบาทจริงแบบใบ Excel · ช่องที่ว่างทั้งใบไม่พิมพ์ */
+    /* §pjGdOrder · หัวแถวคือชื่อช่องบนการ์ด · ผ่านกติกาเดียวกับแถวลูกเรือ (§pjLbSheet)
+       ทุกลำตั้งตรงกัน → ใช้ชื่อนั้น · ตั้งไม่ตรงกัน → คงชื่อมาตรฐาน แล้วติดชื่อในช่องของลำนั้น */
+    + (function(){ var o='';
+        GD_ROWS.forEach(function(R,sq){
+          var slot=pjGdSlot(R.kind,R.idx), def=pjGdDefLb(R.kind,R.idx);
+          var en=(R.kind==='gd') ? ('GUIDE '+(R.idx+1))
+                                 : ('STUDENT / TRAINEE'+(R.idx?(' '+(R.idx+1)):''));
+          var k=en+((sq===0)?'|\u0e21\u0e31\u0e04\u0e04\u0e38\u0e40\u0e17\u0e28\u0e01\u0e4c':'');
+          o+=lbRow('gd',slot,def,k,
+                   function(B,i){ return gdCell(i,R); },0,
+                   function(B){ return WKG[B.bid] ? e(WKG[B.bid][sq]||'') : ''; });
+        });
+        return o; })()
+    + band('3','PASSENGER HEADCOUNT','#E5F0F0','#12554F','\u0e22\u0e2d\u0e14\u0e1c\u0e39\u0e49\u0e42\u0e14\u0e22\u0e2a\u0e32\u0e23')
+
+    /* §pjSheet4 · แถบสีจริงของสายรัดข้อมือ · คนที่ท่าเทียบสีกับข้อมือแขก ไม่ได้อ่านชื่อสี
+       §pjWbName · แต่ชื่อสีก็ต้องมีด้วย · ใบนี้ถูกปริ้นขาวดำและถูกแคปส่งไลน์
+       สีล้วน ๆ แยก "ฟ้า TQ" กับ "น้ำเงิน" ไม่ออกบนจอที่ปรับสีเอง
+       และคนสั่งของทางไลน์ต้องพิมพ์ชื่อสีได้ · โชว์ทั้งแถบสีและชื่อ */
+    + row('WRISTBAND|\u0e2a\u0e32\u0e22\u0e23\u0e31\u0e14\u0e02\u0e49\u0e2d\u0e21\u0e37\u0e2d',function(B,i){
+        var c=String(J[i].wbc||'').trim(), nm=String(J[i].wb||'').trim();
+        if(/^#[0-9a-fA-F]{3,8}$/.test(c))
+          return '<span class="wbc"><i style="background:'+c+'"></i>'
+               + (nm?('<b>'+e(nm)+'</b>'):'') + '</span>';
+        return e(nm);
+      })
+    /* §pjRead · ของเดิมอัด AD/CHD/INF/FOC ไว้บรรทัดเดียว "28 / 3 / 0 / 0"
+       ต้องนับตำแหน่งเอาเองว่าเลขไหนคืออะไร และกวาดตาข้ามลำไม่ได้
+       ใบ Excel ที่ทีมใช้แยกเป็นแถวละประเภท · ทำแบบนั้น
+       แต่ประเภทที่วันนั้นไม่มีใครเลยทั้งใบ ไม่ต้องพิมพ์แถวทิ้งไว้ */
+    /* §pjPaxRow · ของเดิมแยกเป็นแถวละประเภท 4 แถว · กินที่และกวาดตาลงคอลัมน์ไม่ได้อยู่ดี
+       เพราะใบนี้มีไม่กี่คอลัมน์ · รวมเป็นบรรทัดเดียวเรียง AD CHD INF FOC แล้วแยก Total ออกมา */
+    + (function(){
+        var o='<tr class="pxr"><th class="k">AD / CHD / INF / FOC</th>'
+          + boats.map(function(B){ if(!isGo(B)) return '<td class="mut off2">\u2014</td>';
+              var P=PX[gi(B)];
+              return '<td class="pxg">'+PXKIND.map(function(x){
+                var v=+P[x.k]||0;
+                return '<span'+(v?'':' class="z"')+'><i>'+x.k.toUpperCase()+'</i><b>'+v+'</b></span>'; }).join('')
+              +'</td>'; }).join('')
+          +'</tr>';
+        o+='<tr class="pxt pxr"><th class="k">TOTAL PAX<i>\u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21</i></th>'
+          + boats.map(function(B){ if(!isGo(B)) return '<td class="pxn tot z2">\u2014</td>';
+              return '<td class="pxn tot">'+PX[gi(B)].all+'</td>'; }).join('')
+          +'</tr>';
+        return o; })()
+    + row('CUSTOMER GROUP',function(B,i){ return e(Object.keys(PX[i].langs||{}).join(' · ')); })
+    /* §pjNote · หมายเหตุอยู่ล่างสุด · เป็นของที่เขียนเพิ่มทีหลัง ไม่ใช่ข้อมูลตั้งต้น */
+    +'<tr><th class="k">NOTE<i>\u0e2b\u0e21\u0e32\u0e22\u0e40\u0e2b\u0e15\u0e38</i></th>'
+      + boats.map(function(B){
+          if(!isGo(B) && !isWk(B)) return '<td class="mut off2">\u2014</td>';
+          /* §pjCk · ของที่ต้องเตรียมของลำนี้ ย้ายมาจากบอร์ดขาออก
+             อยู่ตรงนี้ตรงกว่า เพราะเป็นเรื่องของลำเดียว ไม่ใช่ภาพรวมของวัน */
+          var chips='';
+          if(isGo(B)){ var P=null;
+            try{ P=pjPrep(_poDate,B.bid,_poPier); }catch(_){}
+            P=P||{lang:{},halal:0,veg:0,vegan:0,allerg:0,lt:0};
+            /* §pjNoteTH · \u0e2d\u0e48\u0e32\u0e19\u0e08\u0e1a\u0e40\u0e1b\u0e47\u0e19\u0e1b\u0e23\u0e30\u0e42\u0e22\u0e04\u0e44\u0e17\u0e22 \u0e44\u0e21\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e16\u0e2d\u0e14\u0e23\u0e2b\u0e31\u0e2a */
+            var _cn='\u0e04\u0e19';
+            Object.keys(P.lang).sort(function(a,b){ return P.lang[b]-P.lang[a]; })
+              .forEach(function(L){ chips+='<span class="pc lang">\u0e41\u0e02\u0e01'+e(pjLangTH(L))+' <b>'+P.lang[L]+'</b>'+_cn+'</span>'; });
+            if(P.halal)  chips+='<span class="pc meal">\u0e2d\u0e32\u0e2b\u0e32\u0e23\u0e2e\u0e32\u0e25\u0e32\u0e25 <b>'+P.halal+'</b>'+_cn+'</span>';
+            if(P.veg)    chips+='<span class="pc meal">\u0e21\u0e31\u0e07\u0e2a\u0e27\u0e34\u0e23\u0e31\u0e15\u0e34 <b>'+P.veg+'</b>'+_cn+'</span>';
+            if(P.vegan)  chips+='<span class="pc meal">\u0e27\u0e35\u0e41\u0e01\u0e19 <b>'+P.vegan+'</b>'+_cn+'</span>';
+            if(P.allerg) chips+='<span class="pc alg">&#9888; \u0e41\u0e1e\u0e49\u0e2d\u0e32\u0e2b\u0e32\u0e23 <b>'+P.allerg+'</b>'+_cn+'</span>';
+            if(P.lt)     chips+='<span class="pc lt">\u0e40\u0e23\u0e37\u0e2d\u0e2b\u0e32\u0e07\u0e22\u0e32\u0e27 <b>'+P.lt+'</b>'+_cn+'</span>';
+          }
+          var txt=isGo(B) ? (J[gi(B)].note||'') : (WK[B.bid].note||'');
+          return '<td class="nt">'+(chips?('<span class="ntc">'+chips+'</span>'):'')
+            +(txt?('<span class="ntt">'+e(txt)+'</span>'):(chips?'':'<span class="mut">\u2014</span>'))+'</td>'; }).join('')
+    +'</tr>'
+    +'</tbody>';
+}
+/* lifted out of pjPrint by tools/lift.mjs (var:head) · reads: boats, isGo, pjTint2, e */
+function pjPrintHead(C){
+  const { boats, isGo, pjTint2, e } = C;
+  return '<thead><tr><th class="k kh">VESSEL</th>'
+    + boats.map(function(B){
+        var go=isGo(B);
+        /* §pjHead2 · ของเดิมหนึ่งคอลัมน์มีสองก้อนสีคนละสี · ก้อนบนสีเรือ (ชื่อ+เวลา)
+           ก้อนล่างสีเส้นทาง (ชื่อโปรแกรม) · อ่านแล้วไม่รู้ว่าสีไหนหมายถึงอะไร
+           ตอนนี้: สีมีที่เดียวคือก้อนชื่อเรือ (สีเรือเหมือนเดิม)
+           เวลาออกกับชื่อโปรแกรมย้ายลงมาอยู่ในช่องขาว ไม่มีสีของตัวเอง */
+        var raw=(typeof pckBoatColor==='function')?pckBoatColor(B.bid):'#185FA5';
+        var rt=B.route||{};
+        var col=go?raw:((typeof pjMute==='function')?pjMute(raw):raw);
+        var ty=(B.boat.type||'')+(B.boat.engineCount?(' · '+B.boat.engineCount+' Eng'):'');
+        /* §pjSect · หัวคอลัมน์เหลือชื่อเรืออย่างเดียว · สีเรือเหมือนเดิม
+           เวลาออก/โปรแกรม/เครื่องยนต์/เส้นทาง ลงไปเป็นแถวของตัวเองในหมวดที่ 1 */
+        /* §pjHead3 · พื้นสีทึบทับตัวหนังสือขาว อ่านยากและกลบชื่อเรือ
+           เปลี่ยนเป็นพื้นสีอ่อนของสีเรือ ตัวหนังสือดำ · สีเรือยังอ่านออกจากขีดหนาใต้ชื่อ */
+        return '<th style="padding:0"><div class="bh'+(go?' go':'')+'" style="background:'+pjTint2(col,go?0.68:0.90)
+          +';border-bottom:'+(go?'5px':'3px')+' solid '+col+'">'
+          /* §pjHead4 · ชื่อเรือใช้สีของเรือเอง · ขีดหนาใต้ชื่อบอกสีเดียวกัน
+             อ่านชื่อกับอ่านสีเป็นการกวาดตาครั้งเดียว ไม่ใช่สองครั้ง */
+          +'<span class="bn" style="color:'+col+'">'+e(B.boat.name||B.bid)+'</span>'
+          +'</div></th>'; }).join('')
+    +'</tr></thead>';
+}
 function pjPrint(){
   var P=PO_PIERS.filter(function(p){ return p.k===_poPier; })[0]||PO_PIERS[0];
   var e=poE;
@@ -2375,28 +2508,7 @@ function pjPrint(){
           return '';
         }).join('')+'</tr>'; };
 
-  var head='<thead><tr><th class="k kh">VESSEL</th>'
-    + boats.map(function(B){
-        var go=isGo(B);
-        /* §pjHead2 · ของเดิมหนึ่งคอลัมน์มีสองก้อนสีคนละสี · ก้อนบนสีเรือ (ชื่อ+เวลา)
-           ก้อนล่างสีเส้นทาง (ชื่อโปรแกรม) · อ่านแล้วไม่รู้ว่าสีไหนหมายถึงอะไร
-           ตอนนี้: สีมีที่เดียวคือก้อนชื่อเรือ (สีเรือเหมือนเดิม)
-           เวลาออกกับชื่อโปรแกรมย้ายลงมาอยู่ในช่องขาว ไม่มีสีของตัวเอง */
-        var raw=(typeof pckBoatColor==='function')?pckBoatColor(B.bid):'#185FA5';
-        var rt=B.route||{};
-        var col=go?raw:((typeof pjMute==='function')?pjMute(raw):raw);
-        var ty=(B.boat.type||'')+(B.boat.engineCount?(' · '+B.boat.engineCount+' Eng'):'');
-        /* §pjSect · หัวคอลัมน์เหลือชื่อเรืออย่างเดียว · สีเรือเหมือนเดิม
-           เวลาออก/โปรแกรม/เครื่องยนต์/เส้นทาง ลงไปเป็นแถวของตัวเองในหมวดที่ 1 */
-        /* §pjHead3 · พื้นสีทึบทับตัวหนังสือขาว อ่านยากและกลบชื่อเรือ
-           เปลี่ยนเป็นพื้นสีอ่อนของสีเรือ ตัวหนังสือดำ · สีเรือยังอ่านออกจากขีดหนาใต้ชื่อ */
-        return '<th style="padding:0"><div class="bh'+(go?' go':'')+'" style="background:'+pjTint2(col,go?0.68:0.90)
-          +';border-bottom:'+(go?'5px':'3px')+' solid '+col+'">'
-          /* §pjHead4 · ชื่อเรือใช้สีของเรือเอง · ขีดหนาใต้ชื่อบอกสีเดียวกัน
-             อ่านชื่อกับอ่านสีเป็นการกวาดตาครั้งเดียว ไม่ใช่สองครั้ง */
-          +'<span class="bn" style="color:'+col+'">'+e(B.boat.name||B.bid)+'</span>'
-          +'</div></th>'; }).join('')
-    +'</tr></thead>';
+  var head=pjPrintHead({ boats, isGo, pjTint2, e });
 
   /* §pjSect · แถวข้อมูลเรือ/ทริป · เดิมอยู่ในหัวคอลัมน์ปนกับชื่อเรือ */
   /* §pjTrip · แถวเดียวตอบว่า "วันนี้ลำนี้ทำอะไร" · ออกทริปก็ชื่อทริป
@@ -2416,109 +2528,7 @@ function pjPrint(){
           return '<td class="v ctr tmc">'+e(B.dep||'--:--')+'</td>'; }).join('')
       +'</tr>'; };
 
-  var body='<tbody>'
-    + tripRow() + timeRow()
-    /* §pjSheet4 · ร้านอาหารของลำนี้วันนี้ · ตั้งรายลำมาก่อนร้านประจำเส้นทางเสมอ
-       §pjRest · ย้ายขึ้นมาต่อจากเวลาออก · เดิมอยู่ท้ายหมวดไกด์ ซึ่งเป็นหมวด "คน"
-       แต่ร้านอาหารไม่ใช่คนที่ถูกจ่ายงาน · เป็นของที่ผูกกับทริปเหมือนโปรแกรมและเวลา
-       สามแถวบนสุดจึงตอบครบว่า วันนี้ลำนี้ไปไหน ออกกี่โมง กินที่ไหน */
-    + row('RESTAURANT|\u0e23\u0e49\u0e32\u0e19\u0e2d\u0e32\u0e2b\u0e32\u0e23',function(B,i){
-        var raw=''; try{ raw=mvTripRaw(_poDate,B.bid); }catch(_){}
-        if(raw==='-') return '<span class="rl">ไม่มีอาหารวันนี้</span>';
-        var V=null; try{ V=mvForTrip(_poDate,B.bid,B.rid); }catch(_){}
-        return V?e(V.name||''):'';
-      },0,function(){ return ''; })
-    + band('1','NAUTICAL CREW','#E7F1EC','#0F6E56','\u0e1d\u0e48\u0e32\u0e22\u0e40\u0e14\u0e34\u0e19\u0e40\u0e23\u0e37\u0e2d')
-    + lbRow('go','cap','Captain','CAPTAIN|\u0e01\u0e31\u0e1b\u0e15\u0e31\u0e19',function(B,i){ return who(J[i].cap,0); },0,function(B){ return wkWho(B,0); })
-    + lbRow('go','asst','Asst. Captain','ASST. CAPTAIN|\u0e1c\u0e39\u0e49\u0e0a\u0e48\u0e27\u0e22',function(B,i){ return who(J[i].asst,0); },0,function(B){ return wkWho(B,1); })
-    + (function(){ var o=''; for(var c=0;c<nCrew;c++){ (function(c){
-        o+=lbRow('go','crew'+c,'Crew '+(c+1),'CREW '+(c+1)+(c?'':'|\u0e25\u0e39\u0e01\u0e40\u0e23\u0e37\u0e2d'),function(B,i){ return who((J[i].crew||[])[c],0); },0,
-               (c<3)?function(B){ return wkWho(B,2+c); }:null); })(c); } return o; })()
-    + (function(){ var o=''; for(var c=0;c<nIsl;c++){ (function(c){
-        /* §pjLbl · "ISLAND STAFF 1 \u0e1b\u0e23\u0e30\u0e08\u0e33\u0e40\u0e01\u0e32\u0e30" ยาวเกินคอลัมน์ป้าย ตกสองบรรทัด
-           ดันแถวจาก 36px เป็น 51px · ป้ายอังกฤษตรงตัวอยู่แล้ว ไม่ต้องมีคำกำกับ */
-        o+=lbRow('go','island'+c,'Island Staff '+(c+1),'ISLAND STAFF'+(nIsl>1?(' '+(c+1)):''),
-               function(B,i){ return who((J[i].island||[])[c],0); },0,
-               (c<2)?function(B){ return wkWho(B,5+c); }:null); })(c); } return o; })()
-    /* §pjHead1 · ช่องรวมงานซ่อมเคยเริ่มที่แถวแถบ GUIDES · เนื้อในสูงกว่าแถวที่คลุมรวมกัน
-       เบราว์เซอร์เลยยัดส่วนเกินลงแถวแรก ทำให้แถบสีหนาเป็นบล็อก · เลื่อนไปเริ่มแถวไกด์แถวแรก */
-    /* §pjRest · ร้านอาหารย้ายขึ้นไปอยู่บนสุดแล้ว · หมวดนี้จึงเหลือแต่ไกด์
-       วันที่ยังไม่ได้จ่ายไกด์เลย แถบหมวดจะพาดอยู่โดยไม่มีแถวอยู่ข้างใต้ · ไม่ต้องพิมพ์ */
-    + (GDSUM ? band('2','GUIDES &amp; STAFF','#ECEAF7','#453B95','\u0e1d\u0e48\u0e32\u0e22\u0e21\u0e31\u0e04\u0e04\u0e38\u0e40\u0e17\u0e28\u0e01\u0e4c\u0e41\u0e25\u0e30\u0e1a\u0e23\u0e34\u0e01\u0e32\u0e23') : '')
-    /* §pjRead · ของเดิม "ไกด์ 1..4" · ลำดับไม่ได้บอกอะไร ต้องอ่านชื่อแล้วเดาเองว่าใครพูดภาษาไหน
-       เปลี่ยนเป็นช่องตามภาษา/บทบาทจริงแบบใบ Excel · ช่องที่ว่างทั้งใบไม่พิมพ์ */
-    /* §pjGdOrder · หัวแถวคือชื่อช่องบนการ์ด · ผ่านกติกาเดียวกับแถวลูกเรือ (§pjLbSheet)
-       ทุกลำตั้งตรงกัน → ใช้ชื่อนั้น · ตั้งไม่ตรงกัน → คงชื่อมาตรฐาน แล้วติดชื่อในช่องของลำนั้น */
-    + (function(){ var o='';
-        GD_ROWS.forEach(function(R,sq){
-          var slot=pjGdSlot(R.kind,R.idx), def=pjGdDefLb(R.kind,R.idx);
-          var en=(R.kind==='gd') ? ('GUIDE '+(R.idx+1))
-                                 : ('STUDENT / TRAINEE'+(R.idx?(' '+(R.idx+1)):''));
-          var k=en+((sq===0)?'|\u0e21\u0e31\u0e04\u0e04\u0e38\u0e40\u0e17\u0e28\u0e01\u0e4c':'');
-          o+=lbRow('gd',slot,def,k,
-                   function(B,i){ return gdCell(i,R); },0,
-                   function(B){ return WKG[B.bid] ? e(WKG[B.bid][sq]||'') : ''; });
-        });
-        return o; })()
-    + band('3','PASSENGER HEADCOUNT','#E5F0F0','#12554F','\u0e22\u0e2d\u0e14\u0e1c\u0e39\u0e49\u0e42\u0e14\u0e22\u0e2a\u0e32\u0e23')
-
-    /* §pjSheet4 · แถบสีจริงของสายรัดข้อมือ · คนที่ท่าเทียบสีกับข้อมือแขก ไม่ได้อ่านชื่อสี
-       §pjWbName · แต่ชื่อสีก็ต้องมีด้วย · ใบนี้ถูกปริ้นขาวดำและถูกแคปส่งไลน์
-       สีล้วน ๆ แยก "ฟ้า TQ" กับ "น้ำเงิน" ไม่ออกบนจอที่ปรับสีเอง
-       และคนสั่งของทางไลน์ต้องพิมพ์ชื่อสีได้ · โชว์ทั้งแถบสีและชื่อ */
-    + row('WRISTBAND|\u0e2a\u0e32\u0e22\u0e23\u0e31\u0e14\u0e02\u0e49\u0e2d\u0e21\u0e37\u0e2d',function(B,i){
-        var c=String(J[i].wbc||'').trim(), nm=String(J[i].wb||'').trim();
-        if(/^#[0-9a-fA-F]{3,8}$/.test(c))
-          return '<span class="wbc"><i style="background:'+c+'"></i>'
-               + (nm?('<b>'+e(nm)+'</b>'):'') + '</span>';
-        return e(nm);
-      })
-    /* §pjRead · ของเดิมอัด AD/CHD/INF/FOC ไว้บรรทัดเดียว "28 / 3 / 0 / 0"
-       ต้องนับตำแหน่งเอาเองว่าเลขไหนคืออะไร และกวาดตาข้ามลำไม่ได้
-       ใบ Excel ที่ทีมใช้แยกเป็นแถวละประเภท · ทำแบบนั้น
-       แต่ประเภทที่วันนั้นไม่มีใครเลยทั้งใบ ไม่ต้องพิมพ์แถวทิ้งไว้ */
-    /* §pjPaxRow · ของเดิมแยกเป็นแถวละประเภท 4 แถว · กินที่และกวาดตาลงคอลัมน์ไม่ได้อยู่ดี
-       เพราะใบนี้มีไม่กี่คอลัมน์ · รวมเป็นบรรทัดเดียวเรียง AD CHD INF FOC แล้วแยก Total ออกมา */
-    + (function(){
-        var o='<tr class="pxr"><th class="k">AD / CHD / INF / FOC</th>'
-          + boats.map(function(B){ if(!isGo(B)) return '<td class="mut off2">\u2014</td>';
-              var P=PX[gi(B)];
-              return '<td class="pxg">'+PXKIND.map(function(x){
-                var v=+P[x.k]||0;
-                return '<span'+(v?'':' class="z"')+'><i>'+x.k.toUpperCase()+'</i><b>'+v+'</b></span>'; }).join('')
-              +'</td>'; }).join('')
-          +'</tr>';
-        o+='<tr class="pxt pxr"><th class="k">TOTAL PAX<i>\u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21</i></th>'
-          + boats.map(function(B){ if(!isGo(B)) return '<td class="pxn tot z2">\u2014</td>';
-              return '<td class="pxn tot">'+PX[gi(B)].all+'</td>'; }).join('')
-          +'</tr>';
-        return o; })()
-    + row('CUSTOMER GROUP',function(B,i){ return e(Object.keys(PX[i].langs||{}).join(' · ')); })
-    /* §pjNote · หมายเหตุอยู่ล่างสุด · เป็นของที่เขียนเพิ่มทีหลัง ไม่ใช่ข้อมูลตั้งต้น */
-    +'<tr><th class="k">NOTE<i>\u0e2b\u0e21\u0e32\u0e22\u0e40\u0e2b\u0e15\u0e38</i></th>'
-      + boats.map(function(B){
-          if(!isGo(B) && !isWk(B)) return '<td class="mut off2">\u2014</td>';
-          /* §pjCk · ของที่ต้องเตรียมของลำนี้ ย้ายมาจากบอร์ดขาออก
-             อยู่ตรงนี้ตรงกว่า เพราะเป็นเรื่องของลำเดียว ไม่ใช่ภาพรวมของวัน */
-          var chips='';
-          if(isGo(B)){ var P=null;
-            try{ P=pjPrep(_poDate,B.bid,_poPier); }catch(_){}
-            P=P||{lang:{},halal:0,veg:0,vegan:0,allerg:0,lt:0};
-            /* §pjNoteTH · \u0e2d\u0e48\u0e32\u0e19\u0e08\u0e1a\u0e40\u0e1b\u0e47\u0e19\u0e1b\u0e23\u0e30\u0e42\u0e22\u0e04\u0e44\u0e17\u0e22 \u0e44\u0e21\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e16\u0e2d\u0e14\u0e23\u0e2b\u0e31\u0e2a */
-            var _cn='\u0e04\u0e19';
-            Object.keys(P.lang).sort(function(a,b){ return P.lang[b]-P.lang[a]; })
-              .forEach(function(L){ chips+='<span class="pc lang">\u0e41\u0e02\u0e01'+e(pjLangTH(L))+' <b>'+P.lang[L]+'</b>'+_cn+'</span>'; });
-            if(P.halal)  chips+='<span class="pc meal">\u0e2d\u0e32\u0e2b\u0e32\u0e23\u0e2e\u0e32\u0e25\u0e32\u0e25 <b>'+P.halal+'</b>'+_cn+'</span>';
-            if(P.veg)    chips+='<span class="pc meal">\u0e21\u0e31\u0e07\u0e2a\u0e27\u0e34\u0e23\u0e31\u0e15\u0e34 <b>'+P.veg+'</b>'+_cn+'</span>';
-            if(P.vegan)  chips+='<span class="pc meal">\u0e27\u0e35\u0e41\u0e01\u0e19 <b>'+P.vegan+'</b>'+_cn+'</span>';
-            if(P.allerg) chips+='<span class="pc alg">&#9888; \u0e41\u0e1e\u0e49\u0e2d\u0e32\u0e2b\u0e32\u0e23 <b>'+P.allerg+'</b>'+_cn+'</span>';
-            if(P.lt)     chips+='<span class="pc lt">\u0e40\u0e23\u0e37\u0e2d\u0e2b\u0e32\u0e07\u0e22\u0e32\u0e27 <b>'+P.lt+'</b>'+_cn+'</span>';
-          }
-          var txt=isGo(B) ? (J[gi(B)].note||'') : (WK[B.bid].note||'');
-          return '<td class="nt">'+(chips?('<span class="ntc">'+chips+'</span>'):'')
-            +(txt?('<span class="ntt">'+e(txt)+'</span>'):(chips?'':'<span class="mut">\u2014</span>'))+'</td>'; }).join('')
-    +'</tr>'
-    +'</tbody>';
+  var body=pjPrintBody({ tripRow, timeRow, row, e, band, lbRow, who, J, wkWho, nCrew, nIsl, GDSUM, GD_ROWS, gdCell, WKG, boats, isGo, PX, gi, PXKIND, isWk, WK });
 
   /* §pjSplit · กล่องสรุปเหนือตาราง · แยกลำพร้อมใช้ ออกจากลำที่ซ่อม/ไม่พร้อม */
   var fleetBox=pjPrintFleetBox({ REST, e });

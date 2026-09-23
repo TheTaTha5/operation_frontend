@@ -7,6 +7,7 @@
 //   var:NAME    the initializer of a top-level `var/let/const NAME = …` in outerFn's body
 //   return      the argument of outerFn's last top-level `return …`
 //   fn:NAME     a function declaration at the top level of outerFn's body
+//   tpl:A-B     lines A..B-1 of the template literal outerFn returns → `${newName(C)}` in its place
 //   each:LINE   the callback of a top-level `X.forEach(function(…){…})` statement starting on LINE
 //
 // Two shapes of result:
@@ -21,7 +22,8 @@
 //
 // Refuses (exit 1, nothing written) when the move could change behavior:
 //   - the piece uses `this`/`arguments` that belong to outerFn
-//   - it reads an outer binding that is ever reassigned (C would hold a stale copy)
+//   - it reads an outer binding written after the site, or inside any closure (C would hold a stale
+//     copy) · writes before the site in the function's own straight-line code are fine
 //   - it reads an outer let/const/var declared at or after the site (TDZ / hoisted-undefined differences)
 //   - fn:NAME that reads outer bindings (it is hoisted; a C-factory could not be called before its line)
 //   - each:LINE whose updated variables are also touched by another closure in outerFn (it would see
@@ -35,7 +37,7 @@ import * as acorn from 'acorn';
 
 const [file, outerName, target, newName] = process.argv.slice(2);
 const write = process.argv.includes('--write');
-if (!newName){ console.log('usage: lift.mjs <file> <outerFn> <var:NAME|return|fn:NAME> <newName> [--write]'); process.exit(2); }
+if (!newName){ console.log('usage: lift.mjs <file> <outerFn> <var:NAME|return|fn:NAME|each:LINE|tpl:A-B> <newName> [--write]'); process.exit(2); }
 const fail = m => { console.error('✖ refused: ' + m); process.exit(1); };
 
 let src = fs.readFileSync(file, 'utf8');
@@ -165,6 +167,21 @@ if (target === 'return'){
   fnDecl = body.find(s => s.type === 'FunctionDeclaration' && s.id.name === nm);
   if (!fnDecl) fail(`no top-level function declaration ${nm} inside ${outerName}`);
   stmt = fnDecl; expr = fnDecl;
+} else if (target.startsWith('tpl:')){
+  // lines A..B-1 of the template literal outerFn returns · both ends must sit in literal text at the
+  // template's top level (not inside a ${…}), so the range is a valid template on its own
+  const [A, B] = target.slice(4).split('-').map(Number);
+  stmt = [...body].reverse().find(s => s.type === 'ReturnStatement' && s.argument);
+  const tpl = stmt && stmt.argument;
+  if (!tpl || tpl.type !== 'TemplateLiteral') fail('outerFn does not return a template literal');
+  const lineStart = L => { let p = 0; for (let i = 1; i < L; i++){ p = src.indexOf('\n', p) + 1; if (!p) fail('no line ' + L); } return p; };
+  // the range runs from the first non-blank character of line A to the end of line B-1, so the
+  // indentation before it and the newline after it stay in the parent and the output is unchanged
+  let a = lineStart(A); while (src[a] === ' ' || src[a] === '\t') a++;
+  let z = lineStart(B) - 1; if (src[z - 1] === '\r') z--;
+  const inQuasi = p => tpl.quasis.some(q => p >= q.start && p <= q.end);
+  if (!(a > tpl.start && z < tpl.end && a < z && inQuasi(a) && inQuasi(z))) fail(`lines ${A}-${B} do not start and end in the template's literal text`);
+  expr = { type: 'TplRange', start: a, end: z };
 } else if (target.startsWith('each:')){
   const line = +target.slice(5);
   stmt = body.find(s => s.type === 'ExpressionStatement' && s.loc.start.line === line);
@@ -226,15 +243,22 @@ if (eachMode){
   }
   if (expr.type === 'FunctionExpression' && refs.some(r => r.this && inside(r) && r.scope && r.scope.owner === expr)) fail('callback uses its own this');
 }
-// reassigned anywhere in outerFn?
-const writes = new Set(refs.filter(r => r.write && isOuter(r)).map(r => r.id.name));
-const varDeclCount = {}; (function walk(n){ for (const [c] of children(n)){ if (c.type === 'VariableDeclarator') patNames(c.id).forEach(id => varDeclCount[id.name] = (varDeclCount[id.name] || 0) + 1); if (!isFn(c)) walk(c); } })(outer.body);
+// reassigned? A copy taken at the site is exact only if the binding can never change after it: every
+// write must sit before the site in outerFn's own code — not after it, and not inside any closure
+// (a closure defined earlier could still run later). A function-valued piece is held to the same rule.
+const nestedFns = []; (function walk(n){ for (const [c] of children(n)){ if (isFn(c)) nestedFns.push(c); walk(c); } })(outer.body);
+const inNestedFn = pos => nestedFns.some(f => pos >= f.start && pos < f.end);
+const lateWrite = new Map();   // name → line of the first write that could land after the site
+for (const r of refs) if (r.write && isOuter(r) && !inside(r) && (r.id.start >= stmt.start || inNestedFn(r.id.start)) && !lateWrite.has(r.id.name)) lateWrite.set(r.id.name, r.id.loc.start.line);
+(function walk(n){ for (const [c] of children(n)){
+  if (c.type === 'VariableDeclarator' && c.init) patNames(c.id).forEach(id => { if (id.start >= stmt.start && !(id.start >= expr.start && id.end <= expr.end) && !lateWrite.has(id.name)) lateWrite.set(id.name, id.loc.start.line); });
+  if (!isFn(c)) walk(c); } })(outer.body);
 for (const [nm, b] of captured){
-  if (writes.has(nm) || varDeclCount[nm] > 1) fail(`reads ${nm}, which ${outerName} reassigns — a copy in C would go stale`);
   if (b && b.kind !== 'function' && b.kind !== 'param'){
     const declEnd = (b.node && b.node.end) || 0;
     if (!(declEnd <= stmt.start)) fail(`reads ${nm}, declared at or after the site (${b.kind})`);
   }
+  if (lateWrite.has(nm)) fail(`reads ${nm}, which ${outerName} reassigns after the site or inside a closure (line ${lateWrite.get(nm)}) — a copy in C would go stale`);
 }
 const cap = [...captured.keys()];
 
@@ -242,7 +266,12 @@ const cap = [...captured.keys()];
 const text = n => src.slice(n.start, n.end);
 let lifted, siteText;
 const closureFree = cap.length === 0;
-if (eachMode){
+if (expr.type === 'TplRange'){
+  const raw = src.slice(expr.start, expr.end);
+  lifted = 'function ' + newName + '(C){' + NL + (cap.length ? '  const { ' + cap.join(', ') + ' } = C;' + NL : '') + '  return `' + raw + '`;' + NL + '}';
+  siteText = '${' + newName + '({ ' + cap.join(', ') + ' })}';
+}
+else if (eachMode){
   const st = [...state.keys()];
   // rewrite every reference to a state binding inside the callback → S.name (shorthand props expanded)
   const cbEdits = [];

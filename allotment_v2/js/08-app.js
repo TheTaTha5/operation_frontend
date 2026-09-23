@@ -4864,6 +4864,35 @@ function tsRoutePills(C){
           + ckEsc(tsRouteName(k))+'<i>'+rMap[k].n+' ใบ · '+rMap[k].pax+' คน</i></button>';
       }).join('')+'</div>';
 }
+/* lifted out of renderTravelSum by tools/lift.mjs (var:manifest) · reads: body, e, date */
+function tsManifestHtml(C){
+  const { body, e, date } = C;
+  return '<div class="ts-sec"><div class="ts-sech"><div>'
+    +'<div class="ts-sect"><span class="ts-sn">04</span>Manifest ประจำวัน</div>'
+    +'<div class="ts-secd">รายการทั้งหมดของวันเรียงตามเส้นทาง (Agency A-Z) — แยกจำนวนตามประเภทผู้โดยสาร · จุดรับและจุดส่งกลับ · '
+      +'Add-on ทุกขั้นตอน · เงื่อนไขการชำระและยอดที่ต้องเก็บ · ค่าปรับกรณียกเลิก/ไม่มา · '
+      +'ช่อง <b>Total</b> คือยอด booking บวกของที่ขายเพิ่มหน้างานแล้ว · '
+      +'ตัวเลข <b>ไปจริง/จอง</b> หมายถึงมีคนไม่ได้เดินทาง</div>'
+      +'<div class="ts-aokey"><span class="ts-ao ao-bk">จองมาแต่แรก</span><span class="ts-ao ao-ex">ขายเพิ่มหน้างาน</span>'
+        +'<span class="ts-ao ao-up">อัปเกรด</span><span class="ts-ao ao-pier">สั่งหน้าท่า</span></div></div></div>'
+    +'<div class="ts-card"><div class="ts-scroll"><table class="ts-tbl ts-man"><thead><tr>'
+    +'<th>Voucher</th><th>Agency</th><th>Customer (lead)</th>'
+    +'<th class="c ts-px">AD</th><th class="c ts-px">CHD</th><th class="c ts-px">INF</th><th class="c ts-px">FOC</th>'
+    +'<th class="c">Actual<br>/ Booked</th><th>Pickup point &middot; Room</th><th>Drop-off</th>'
+    +'<th>Add-on &middot; Upsell</th><th>Van &middot; Boat</th><th>Pay</th><th class="r">Total<br><span class="ts-thsub">จำนวน &times; Net</span></th>'
+    +'<th>Cancel &middot; Charge</th><th class="c">Status</th>'
+    +'</tr></thead><tbody>'
+    +(body||'<tr><td colspan="16" class="ts-empty">'+(_tsOnlyIssue?'ไม่มีเคสที่ต้องตัดสินในวันนี้':'ไม่มี booking ในวันนี้')+'</td></tr>')
+    +'</tbody></table></div></div>'
+    +'<div class="ts-sign">'
+    +'<div class="ts-sg"><i></i><b>ผู้จัดทำ · Operations</b><span>เจ้าหน้าที่ปฏิบัติการ</span></div>'
+    +'<div class="ts-sg"><i></i><b>ผู้ตรวจสอบ · Finance</b><span>เจ้าหน้าที่การเงิน / แคชเชียร์</span></div>'
+    +'<div class="ts-sg"><i></i><b>ผู้อนุมัติ · Management</b><span>ผู้จัดการฝ่ายปฏิบัติการ</span></div>'
+    +'</div>'
+    +'<div class="ts-foot"><span>LOVE ANDAMAN &middot; OPERATIONS</span>'
+      +'<span>'+e(date)+'</span></div>'
+  +'</div>';
+}
 function renderTravelSum(){
   var host=document.getElementById('travelsum-host'); if(!host) return;
   var e=ckEsc, date=_tsDate, money=function(n){ return '฿'+Number(n||0).toLocaleString('en-US'); };
@@ -5163,31 +5192,7 @@ function renderTravelSum(){
   { const _lfC = { mrows, e, date, DEC, money }, _lfS = { prevRoute, body };
   mrows.forEach((...a) => tsManifestRow(_lfC, _lfS, ...a));
   prevRoute = _lfS.prevRoute; body = _lfS.body; }
-  var manifest='<div class="ts-sec"><div class="ts-sech"><div>'
-    +'<div class="ts-sect"><span class="ts-sn">04</span>Manifest ประจำวัน</div>'
-    +'<div class="ts-secd">รายการทั้งหมดของวันเรียงตามเส้นทาง (Agency A-Z) — แยกจำนวนตามประเภทผู้โดยสาร · จุดรับและจุดส่งกลับ · '
-      +'Add-on ทุกขั้นตอน · เงื่อนไขการชำระและยอดที่ต้องเก็บ · ค่าปรับกรณียกเลิก/ไม่มา · '
-      +'ช่อง <b>Total</b> คือยอด booking บวกของที่ขายเพิ่มหน้างานแล้ว · '
-      +'ตัวเลข <b>ไปจริง/จอง</b> หมายถึงมีคนไม่ได้เดินทาง</div>'
-      +'<div class="ts-aokey"><span class="ts-ao ao-bk">จองมาแต่แรก</span><span class="ts-ao ao-ex">ขายเพิ่มหน้างาน</span>'
-        +'<span class="ts-ao ao-up">อัปเกรด</span><span class="ts-ao ao-pier">สั่งหน้าท่า</span></div></div></div>'
-    +'<div class="ts-card"><div class="ts-scroll"><table class="ts-tbl ts-man"><thead><tr>'
-    +'<th>Voucher</th><th>Agency</th><th>Customer (lead)</th>'
-    +'<th class="c ts-px">AD</th><th class="c ts-px">CHD</th><th class="c ts-px">INF</th><th class="c ts-px">FOC</th>'
-    +'<th class="c">Actual<br>/ Booked</th><th>Pickup point &middot; Room</th><th>Drop-off</th>'
-    +'<th>Add-on &middot; Upsell</th><th>Van &middot; Boat</th><th>Pay</th><th class="r">Total<br><span class="ts-thsub">จำนวน &times; Net</span></th>'
-    +'<th>Cancel &middot; Charge</th><th class="c">Status</th>'
-    +'</tr></thead><tbody>'
-    +(body||'<tr><td colspan="16" class="ts-empty">'+(_tsOnlyIssue?'ไม่มีเคสที่ต้องตัดสินในวันนี้':'ไม่มี booking ในวันนี้')+'</td></tr>')
-    +'</tbody></table></div></div>'
-    +'<div class="ts-sign">'
-    +'<div class="ts-sg"><i></i><b>ผู้จัดทำ · Operations</b><span>เจ้าหน้าที่ปฏิบัติการ</span></div>'
-    +'<div class="ts-sg"><i></i><b>ผู้ตรวจสอบ · Finance</b><span>เจ้าหน้าที่การเงิน / แคชเชียร์</span></div>'
-    +'<div class="ts-sg"><i></i><b>ผู้อนุมัติ · Management</b><span>ผู้จัดการฝ่ายปฏิบัติการ</span></div>'
-    +'</div>'
-    +'<div class="ts-foot"><span>LOVE ANDAMAN &middot; OPERATIONS</span>'
-      +'<span>'+e(date)+'</span></div>'
-  +'</div>';
+  var manifest=tsManifestHtml({ body, e, date });
 
   // ══ หัวเอกสาร ══
   var dNice=date; try{ dNice=new Date(date+'T12:00:00').toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); }catch(_){}
