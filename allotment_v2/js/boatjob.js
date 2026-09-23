@@ -1,4 +1,4 @@
-// 08j-boatjobs.js · Boat job sheet (ใบงานเรือ · pier crew / guides / programs per boat per day)
+// boatjob.js · Boat job sheet (ใบงานเรือ · pier crew / guides / programs per boat per day)
 // Moved verbatim out of 08-app.js by tools/split-08-app.mjs (function declarations only, original
 // order). Classic script: loads before 08-app.js, every function is still a global. See js/README.md.
 
@@ -2700,7 +2700,7 @@ window.pjOf = pjOf;
 window.pjPax = pjPax;
 window.pjStaffName = pjStaffName;
 window.pjDateWords = pjDateWords;
-// check-in, guide jobs (08e-checkin.js) · pier cash (08g-cash.js) · reports (08i-reports.js)
+// check-in, guide jobs (checkin.js) · pier cash (cash.js) · reports (reports.js)
 window.pjCrewOf = pjCrewOf;
 window.pjCrewLine = pjCrewLine;
 window.pjGuides = pjGuides;

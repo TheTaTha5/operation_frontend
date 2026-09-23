@@ -6,7 +6,7 @@
 //
 // Inline handlers call global functions by name from HTML strings, which is what keeps all ~3,000
 // functions global (see allotment_v2/js/README.md). Screens are converted one at a time to
-// laDelegate (data-on-* + an action table · first: the boat job sheet, js/08j-boatjobs.js). This
+// laDelegate (data-on-* + an action table · first: the boat job sheet, js/boatjob.js). This
 // check keeps new code from adding inline handlers back while that happens. When a file's count
 // drops, run --update so the lower number becomes the new ceiling.
 import fs from 'node:fs';

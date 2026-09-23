@@ -16,7 +16,7 @@
 //            arguments (elements → their position), defaultPrevented, whether the event reached
 //            document (stopPropagation), focus and text afterwards.
 //   render   the host's HTML with on*/data-on-*/data-a-* attributes stripped — the rest must match.
-//            --no-map skips this comparison: once a file is wrapped in its own scope (08j), calls
+//            --no-map skips this comparison: once a file is wrapped in its own scope (boatjob.js), calls
 //            between its private functions can no longer be stubbed from window.
 //   replay   un-stubbed: a long fixed sequence of real selects / clicks / key presses / blurs, walking
 //            the handler elements in order; after every step the screen's data, UI state and HTML.
@@ -31,7 +31,7 @@ const [cmd, dir, only] = process.argv.slice(2).filter(a => a !== '--no-map');
 if (!['record', 'compare'].includes(cmd) || !dir){ console.log('usage: record|compare <dir> [screen]'); process.exit(2); }
 
 const SCREENS = {
-  // ใบงานเรือ · boat job sheet (renderPierJob + js/08j-boatjobs.js)
+  // ใบงานเรือ · boat job sheet (renderPierJob + js/boatjob.js)
   'pierjob-panwa':   { view: 'poj-panwa',   host: '#pj-host-panwa',   prefix: 'pj', render: `_poDate='2026-10-15'; _pjF='all'; _pjHideIdle=0; renderPierJob('panwa')`,
                        state: `JSON.stringify({ PIER_JOB, d: _poDate, p: _poPier, f: _pjF, w: _pjW, idle: typeof _pjHideIdle !== 'undefined' ? _pjHideIdle : null })` },
   'pierjob-tublamu': { view: 'poj-tublamu', host: '#pj-host-tublamu', prefix: 'pj', render: `_poDate='2026-10-15'; _pjF='all'; _pjHideIdle=0; renderPierJob('tublamu')`,

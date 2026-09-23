@@ -14753,7 +14753,7 @@ function flProjDeleteVendorVisit(projId, vvId){
 
    ⚠ blob เก็บแค่ ref — {attId, url:'/api/attach/<id>', mime, size} ไม่เคยเก็บ base64
      เก็บ data: URL ลง docs[] = blob ของทั้งแอปบวมทุกครั้งที่ถ่ายรูป (ดู §fkIndex)
-   ⚠ รูปย่อก่อนส่งด้วย _bkV2DownscaleImage ซึ่งอยู่ 08a-booking.js (โหลดทีหลังไฟล์นี้)
+   ⚠ รูปย่อก่อนส่งด้วย _bkV2DownscaleImage ซึ่งอยู่ booking.js (โหลดทีหลังไฟล์นี้)
      เรียกตอนคลิกเท่านั้นจึงมีตัวจริงเสมอ · ยังใส่ fallback ไว้เผื่อ
    เพดาน 6MB เป็นของฝั่งเซิร์ฟเวอร์ · เช็กฝั่ง client ด้วยเพื่อไม่ให้เสียเที่ยว
    ═══════════════════════════════════════════════════════════════════════════ */

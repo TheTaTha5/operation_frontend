@@ -6903,7 +6903,7 @@ function bop2FleetStatus(dateStr){
     } else {
       /* §ovnHold · เรือที่ถูกเหมาไปค้างเกาะและยังไม่กลับ · วันระหว่างทางไม่มี trip
          ถ้าไม่กันตรงนี้ ลำนั้นขึ้นในรายการ "ว่าง" ให้จ่ายงานอื่นทับได้
-         ทั้งที่เรือยังจอดอยู่ที่เกาะ · ตัวช่วยอยู่ใน 08a-booking.js (grep §ovnHold) */
+         ทั้งที่เรือยังจอดอยู่ที่เกาะ · ตัวช่วยอยู่ใน booking.js (grep §ovnHold) */
       const _ovH = (typeof bkOvnHoldOn === 'function') ? bkOvnHoldOn(b.id, dateStr) : null;
       if(_ovH){
         out.unavailable.push({ boat:b, reason:'เหมาลำค้างเกาะ · กลับ ' + _ovH.to, ovnHold:_ovH });

@@ -39,37 +39,37 @@ bought load performance and editing ergonomics; it did not buy encapsulation. Re
 | 6 | `05-fleet.js` | `FLEET_VERSION`, `FL_DEFAULT_*`, `flLoad`/`flSave`, fleet UI | 13806–36255 |
 | 7 | `06-engine-assign.js` | engine assign / unassign / swap | 36291–38157 |
 | 8 | `07-charter.js` | charter modal | 39185–39227 |
-| 9 | `08a-booking.js` | Booking v2 · by-trip · seat locks · reconfirm · boat capacity (`bkV2`, `bk`, `ba`, `rc` …) | split from 08-app.js |
-| 10 | `08b-agents.js` | agents · sales team · add-on services (`ag`, `agp`, `tm`, `aos`) | split from 08-app.js |
-| 11 | `08c-rates.js` | Rate Types (`rt`, `rtm`) | split from 08-app.js |
-| 12 | `08d-contracts.js` | contracts · contract templates · costing & boat rent (`ct`, `ctt`) | split from 08-app.js |
-| 13 | `08e-checkin.js` | van + pier check-in · guide jobs · meals (`ck`, `pck`, `vck`, `go`, `mv`) | split from 08-app.js |
-| 14 | `08f-vans.js` | vans · van jobs · van bill · vehicles · pickup setup (`van`, `vj`, `vb`, `veh`, `psu`) | split from 08-app.js |
-| 15 | `08g-cash.js` | pier cash · petty cash (`pc`, `po`) | split from 08-app.js |
-| 16 | `08h-accounting.js` | accounting · daily PFM · travel summary (`acct`, `pfm`, `ts`) | split from 08-app.js |
-| 17 | `08i-reports.js` | reports · analysis · daily report · market data · pickup map · B2C dashboard | split from 08-app.js |
-| 18 | `08j-boatjobs.js` | boat job sheet · ใบงานเรือ (`pj`) · first screen converted to `laDelegate` | split from 08-app.js |
+| 9 | `booking.js` | Booking v2 · by-trip · seat locks · reconfirm · boat capacity (`bkV2`, `bk`, `ba`, `rc` …) | split from 08-app.js |
+| 10 | `agents.js` | agents · sales team · add-on services (`ag`, `agp`, `tm`, `aos`) | split from 08-app.js |
+| 11 | `rates.js` | Rate Types (`rt`, `rtm`) | split from 08-app.js |
+| 12 | `contracts.js` | contracts · contract templates · costing & boat rent (`ct`, `ctt`) | split from 08-app.js |
+| 13 | `checkin.js` | van + pier check-in · guide jobs · meals (`ck`, `pck`, `vck`, `go`, `mv`) | split from 08-app.js |
+| 14 | `vans.js` | vans · van jobs · van bill · vehicles · pickup setup (`van`, `vj`, `vb`, `veh`, `psu`) | split from 08-app.js |
+| 15 | `cash.js` | pier cash · petty cash (`pc`, `po`) | split from 08-app.js |
+| 16 | `accounting.js` | accounting · daily PFM · travel summary (`acct`, `pfm`, `ts`) | split from 08-app.js |
+| 17 | `reports.js` | reports · analysis · daily report · market data · pickup map · B2C dashboard | split from 08-app.js |
+| 18 | `boatjob.js` | boat job sheet · ใบงานเรือ (`pj`) · first screen converted to `laDelegate` | split from 08-app.js |
 | 19 | `08-app.js` | everything else: **all load-time code** (top-level `const`/`let`, IIFEs, listeners) + `render*` entry points and shared helpers | 39246–86154 |
 | 20 | `09-action-board.js` | Action Board (`abRender`) | — (post-split) |
 
 ### The 08-app.js domain split (2026-09-23)
 
-`08a`–`08j` hold **only function declarations**, moved verbatim by `tools/split-08-app.mjs` (prefix →
+The ten domain files (`booking.js` … `boatjob.js`, no number prefix) hold **only function declarations**, moved verbatim by `tools/split-08-app.mjs` (prefix →
 file map at the top of that script). Everything that runs at load time stayed in `08-app.js` in its
 original order — that is why the domain files load *before* it: every function its load-time code
 could reach via hoisting is already defined. Two rules follow:
 
-- **New load-time code goes in `08-app.js`**, never in a domain file. A top-level `const` in `08a`
-  that `08-app.js` reads is fine; a top-level statement in `08a` that calls something defined in
+- **New load-time code goes in `08-app.js`**, never in a domain file. A top-level `const` in a domain file
+  that `08-app.js` reads is fine; a top-level statement in a domain file that calls something defined in
   `08-app.js` or reads its `const`s throws at load.
 - **New functions go in the file of their prefix.** `node tools/verify-08-split.mjs static` proves
   the move against a git ref; `snapshot`/`compare` diff every global's source and every view's HTML
   in Chrome before vs. after.
 
-### Getting a screen off inline handlers (`laDelegate` · first done: `08j-boatjobs.js`)
+### Getting a screen off inline handlers (`laDelegate` · first done: `boatjob.js`)
 
 Inline `onclick="pjPick('b3','cap',this.value)"` is why every function has to stay global. A screen
-is converted like this — the boat job sheet (`renderPierJob` + `08j-boatjobs.js`) is the worked example:
+is converted like this — the boat job sheet (`renderPierJob` + `boatjob.js`) is the worked example:
 
 1. **Markup says what, not how:** `data-on-change="pick" data-a-bid="b3" data-a-slot="cap"`, built by a
    small helper (`pjOn(ev, action, args)`, which also HTML-escapes the values).
@@ -80,7 +80,7 @@ is converted like this — the boat job sheet (`renderPierJob` + `08j-boatjobs.j
    `stopPropagation`, sits on the host so document-level "click outside" listeners still get stopped,
    `blur` is heard as `focusout`. An empty `data-on-click=""` is a deliberate no-op.
 4. **Then the file can be closed:** once nothing calls its functions by name from HTML, wrap it in one
-   function scope and export only what other scripts use (`08j` exports 30 of 112 names; the list is at
+   function scope and export only what other scripts use (`boatjob.js` exports 30 of 112 names; the list is at
    the bottom of the file and is the complete public surface).
 
 Proving it (all three are in `tools/`): `handler-map.mjs record` before, `compare` after — every handler
@@ -89,7 +89,7 @@ element must call the same function with the same arguments and propagate the sa
 `render-golden.mjs` covers the neighbouring views. `check-inline-handlers.mjs` runs in CI and fails if
 any file gains an inline handler; after converting a screen, `--update` locks in the lower count.
 
-The numeric prefixes are the split order, **not** the load order — `10-embed.js` is deliberately the
+The `NN-` prefixes are the split order, **not** the load order (the domain files have no prefix at all; the `<script>` tags are the only load order) — `10-embed.js` is deliberately the
 first tag in `<head>`, ahead of `01-auth-sync.js`. It has to be: it sets `window.__laEmbed` before
 `01-auth-sync.js` schedules `_laRestoreView` (which would otherwise click the last-used view over the
 one the embed URL asked for), and it paints the chrome-hiding CSS before the first frame. Without

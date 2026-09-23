@@ -1,6 +1,6 @@
 // bkV2CommitBooking rebuilds a fresh booking object on edit, so every field the form does not rebuild
 // has to be copied across from the booking being edited — CLAUDE.md §3.4 / §6 warn that missing one
-// wipes it on every edit. Those fields now live in one list (BK_EDIT_CARRY, js/08a-booking.js); this
+// wipes it on every edit. Those fields now live in one list (BK_EDIT_CARRY, js/booking.js); this
 // pins the list and proves bkV2CarryOver behaves exactly like the inline ifs it replaced.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import * as acorn from 'acorn';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const src = fs.readFileSync(path.join(ROOT, 'allotment_v2/js/08a-booking.js'), 'utf8');
+const src = fs.readFileSync(path.join(ROOT, 'allotment_v2/js/booking.js'), 'utf8');
 const ast = acorn.parse(src, { ecmaVersion: 'latest' });
 const pick = n => ast.body.find(s =>
   (s.type === 'FunctionDeclaration' && s.id.name === n) ||

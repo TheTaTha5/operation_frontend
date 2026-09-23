@@ -1,4 +1,4 @@
-// 08h-accounting.js · Accounting · daily PFM · travel summary
+// accounting.js · Accounting · daily PFM · travel summary
 // Moved verbatim out of 08-app.js by tools/split-08-app.mjs (function declarations only, original
 // order). Classic script: loads before 08-app.js, every function is still a global. See js/README.md.
 

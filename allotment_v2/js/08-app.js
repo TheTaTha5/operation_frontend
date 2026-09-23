@@ -12048,7 +12048,7 @@ function renderPierJob(pier){
   if(pier) _poPier=pier;
   var P=PO_PIERS.filter(function(p){ return p.k===_poPier; })[0]||PO_PIERS[0];
   var host=document.getElementById('pj-host-'+P.k); if(!host) return;
-  laDelegate(host, PJ_ACTIONS);   /* §pjAct · this screen's handlers are data-on-* → PJ_ACTIONS (08j-boatjobs.js) */
+  laDelegate(host, PJ_ACTIONS);   /* §pjAct · this screen's handlers are data-on-* → PJ_ACTIONS (boatjob.js) */
   var all=pjAllBoats(_poDate,_poPier), ro=!poCanEdit();
   var cnt={all:all.length, go:0, ready:0, work:0, down:0, stale:0};
   var staleL=[];

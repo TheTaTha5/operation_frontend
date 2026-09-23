@@ -6,7 +6,7 @@
 //   node tools/verify-08-split.mjs compare <a.json> <b.json>
 //
 // static   · every top-level chunk of the original 08-app.js (git ref, default HEAD) appears exactly
-//            once across 08-app.js + 08?-*.js, and 08-app.js keeps all non-function statements in
+//            once across 08-app.js + the domain files, and 08-app.js keeps all non-function statements in
 //            their original order. Also checks allotment_v2.html loads each domain file exactly once,
 //            with a plain <script src> (no defer/async/module), after 07-charter.js and before 08-app.js.
 // snapshot · for every top-level name in the app's scripts: typeof + a hash of fn.toString() (or of
