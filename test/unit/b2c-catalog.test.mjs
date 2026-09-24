@@ -26,8 +26,8 @@ import { createRequire } from 'node:module';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const require_ = createRequire(import.meta.url);
 const cat = require_(path.join(ROOT, 'b2c-catalog.js'));
-const osRepo = require_(path.join(ROOT, 'os-backend/src/mapping/os_repo.js'));
-const osModel = require_(path.join(ROOT, 'os-backend/src/mapping/operation_schemas_model.json'));
+const osRepo = require_(path.join(ROOT, 'data-model/os_repo.js'));
+const osModel = require_(path.join(ROOT, 'data-model/index.js')).schemaModel;
 
 const base = (over = {}) => Object.assign({
   externalId: 'POW-008', name: 'Phi Phi Bamboo by Big Boat', pier: 'panwa', familyId: 'phiphi',
@@ -159,7 +159,7 @@ test('FAMILIES matches _BKV2_FAMILIES in the client', () => {
     'b2c-catalog.js FAMILIES has drifted from js/08-app.js _BKV2_FAMILIES — a family in one list and not the other means B2C can create a route the Booking calendar will not draw');
 });
 
-test('every column field_mapping.json writes exists in operation_schemas_model.json', () => {
+test('every column os_repo writes exists in the data-model schema', () => {
   // The direction server.js does NOT check. _restInsertRows builds its INSERT column list from the
   // model alone, so a mapped-but-unmodelled column is silently discarded on every write — how
   // routes.familyid and routes.dailycap shipped dead on 2026-09-10.

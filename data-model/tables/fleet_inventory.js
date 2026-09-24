@@ -1,0 +1,72 @@
+'use strict';
+
+// fleet_inventory and its child tables. Column format: data-model/README.md
+module.exports = [
+  {
+    table: "fleet_inventory",
+    primaryKey: "id",
+    foreignKeys: [],
+    columns: [
+      { name: "id", type: "text", kind: "pk", source: "fleet_inventory[].id (record id; generated if absent)" },
+      { name: "name", type: "text", kind: "scalar", source: "name" },
+      { name: "partno", type: "text", kind: "scalar", source: "partNo" },
+      { name: "category", type: "text", kind: "scalar", source: "category" },
+      { name: "supplier", type: "text", kind: "scalar", source: "supplier" },
+      { name: "location", type: "text", kind: "scalar", source: "location" },
+      { name: "unit", type: "text", kind: "scalar", source: "unit" },
+      { name: "qty", type: "bigint", kind: "scalar", source: "qty" },
+      { name: "minqty", type: "bigint", kind: "scalar", source: "minQty" },
+      { name: "cost", type: "double precision", kind: "scalar", source: "cost" },
+      { name: "note", type: "text", kind: "scalar", source: "note" },
+      { name: "totalqty", type: "bigint", kind: "scalar", source: "totalQty" },
+      { name: "primarylocation", type: "text", kind: "scalar", source: "primaryLocation" },
+      { name: "createddate", type: "text", kind: "scalar", source: "createdDate" },
+      { name: "createdfrom", type: "text", kind: "scalar", source: "createdFrom" },
+    ],
+  },
+  {
+    table: "fleet_inventory__history",
+    primaryKey: "row_pk",
+    foreignKeys: [{ column: "fleet_inventory_id", references: "fleet_inventory.id" }],
+    columns: [
+      { name: "fleet_inventory_id", type: "text", kind: "fk", source: "(link) fleet_inventory.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in history[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "date", type: "text", kind: "scalar", source: "history[].date" },
+      { name: "type", type: "text", kind: "scalar", source: "history[].type" },
+      { name: "qty", type: "bigint", kind: "scalar", source: "history[].qty" },
+      { name: "note", type: "text", kind: "scalar", source: "history[].note" },
+      { name: "by", type: "text", kind: "scalar", source: "history[].by" },
+      { name: "location", type: "text", kind: "scalar", source: "history[].location" },
+      { name: "jobid", type: "text", kind: "scalar", source: "history[].jobId" },
+      { name: "consumeid", type: "text", kind: "scalar", source: "history[].consumeId" },
+      { name: "desc", type: "text", kind: "scalar", source: "history[].desc" },
+    ],
+  },
+  {
+    table: "fleet_inventory__stocks",
+    primaryKey: "row_pk",
+    foreignKeys: [{ column: "fleet_inventory_id", references: "fleet_inventory.id" }],
+    columns: [
+      { name: "fleet_inventory_id", type: "text", kind: "fk", source: "(link) fleet_inventory.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in stocks[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "location", type: "text", kind: "scalar", source: "stocks[].location" },
+      { name: "qty", type: "bigint", kind: "scalar", source: "stocks[].qty" },
+      { name: "minqty", type: "bigint", kind: "scalar", source: "stocks[].minQty" },
+    ],
+  },
+  {
+    table: "fleet_inventory__history__changes",
+    primaryKey: "row_pk",
+    foreignKeys: [],
+    columns: [
+      { name: "fleet_inventory_history_id", type: "text", kind: "fk", source: "(link) fleet_inventory__history.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in history[].changes[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "field", type: "text", kind: "scalar", source: "history[].changes[].field" },
+      { name: "from", type: "text", kind: "scalar", source: "history[].changes[].from" },
+      { name: "to", type: "text", kind: "scalar", source: "history[].changes[].to" },
+    ],
+  },
+];

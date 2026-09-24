@@ -1,0 +1,72 @@
+'use strict';
+
+// fleet_incidents and its child tables. Column format: data-model/README.md
+module.exports = [
+  {
+    table: "fleet_incidents",
+    primaryKey: "id",
+    foreignKeys: [],
+    columns: [
+      { name: "id", type: "text", kind: "pk", source: "fleet_incidents[].id (record id; generated if absent)" },
+      { name: "no", type: "text", kind: "scalar", source: "no" },
+      { name: "boatid", type: "text", kind: "scalar", source: "boatId" },
+      { name: "date", type: "text", kind: "scalar", source: "date" },
+      { name: "time", type: "text", kind: "scalar", source: "time" },
+      { name: "title", type: "text", kind: "scalar", source: "title" },
+      { name: "detail", type: "text", kind: "scalar", source: "detail" },
+      { name: "remark", type: "text", kind: "scalar", source: "remark" },
+      { name: "priority", type: "bigint", kind: "scalar", source: "priority" },
+      { name: "severity", type: "text", kind: "scalar", source: "severity" },
+      { name: "type", type: "text", kind: "scalar", source: "type" },
+      { name: "status", type: "text", kind: "scalar", source: "status" },
+      { name: "maintid", type: "text", kind: "scalar", source: "maintId" },
+      { name: "closeddate", type: "text", kind: "scalar", source: "closedDate" },
+      { name: "quickfix", type: "boolean", kind: "scalar", source: "quickFix" },
+      { name: "resolveddate", type: "text", kind: "scalar", source: "resolvedDate" },
+    ],
+  },
+  {
+    table: "fleet_incidents__damagedassets",
+    primaryKey: "row_pk",
+    foreignKeys: [{ column: "fleet_incidents_id", references: "fleet_incidents.id" }],
+    columns: [
+      { name: "fleet_incidents_id", type: "text", kind: "fk", source: "(link) fleet_incidents.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in damagedAssets[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "type", type: "text", kind: "scalar", source: "damagedAssets[].type" },
+      { name: "id", type: "text", kind: "scalar", source: "damagedAssets[].id" },
+      { name: "label", type: "text", kind: "scalar", source: "damagedAssets[].label" },
+      { name: "swapped", type: "boolean", kind: "scalar", source: "damagedAssets[].swapped" },
+      { name: "swappedto", type: "text", kind: "scalar", source: "damagedAssets[].swappedTo" },
+      { name: "swappeddate", type: "text", kind: "scalar", source: "damagedAssets[].swappedDate" },
+      { name: "engid", type: "text", kind: "scalar", source: "damagedAssets[].engId" },
+      { name: "gbid", type: "text", kind: "scalar", source: "damagedAssets[].gbId" },
+      { name: "propid", type: "text", kind: "scalar", source: "damagedAssets[].propId" },
+    ],
+  },
+  {
+    table: "fleet_incidents__progresslog",
+    primaryKey: "row_pk",
+    foreignKeys: [{ column: "fleet_incidents_id", references: "fleet_incidents.id" }],
+    columns: [
+      { name: "fleet_incidents_id", type: "text", kind: "fk", source: "(link) fleet_incidents.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in progressLog[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "date", type: "text", kind: "scalar", source: "progressLog[].date" },
+      { name: "text", type: "text", kind: "scalar", source: "progressLog[].text" },
+      { name: "by", type: "text", kind: "scalar", source: "progressLog[].by" },
+      { name: "createdat", type: "text", kind: "scalar", source: "progressLog[].createdAt" },
+    ],
+  },
+  {
+    table: "fleet_incidents__relatedmaintids",
+    primaryKey: "row_pk",
+    foreignKeys: [{ column: "fleet_incidents_id", references: "fleet_incidents.id" }],
+    columns: [
+      { name: "fleet_incidents_id", type: "text", kind: "fk", source: "(link) fleet_incidents.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in relatedMaintIds[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "value", type: "text", kind: "array_scalar", source: "relatedMaintIds[] (element)" },
+    ],
+  },
+];

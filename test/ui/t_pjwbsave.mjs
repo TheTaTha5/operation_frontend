@@ -41,7 +41,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let RES = null;
 try {
   const req = createRequire(import.meta.url);
-  const osRepo = req(path.join(REPO, 'os-backend/src/mapping/os_repo.js'));
+  const osRepo = req(path.join(REPO, 'data-model/os_repo.js'));
   const plan = osRepo._plan || {};
   RES = {};
   for (const [t, pl] of Object.entries(plan))

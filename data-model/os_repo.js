@@ -1,10 +1,10 @@
 // os_repo.js — reversible blob <-> operation_schemas mapping engine.
-// Pure functions, DB-independent. Driven entirely by field_mapping.json.
+// Pure functions, DB-independent. Driven entirely by the data model (./index.js fieldMapping).
 //
 //   decomposeBlob(blob)      -> { [table]: rows[] }   (app_state JSON  -> relational rows)
 //   assembleBlob(tablesData) -> blob                  (relational rows -> app_state JSON)
 //
-// Reverse-transform rules implemented (see field_mapping_README.md):
+// Reverse-transform rules implemented:
 //   1. rename/case      : real key comes from `source` (camelCase), not the lowercased column.
 //   2. nested un-flatten: dotted source paths (e.g. companyInfo.legalName, trips[].pax.ad_fr) re-nest.
 //   3. arrays -> child tables (parent__field): one row/element, order via idx, link via <parent>_id.
@@ -13,7 +13,7 @@
 // Synthetic columns (idx, row_pk, <parent>_id) are generated here and dropped when rebuilding the blob.
 
 'use strict';
-const MAP = require('./field_mapping.json'); // { table: { col: { source, kind, db_type } } }
+const MAP = require('./index.js').fieldMapping; // { table: { col: { source, kind, db_type } } }, built from ./tables
 
 // ---------- small path helpers ----------
 function arraySegs(src) {                 // ["repairHistory","assets"] for "repairHistory[].assets[] ..."

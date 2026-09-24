@@ -7,8 +7,8 @@
 // guard: it spawns the real `server.js` against a scratch Postgres, logs in, and inspects
 // `/api/version` for the two other silent-data-loss classes documented in
 // allotment_v2/docs/workflows/07-data-persistence-api.md §10 (invariants 5, 7, 18):
-//   - map.tables / map.columns  — a table/column in operation_schemas_model.json that
-//     field_mapping.json does not know how to read/write (data saves, vanishes on refresh).
+//   - map.tables / map.columns  — a table/column in data-model/tables that os_repo
+//     does not know how to read/write (data saves, vanishes on refresh).
 //   - db.missing / db.extraInDb — a column the model expects that the real table doesn't have
 //     (one missing column aborts the whole batched INSERT; the transaction rolls back silently).
 //   - mig.failed / mig.pending  — a migration that did not apply cleanly, or hasn't run yet.

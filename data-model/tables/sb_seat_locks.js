@@ -1,0 +1,51 @@
+'use strict';
+
+// sb_seat_locks and its child tables. Column format: data-model/README.md
+module.exports = [
+  {
+    table: "sb_seat_locks",
+    primaryKey: "id",
+    foreignKeys: [],
+    columns: [
+      { name: "id", type: "text", kind: "pk", source: "sb_seat_locks[].id (record id; generated if absent)" },
+      { name: "routeid", type: "text", kind: "scalar", source: "routeId" },
+      { name: "date", type: "text", kind: "scalar", source: "date" },
+      { name: "boatid", type: "text", kind: "scalar", source: "boatId" },
+      { name: "holdertype", type: "text", kind: "scalar", source: "holderType" },
+      { name: "holderid", type: "text", kind: "scalar", source: "holderId" },
+      { name: "qty", type: "bigint", kind: "scalar", source: "qty" },
+      { name: "used", type: "bigint", kind: "scalar", source: "used" },
+      { name: "reason", type: "text", kind: "scalar", source: "reason" },
+      { name: "expiry", type: "text", kind: "scalar", source: "expiry" },
+      { name: "status", type: "text", kind: "scalar", source: "status" },
+      { name: "createdat", type: "text", kind: "scalar", source: "createdAt" },
+      { name: "createdby", type: "text", kind: "scalar", source: "createdBy" },
+      { name: "scope", type: "text", kind: "scalar", source: "scope" },
+      { name: "month", type: "text", kind: "scalar", source: "month" },
+      { name: "monthfrom", type: "text", kind: "scalar", source: "monthFrom" },
+      { name: "monthto", type: "text", kind: "scalar", source: "monthTo" },
+      { name: "parentid", type: "text", kind: "scalar", source: "parentId" },
+      { name: "subname", type: "text", kind: "scalar", source: "subName" },
+      { name: "releasedaysbefore", type: "bigint", kind: "scalar", source: "releaseDaysBefore" },
+      { name: "releasetime", type: "text", kind: "scalar", source: "releaseTime" },
+    ],
+  },
+  {
+    table: "sb_seat_locks__log",
+    primaryKey: "row_pk",
+    foreignKeys: [{ column: "sb_seat_locks_id", references: "sb_seat_locks.id" }],
+    columns: [
+      { name: "sb_seat_locks_id", type: "text", kind: "fk", source: "(link) sb_seat_locks.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in log[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "date", type: "text", kind: "scalar", source: "log[].date" },
+      { name: "type", type: "text", kind: "scalar", source: "log[].type" },
+      { name: "qty", type: "bigint", kind: "scalar", source: "log[].qty" },
+      { name: "at", type: "text", kind: "scalar", source: "sb_seat_locks[].log[].at" },
+      { name: "by", type: "text", kind: "scalar", source: "sb_seat_locks[].log[].by" },
+      { name: "bookingid", type: "text", kind: "scalar", source: "sb_seat_locks[].log[].bookingId" },
+      { name: "sub", type: "boolean", kind: "scalar", source: "sb_seat_locks[].log[].sub" },
+      { name: "note", type: "text", kind: "scalar", source: "sb_seat_locks[].log[].note" },
+    ],
+  },
+];

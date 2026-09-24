@@ -2,7 +2,7 @@
 //
 // Shape verified against:
 //   - CLAUDE.md §3.4 (Booking / SB_BOOKINGS field reference)
-//   - os-backend/src/mapping/field_mapping.json  (sb_bookings, sb_bookings__trips,
+//   - data-model/tables/sb_bookings.js  (sb_bookings, sb_bookings__trips,
 //     sb_bookings__passengers, sb_bookings__history — the actual decomposeBlob/assembleBlob
 //     source-field names the relational write path reads)
 //

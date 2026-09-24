@@ -1,0 +1,52 @@
+'use strict';
+
+// fleet_propellers and its child tables. Column format: data-model/README.md
+module.exports = [
+  {
+    table: "fleet_propellers",
+    primaryKey: "id",
+    foreignKeys: [],
+    columns: [
+      { name: "id", type: "text", kind: "pk", source: "fleet_propellers[].id (record id; generated if absent)" },
+      { name: "boatid", type: "text", kind: "scalar", source: "boatId" },
+      { name: "gearboxid", type: "text", kind: "scalar", source: "gearboxId" },
+      { name: "brand", type: "text", kind: "scalar", source: "brand" },
+      { name: "serial", type: "text", kind: "scalar", source: "serial" },
+      { name: "diameter", type: "double precision", kind: "scalar", source: "diameter" },
+      { name: "pitch", type: "double precision", kind: "scalar", source: "pitch" },
+      { name: "size", type: "text", kind: "scalar", source: "size" },
+      { name: "blades", type: "text", kind: "scalar", source: "blades" },
+      { name: "material", type: "text", kind: "scalar", source: "material" },
+      { name: "rotation", type: "text", kind: "scalar", source: "rotation" },
+      { name: "hubsize", type: "text", kind: "scalar", source: "hubSize" },
+      { name: "cupping", type: "text", kind: "scalar", source: "cupping" },
+      { name: "cost", type: "bigint", kind: "scalar", source: "cost" },
+      { name: "status", type: "text", kind: "scalar", source: "status" },
+      { name: "buydate", type: "text", kind: "scalar", source: "buyDate" },
+      { name: "note", type: "text", kind: "scalar", source: "note" },
+      { name: "sparelocation", type: "text", kind: "scalar", source: "spareLocation" },
+      { name: "oldserial", type: "text", kind: "scalar", source: "oldSerial" },
+      { name: "proppos", type: "text", kind: "scalar", source: "propPos" },
+      { name: "engineid", type: "text", kind: "scalar", source: "engineId" },
+    ],
+  },
+  {
+    table: "fleet_propellers__log",
+    primaryKey: "row_pk",
+    foreignKeys: [{ column: "fleet_propellers_id", references: "fleet_propellers.id" }],
+    columns: [
+      { name: "fleet_propellers_id", type: "text", kind: "fk", source: "(link) fleet_propellers.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in log[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "date", type: "text", kind: "scalar", source: "log[].date" },
+      { name: "type", type: "text", kind: "scalar", source: "log[].type" },
+      { name: "desc", type: "text", kind: "scalar", source: "log[].desc" },
+      { name: "enginehours", type: "bigint", kind: "scalar", source: "log[].engineHours" },
+      { name: "fromloc", type: "text", kind: "scalar", source: "log[].fromLoc" },
+      { name: "toloc", type: "text", kind: "scalar", source: "log[].toLoc" },
+      { name: "incidentid", type: "text", kind: "scalar", source: "log[].incidentId" },
+      { name: "detail", type: "text", kind: "scalar", source: "log[].detail" },
+      { name: "outcome", type: "text", kind: "scalar", source: "log[].outcome" },
+    ],
+  },
+];

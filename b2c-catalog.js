@@ -258,7 +258,7 @@ function normalizePricing(pricing, pier, kind) {
     if (!PERSISTABLE_ZONES.has(z)) {
       return { error: 'zone "' + z + '" cannot be stored: operation_schemas.sb_rate_types__seatrates has no ' +
                       z.toLowerCase() + '_* columns, so the price would be silently dropped. Price this route under NoTransfer, ' +
-                      'or add the columns (migration + field_mapping.json) first.' };
+                      'or add the columns (migration + data-model/tables) first.' };
     }
     const rowIn = zonesIn[z] || {};
     if (typeof rowIn !== 'object' || Array.isArray(rowIn)) return { error: 'pricing.zones.' + z + ' must be an object keyed by pax type' };

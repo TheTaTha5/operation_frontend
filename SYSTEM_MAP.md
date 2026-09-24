@@ -18,6 +18,8 @@
 
 All state persists in **one** localStorage key: `loveandaman_v2` (read-modify-write; never clobber). Seed constants (`DEFAULT_*` / `SB_*` / `FL_*`) populate it on first load; after that localStorage is the source of truth.
 
+On the server that blob maps to Postgres schema `operation_schemas` through **`data-model/`**: one file per entity in `data-model/tables/` (table, child tables, and the blob path of every column), read by the engine `data-model/os_repo.js`. The Vue app's TypeScript types (`apps/web/src/models/generated.ts`) are generated from the same files. See `data-model/README.md`.
+
 ---
 
 ## 1. Module groups (as shown in the app sidebar)

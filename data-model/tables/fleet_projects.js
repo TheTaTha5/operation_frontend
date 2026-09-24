@@ -1,0 +1,63 @@
+'use strict';
+
+// fleet_projects and its child tables. Column format: data-model/README.md
+module.exports = [
+  {
+    table: "fleet_projects",
+    primaryKey: "id",
+    foreignKeys: [],
+    columns: [
+      { name: "id", type: "text", kind: "pk", source: "fleet_projects[].id (record id; generated if absent)" },
+      { name: "no", type: "text", kind: "scalar", source: "no" },
+      { name: "name", type: "text", kind: "scalar", source: "name" },
+      { name: "boatid", type: "text", kind: "scalar", source: "boatId" },
+      { name: "type", type: "text", kind: "scalar", source: "type" },
+      { name: "vendor", type: "text", kind: "scalar", source: "vendor" },
+      { name: "planfrom", type: "text", kind: "scalar", source: "planFrom" },
+      { name: "planto", type: "text", kind: "scalar", source: "planTo" },
+      { name: "actualfrom", type: "text", kind: "scalar", source: "actualFrom" },
+      { name: "actualto", type: "text", kind: "scalar", source: "actualTo" },
+      { name: "status", type: "text", kind: "scalar", source: "status" },
+      { name: "plannedbudget", type: "bigint", kind: "scalar", source: "plannedBudget" },
+      { name: "notes", type: "text", kind: "scalar", source: "notes" },
+      { name: "createdat", type: "text", kind: "scalar", source: "createdAt" },
+      { name: "createdby", type: "text", kind: "scalar", source: "createdBy" },
+      { name: "originalplanto", type: "text", kind: "scalar", source: "originalPlanTo" },
+      { name: "docs", type: "text", kind: "json_text", source: "docs" },
+      { name: "vendorvisits", type: "text", kind: "json_text", source: "vendorVisits" },
+      { name: "phase", type: "text", kind: "scalar", source: "phase" },
+      { name: "holdreason", type: "text", kind: "scalar", source: "holdReason" },
+      { name: "holdsince", type: "text", kind: "scalar", source: "holdSince" },
+      { name: "cancelreason", type: "text", kind: "scalar", source: "cancelReason" },
+      { name: "cancelledon", type: "text", kind: "scalar", source: "cancelledOn" },
+    ],
+  },
+  {
+    table: "fleet_projects__log",
+    primaryKey: "row_pk",
+    foreignKeys: [{ column: "fleet_projects_id", references: "fleet_projects.id" }],
+    columns: [
+      { name: "fleet_projects_id", type: "text", kind: "fk", source: "(link) fleet_projects.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in log[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "date", type: "text", kind: "scalar", source: "log[].date" },
+      { name: "text", type: "text", kind: "scalar", source: "log[].text" },
+      { name: "by", type: "text", kind: "scalar", source: "log[].by" },
+    ],
+  },
+  {
+    table: "fleet_projects__plan",
+    primaryKey: "row_pk",
+    foreignKeys: [{ column: "fleet_projects_id", references: "fleet_projects.id" }],
+    columns: [
+      { name: "fleet_projects_id", type: "text", kind: "fk", source: "(link) fleet_projects.id" },
+      { name: "idx", type: "bigint", kind: "synthetic", source: "(order) position in plan[]" },
+      { name: "row_pk", type: "text", kind: "synthetic-pk", source: "(generated child key)" },
+      { name: "id", type: "text", kind: "scalar", source: "plan[].id" },
+      { name: "text", type: "text", kind: "scalar", source: "plan[].text" },
+      { name: "done", type: "boolean", kind: "scalar", source: "plan[].done" },
+      { name: "addedat", type: "text", kind: "scalar", source: "plan[].addedAt" },
+      { name: "donedate", type: "text", kind: "scalar", source: "plan[].doneDate" },
+    ],
+  },
+];

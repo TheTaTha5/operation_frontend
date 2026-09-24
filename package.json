@@ -13,6 +13,7 @@
     "db:reset": "node tools/dev-db.mjs reset",
     "db:down": "node tools/dev-db.mjs down",
     "db:psql": "node tools/dev-db.mjs psql",
+    "gen:models": "node tools/gen-model-types.mjs",
     "test:smoke": "node test/ui/t_smoke.mjs",
     "test:mobile": "node test/ui/t_mobile.mjs",
     "test:ui": "node test/ui/t_smoke.mjs && node test/ui/t_mobile.mjs",

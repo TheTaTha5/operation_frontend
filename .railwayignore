@@ -1,9 +1,6 @@
 # server.js runtime only — skip everything it doesn't serve
-# (os-backend kept: server.js requires its os_repo mapping engine in relational mode)
+# (data-model/ is NOT listed: server.js requires it at boot)
 db/
-os-backend/node_modules/
-os-backend/test/
-os-backend/scripts/
 database_migration/
 BACKUP/
 data_exports/
@@ -16,4 +13,3 @@ MOCKUP_*.html
 departure_*.html
 *.xlsx
 
-os-backend/data_snapshots/

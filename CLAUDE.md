@@ -18,7 +18,7 @@ Staff web app for LOVE Andaman (Phuket marine tours: Similan, Surin, Phi Phi, Ph
 - `js/10-embed.js` must stay the **first** script in `<head>`. It powers `/embed/*` iframes, which are read-only UX, not a permission boundary. Details are in the comments at `EMBED_ORIGINS` / `EMBED_TOKEN_SECRET` in `server.js`.
 - Off by default: `api-proxy.js` (forwards `API_PROXY_ROUTES` to another backend) and `auth/oidc.js` (Authentik SSO, active only when `AUTH_OIDC_*` is set).
 - `apps/web/` — the new frontend: **Vue 3 + Vite + TypeScript** (Vue Router, Pinia), served under `/app/`, replacing `allotment_v2` page by page. Unmoved pages open via `allotment_v2.html?view=<data-view>` (`_laRestoreView`); both share the `sess` cookie. See `apps/web/README.md`.
-- `os-backend/src/mapping/` (`field_mapping.json`, `os_repo.js`) is **live** — `server.js` requires it.
+- `data-model/` is **live** — `server.js` requires it at boot. `tables/<entity>.js` describes every persisted table and column and where it sits in the blob; `os_repo.js` converts blob ↔ rows from it. It replaced `os-backend/`'s two JSON files. `npm run gen:models` regenerates the Vue types in `apps/web/src/models/generated.ts`. See `data-model/README.md`.
 
 ## Working in the code
 
@@ -37,7 +37,7 @@ Staff web app for LOVE Andaman (Phuket marine tours: Similan, Surin, Phi Phi, Ph
 
 - The client keeps a working copy in localStorage `loveandaman_v2` (`LS_KEY`), seeded from `DEFAULT_*` / `FL_DEFAULT_*` in `04-data-core.js` / `05-fleet.js`, and syncs to Postgres via `/api/save` and `/api/v1/_batch`. The blob is shared by `save()` and `flSave()`, so **always read-modify-write it**; never clobber other keys.
 - Load persisted lists with `Array.isArray(x)` so a deliberately emptied list stays empty. A key that is persisted but never loaded silently vanishes on refresh.
-- A new persisted field needs its persist helper, both client load paths, a `field_mapping.json` entry, and a migration. **Ship the mapping and the migration in the same push** — a mapping without its migration takes `/api/load` down.
+- A new persisted field needs its persist helper, both client load paths, a column in `data-model/tables/<entity>.js`, a migration, and `npm run gen:models`. **Ship the model column and the migration in the same push** — a model column without its migration takes `/api/load` down.
 - Migrations: `db/migrations/*.sql` (019+; 001–018 are folded into `db/baseline/`) apply automatically at boot. Never delete a migration that has not shipped.
 - Appending to an `FL_DEFAULT_*` list doesn't reach already-seeded data. Add an idempotent merge in `flLoad` that pushes only the missing ids.
 - Structural fleet changes: bump `FLEET_VERSION` (currently `fleet_v34`) and add a migration in `flLoad`.

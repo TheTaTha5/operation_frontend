@@ -30,12 +30,12 @@ const OS_SCHEMA = 'operation_schemas';
 // deploying this); blob mode keeps the legacy unqualified `users` (resolves via the role's search_path,
 // e.g. allotment.users on prod). app_state + attachments stay unqualified in both modes.
 const USERS_T = DATA_BACKEND === 'relational' ? OS_SCHEMA + '.users' : 'users';
-// os_repo mapping engine + schema model — used by the relational save path AND the per-entity REST API.
-const osRepo  = require('./os-backend/src/mapping/os_repo.js');
+// os_repo mapping engine + schema model (both built from data-model/tables) — used by the relational save path AND the per-entity REST API.
+const osRepo  = require('./data-model/os_repo.js');
 const apiProxy= require('./api-proxy.js');   // backend switch · inert unless API_PROXY_URL is set
 const oidc    = require('./auth/oidc.js');   // Authentik SSO · inert unless AUTH_OIDC_* is configured
 const b2cCat  = require('./b2c-catalog.js'); // B2C → ops programme catalog · inert unless B2C_API_KEY is set
-const osModel = require('./os-backend/src/mapping/operation_schemas_model.json');
+const osModel = require('./data-model/index.js').schemaModel;
 const OS_TABLES = Object.keys(osModel);
 const OS_COLS = {};
 for (const t of OS_TABLES) OS_COLS[t] = osModel[t].columns.map(c => c.name);
@@ -52,6 +52,8 @@ for (const t of OS_TABLES){ OS_COLTYPE[t] = {}; for (const c of osModel[t].colum
 //   สิ่งที่ผู้ใช้เห็นคือ กรอกได้ ไม่มี error ไม่มีเตือน แล้วรีเฟรชทีข้อมูลหายทุกครั้ง
 //   (เจอจริง 14 ส.ค. 2026 · pier_sect + pier_staff.sect/note + routes.code เข้า model แต่ไม่เข้า field_mapping)
 //   เช็คตอนบูตครั้งเดียว · warn ที่ log และรายงานที่ /api/version ให้เห็นโดยไม่ต้องเดา
+//   Since 2026-09 both files are built from one source (data-model/tables), so a table can no longer be
+//   in one and not the other. What is left to catch: a column whose kind/source os_repo cannot use.
 const MAP_DRIFT = (() => {
   const plan = osRepo._plan || {};
   const tables = [], columns = [];
@@ -65,12 +67,12 @@ const MAP_DRIFT = (() => {
     for (const c of OS_COLS[t]) if (!known.has(c)) columns.push(t + '.' + c);
   }
   if (tables.length || columns.length)
-    console.warn('[map] operation_schemas_model.json has table(s)/column(s) that field_mapping.json does not map. '
+    console.warn('[map] data-model has table(s)/column(s) that os_repo does not map. '
       + 'They are DELETEd on every save, never written back, and never returned on load — the data looks saved '
       + 'and disappears on refresh, with no error. tables: ' + (tables.join(', ') || '-')
       + ' | columns: ' + (columns.join(', ') || '-')
-      + ' — add them to os-backend/src/mapping/field_mapping.json');
-  else console.log('[map] field_mapping.json covers every table and column in operation_schemas_model.json');
+      + ' — give them a kind/source os_repo understands in data-model/tables/<entity>.js');
+  else console.log('[map] os_repo maps every table and column in data-model');
   return { tables, columns };
 })();
 function mapDriftSummary(){
@@ -106,7 +108,7 @@ async function dbDriftCheck(){
         + 'the user sees their edit vanish on refresh with no error. missing: ' + missing.slice(0,40).join(', ')
         + (missing.length>40?(' … +'+(missing.length-40)+' more'):'')
         + ' — add a migration under db/migrations/ with ADD COLUMN IF NOT EXISTS');
-    else console.log('[db] every column in operation_schemas_model.json exists in the database');
+    else console.log('[db] every column in data-model exists in the database');
   }catch(e){ console.error('[db] drift check failed (boot continues):', e.message); }
   return DB_DRIFT;
 }
@@ -3076,7 +3078,7 @@ const server = http.createServer((req, res) => {
         // whole-blob rewrite path was used — seed, old client, or MAPPING DRIFT (a key /api/v1 doesn't know).
         try{ const d=payload.diff||{}; console.warn('[save] LEGACY whole-blob path · user='+s.username
           +(payload.full?' · FULL seed':' · diff sets=['+Object.keys(d.sets||{}).join(',')+'] cols=['+Object.keys(d.cols||{}).join(',')+'] objs=['+Object.keys(d.objs||{}).join(',')+']')
-          +' — run os-backend/scripts/check_mapping_drift.js if this repeats'); }catch(e){}
+          +' — check data-model/tables against the client keys if this repeats'); }catch(e){}
         relApplyAndSave(payload, s.username, base)
           .then(({version,behind})=>{ J(res,200,{ok:true,version,behind}); sseBroadcast({version, updated_by:s.username}); })
           .catch(e=> e.code==='SHRINK_GUARD'

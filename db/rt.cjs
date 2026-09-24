@@ -2,8 +2,8 @@
 // PASS = every table's row count is reproduced AND there is no real (order-insensitive) value diff.
 // Run: node rt.cjs   (reads operation_schemas via the public proxy; read-only)
 const { Client } = require('pg');
-const { assembleBlob, decomposeBlob } = require('../os-backend/src/mapping/os_repo.js');
-const model = require('../os-backend/src/mapping/operation_schemas_model.json');
+const { assembleBlob, decomposeBlob } = require('../data-model/os_repo.js');
+const model = require('../data-model/index.js').schemaModel;
 const TABLES = Object.keys(model);
 const url = process.env.DATABASE_URL || 'postgresql://postgres:vNGfOmzJOtsENizLaYdrIJHWFsRroCeD@reseau.proxy.rlwy.net:15797/railway';
 

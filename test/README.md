@@ -15,7 +15,7 @@ node --test
 
 - `test/fixtures/booking.mjs` — pure, DOM-free builder for a valid `SB_BOOKINGS` record
   (`buildBooking()`, `buildTrip()`, `buildPassenger()`). Field names verified against
-  `os-backend/src/mapping/field_mapping.json`, the actual source the relational write path reads.
+  `data-model/tables/`, the actual source the relational write path reads.
 - `test/unit/booking-fixture.test.mjs` — validates the fixture's own shape. Always runs, no DB.
 - `test/helpers/db.mjs` — thin `pg` wrapper: pool from `DATABASE_URL`, `hasBookingSchema()`
   precondition check, `fetchBookingRow()` / `deleteBooking()` for the e2e test.
