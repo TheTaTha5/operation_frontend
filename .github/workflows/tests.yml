@@ -54,7 +54,6 @@ jobs:
           --health-retries=10
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/love_andaman_test
-      DATA_BACKEND: relational
       SESSION_SECRET: ci-test-secret-not-for-prod
       PORT: 8790
     steps:

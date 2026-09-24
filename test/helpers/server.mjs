@@ -1,5 +1,5 @@
 // Boots the real server.js (the actual write path — not a mock) as a child process against
-// whatever DATABASE_URL/DATA_BACKEND the caller sets, and gives back a small HTTP client bound to
+// whatever DATABASE_URL the caller sets, and gives back a small HTTP client bound to
 // a session cookie once logged in. Uses Node's built-in `fetch` (stable since Node 18) — no test
 // HTTP client dependency needed.
 import { spawn } from 'node:child_process';
@@ -12,8 +12,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 /**
  * @param {object} opts
  * @param {number} [opts.port]
- * @param {Record<string,string>} [opts.env] - merged over process.env; must include DATABASE_URL
- *   and DATA_BACKEND for a relational-mode boot.
+ * @param {Record<string,string>} [opts.env] - merged over process.env; must include DATABASE_URL.
  * @param {number} [opts.timeoutMs] - how long to wait for the HTTP listener to come up.
  */
 export async function startServer({ port = 8791, env = {}, timeoutMs = 15000 } = {}) {

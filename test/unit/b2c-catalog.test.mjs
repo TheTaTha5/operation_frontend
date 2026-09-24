@@ -213,7 +213,7 @@ function fakeCtx({ routes = [], rateTypes = [], rtRoutes = [], txn } = {}) {
   let resolve;
   const done = new Promise(r => { resolve = r; });
   const ctx = {
-    pool: { query: q }, dataBackend: 'relational',
+    pool: { query: q },
     fqt: t => '"' + t + '"', qic: c => '"' + c + '"',
     J: (res, code, obj) => resolve({ code, body: obj }),
     readBody: (req, cb) => cb(req._body),
@@ -303,7 +303,7 @@ test('the endpoint is behind X-Api-Key and answers before touching the database'
   const PORT = 8847;
   const child = spawn(process.execPath, ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), B2C_API_KEY: 'test-key-123', DATABASE_URL: '', DATA_BACKEND: 'relational' },
+    env: { ...process.env, PORT: String(PORT), B2C_API_KEY: 'test-key-123', DATABASE_URL: '' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const logs = [];

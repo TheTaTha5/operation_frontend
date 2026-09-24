@@ -11,7 +11,7 @@ Staff web app for LOVE Andaman (Phuket marine tours: Similan, Surin, Phi Phi, Ph
 
 ## Stack
 
-- **`server.js`** — Node monolith: static files, `/api`, auth, and the migration runner. Postgres (~103 tables) is the source of truth.
+- **`server.js`** — Node monolith: static files, `/api`, auth, and the migration runner. Postgres (~103 tables) is the source of truth. Storage is relational only (`operation_schemas`, users in `operation_schemas.users`). The old `DATA_BACKEND=blob` mode is gone; `app_state` now only holds the version counter and the B2C sync hash.
 - **`allotment_v2/allotment_v2.html`** — markup plus `<script src>` tags. **`allotment_v2/js/*.js`** (~107k lines) holds all the client code: `01..10-*.js` plus domain files (`booking.js`, `agents.js`, `rates.js`, `contracts.js`, `checkin.js`, `vans.js`, `cash.js`, `accounting.js`, `reports.js`, `boatjob.js`) that load between `07-charter.js` and `08-app.js`. CSS is in `allotment_v2/css/`.
 - **One global scope.** These are classic scripts sharing thousands of top-level functions, called by name from ~2,000+ inline `onclick=` handlers (in the HTML and in JS-built templates). **Never add `defer`/`async`/`type="module"` or reorder the tags** — every handler breaks. See `allotment_v2/js/README.md`. Cloudflare Rocket Loader must stay off for the same reason (it looks like a permissions bug).
 - New and converted screens use `laDelegate(host, actions)` (`08-app.js`) instead of inline handlers.

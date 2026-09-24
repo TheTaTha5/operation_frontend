@@ -11,7 +11,7 @@
 //      from pg_get_viewdef, restored as-is, or abandoned — see CLAUDE.md and docs/development/tasks/LAM-22.md).
 //
 // Verified behavior (see LAM-22.md "Verification" for the exact commands): booted server.js in
-// DATA_BACKEND=relational against a bare ephemeral Postgres with NEITHER of the above tables
+// server.js against a bare ephemeral Postgres with NEITHER of the above tables
 // present. Boot does not crash — initDb() logs
 //   [db] init failed at step "sb_markets.sort col": relation "operation_schemas.sb_markets" does not exist
 // and stops before the admin-user seed step ever runs, so /api/login correctly (and safely)
@@ -56,7 +56,6 @@ test(
       port,
       env: {
         DATABASE_URL: process.env.DATABASE_URL,
-        DATA_BACKEND: 'relational',
         SESSION_SECRET: 'zz-test-session-secret',
         ADMIN_USER: adminUser,
         ADMIN_PASS: adminPass,

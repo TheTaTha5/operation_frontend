@@ -34,7 +34,7 @@
 //
 // Verify a provisioned database with the existing smoke test, which boots the real server.js
 // against it and fails on any map/db drift or failed/pending migration:
-//   DATABASE_URL=<printed by `up`> DATA_BACKEND=relational node tools/ci-boot-smoke.mjs
+//   DATABASE_URL=<printed by `up`> node tools/ci-boot-smoke.mjs
 
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -160,7 +160,7 @@ runMigrations() from baselining the real files on a freshly provisioned database
          ON CONFLICT (name) DO NOTHING`);
 }
 
-const DEV_ENV = { DATABASE_URL: URL, DATA_BACKEND: 'relational', B2C_SCHEMA: 'love_kingdom',
+const DEV_ENV = { DATABASE_URL: URL, B2C_SCHEMA: 'love_kingdom',
                   ADMIN_USER: 'admin', ADMIN_PASS: 'admin123',
                   SESSION_SECRET: 'dev-only-not-a-secret' };
 
@@ -258,7 +258,7 @@ function provision() {
   ADMIN_USER/ADMIN_PASS only seed while the users table is empty — on a database that already has
   users they do nothing, and the password has to be reset through POST /api/users/password.
 
-  Verify:  DATABASE_URL=${URL} DATA_BACKEND=relational node tools/ci-boot-smoke.mjs
+  Verify:  DATABASE_URL=${URL} node tools/ci-boot-smoke.mjs
 `);
 }
 

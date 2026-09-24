@@ -2,7 +2,7 @@ name: CI Boot Smoke Test
 
 # LAM-16 (S1-02): nothing in the repo would have caught S1-01 — server.js:34-35 requires
 # ./os-backend/src/mapping/os_repo.js unconditionally at module top level, so a deleted mapping
-# file (or any change that breaks boot) crashed `require('./server.js')` in every DATA_BACKEND
+# file (or any change that breaks boot) crashed `require('./server.js')` in every
 # mode, and it shipped straight to prod. This job requires('./server.js') for real — by spawning
 # it against a scratch Postgres — and makes one authenticated /api/version request, failing the
 # check if map.*/db.* drift counters are non-zero or mig.failed/mig.pending is above zero.
@@ -47,7 +47,6 @@ jobs:
 
     env:
       DATABASE_URL: postgres://ci_smoke:ci_smoke@localhost:5432/ci_smoke
-      DATA_BACKEND: relational
       ADMIN_USER: ci_smoke_admin
       ADMIN_PASS: ci-smoke-${{ github.run_id }}-${{ github.run_attempt }}
       SESSION_SECRET: ci-boot-smoke-${{ github.run_id }}-${{ github.run_attempt }}

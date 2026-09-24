@@ -320,7 +320,7 @@ function matches(pathname) { return PATHS.includes(pathname); }
 function apiKey() { return (process.env.B2C_API_KEY || '').trim(); }
 
 /**
- * @param ctx {{pool, fqt, qic, J, readBody, restTxn, sseBroadcast, dataBackend}}
+ * @param ctx {{pool, fqt, qic, J, readBody, restTxn, sseBroadcast}}
  *   fqt/qic quote a table / an identifier the same way server.js does; restTxn runs the ops in one
  *   transaction, bumps app_state.version and returns {version}. Injected rather than imported so
  *   this module stays testable without a database or a running server.
@@ -330,7 +330,6 @@ function handle(req, res, pathname, query, ctx) {
   const key = apiKey();
   if (!key || (req.headers['x-api-key'] || '') !== key) return J(res, 401, { error: 'invalid or missing X-Api-Key' });
   if (!ctx.pool) return J(res, 503, { error: 'no database' });
-  if (ctx.dataBackend !== 'relational') return J(res, 503, { error: 'requires relational backend' });
 
   if (pathname === '/api/b2c/rate-types') {
     if (req.method !== 'GET') return J(res, 405, { error: 'method not allowed' });

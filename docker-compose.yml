@@ -1,4 +1,4 @@
-# Local development Postgres for server.js (DATA_BACKEND=relational).
+# Local development Postgres for server.js.
 #
 # Not used by Railway — production's database is a managed Railway Postgres and this file has no
 # bearing on it. This exists so `node server.js` can be run locally with `db on`: logins, /api/load

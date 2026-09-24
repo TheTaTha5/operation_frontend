@@ -21,15 +21,12 @@ const ADMIN_PASS = process.env.ADMIN_PASS || '';
 const STATE_KEY  = 'loveandaman_v2';
 const SESS_DAYS  = 30;   // session cookie lifetime · long so refresh/redeploy never forces re-login
 
-// ── relational backend (DATA_BACKEND=relational): app_state blob is assembled from / decomposed
-//    into the operation_schemas tables via os_repo. blob mode (default) is unchanged. ──
-const DATA_BACKEND = (process.env.DATA_BACKEND || 'blob').toLowerCase();
+// ── Data lives in the operation_schemas tables; the app's blob is assembled from / decomposed into
+//    them via os_repo. (The DATA_BACKEND=blob mode, which kept the whole blob in app_state.data, was
+//    removed 2026-09-24: relational is the only mode.) app_state still holds the version counter. ──
 const OS_SCHEMA = 'operation_schemas';
-// users auth table (2026-07-10 · feat/validation-deprecate-blob): relational backend keeps it in
-// operation_schemas (migrated via os-backend/scripts/migrate_users_to_os_schema.js — run BEFORE
-// deploying this); blob mode keeps the legacy unqualified `users` (resolves via the role's search_path,
-// e.g. allotment.users on prod). app_state + attachments stay unqualified in both modes.
-const USERS_T = DATA_BACKEND === 'relational' ? OS_SCHEMA + '.users' : 'users';
+// users auth table lives in operation_schemas (2026-07-10). app_state + attachments stay unqualified.
+const USERS_T = OS_SCHEMA + '.users';
 // os_repo mapping engine + schema model (both built from data-model/tables) — used by the relational save path AND the per-entity REST API.
 const osRepo  = require('./data-model/os_repo.js');
 const apiProxy= require('./api-proxy.js');   // backend switch · inert unless API_PROXY_URL is set
@@ -86,7 +83,7 @@ function mapDriftSummary(){
 //   เช็คหลังรัน migration เสร็จ · ตอนนั้นตารางอยู่ในสภาพสุดท้ายแล้ว
 const DB_DRIFT = { checked:false, missing:[], extra:0, at:'' };
 async function dbDriftCheck(){
-  if (DATA_BACKEND !== 'relational' || !pool) return DB_DRIFT;
+  if (!pool) return DB_DRIFT;
   try{
     const r = await pool.query(
       'SELECT table_name, column_name FROM information_schema.columns WHERE table_schema=$1', [OS_SCHEMA]);
@@ -410,7 +407,7 @@ function b2cHealthReport() {
   // Mirrors relSyncB2C's own guard exactly. If any of these is false the sync never runs at all, so
   // there is nothing to be unhealthy about — and reporting stale-ness would raise a false alarm ten
   // minutes after every boot on a deployment that simply has no B2C source.
-  const configured = !!b2cPool && !!pool && DATA_BACKEND === 'relational';
+  const configured = !!b2cPool && !!pool;
   if (!configured) return { configured: false, ok: true };
   const now = Date.now();
   const sinceOk = B2C_HEALTH.lastOk ? now - B2C_HEALTH.lastOk : null;
@@ -1393,7 +1390,7 @@ function b2cPassengerList(rows) {
 }
 
 async function relSyncB2C(singleExtId = null) {
-  if (!b2cPool || !pool || DATA_BACKEND !== 'relational') return;
+  if (!b2cPool || !pool) return;
   try {
     let itemRows;
     if (singleExtId) {
@@ -2036,7 +2033,7 @@ async function initDb(){
   let _step = 'start';
   const sq = async (label, q, ...args) => { _step = label; await pool.query(q, ...args); };
   try{
-    if(DATA_BACKEND === 'relational') await sq('create schema', `CREATE SCHEMA IF NOT EXISTS ${OS_SCHEMA}`);
+    await sq('create schema', `CREATE SCHEMA IF NOT EXISTS ${OS_SCHEMA}`);
     await sq('create users table', `CREATE TABLE IF NOT EXISTS ${USERS_T} (id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL, pass_hash TEXT NOT NULL, name TEXT, role TEXT DEFAULT 'staff', created_at TIMESTAMPTZ DEFAULT now())`);
     await sq('create app_state', "CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY, data TEXT, version INT DEFAULT 0, updated_by TEXT, updated_at TIMESTAMPTZ DEFAULT now())");
     await sq('app_state.version col', "ALTER TABLE app_state ADD COLUMN IF NOT EXISTS version INT DEFAULT 0");
@@ -2050,7 +2047,7 @@ async function initDb(){
     // tables (via idx), so a drag-reorder of the markets / routes list never survived a reload. `sort` is a
     // plain scalar in the mapping, so decompose/assemble carry it with zero changes to os_repo, and the
     // client diff sees it as an ordinary changed field (→ patch ops). Additive: existing rows get NULL.
-    if(DATA_BACKEND === 'relational'){
+    {   // operation_schemas column/constraint ensures (formerly gated on DATA_BACKEND=relational)
       await sq('sb_markets.sort col', `ALTER TABLE ${OS_SCHEMA}."sb_markets" ADD COLUMN IF NOT EXISTS "sort" bigint`);
       await sq('routes.sort col',     `ALTER TABLE ${OS_SCHEMA}."routes"     ADD COLUMN IF NOT EXISTS "sort" bigint`);
       await sq('sb_agents.companyinfo_taxid col', `ALTER TABLE ${OS_SCHEMA}."sb_agents" ADD COLUMN IF NOT EXISTS "companyinfo_taxid" text`);
@@ -2596,16 +2593,6 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&am
 // hand a brotli body to a client that only asked for gzip.
 function _jsonHead(enc){ const h={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Vary':'Accept-Encoding'};
   if(enc) h['Content-Encoding']=enc; return h; }
-// Compressed variant for large payloads — falls back to plain when the client accepts neither encoding
-function JZ(req, res, code, obj){
-  const body = JSON.stringify(obj);
-  const enc = body.length > 50*1024 ? pickEncoding(req) : null;
-  if(!enc){ res.writeHead(code,_jsonHead(null)); return res.end(body); }
-  compress(enc, body, BR_DYNAMIC, (err, buf)=>{
-    if(err){ res.writeHead(code,_jsonHead(null)); return res.end(body); }
-    res.writeHead(code,_jsonHead(enc)); res.end(buf);
-  });
-}
 // Send a cached /api/load payload · compress on first send, then reuse the buffer, one per encoding
 // (so a version's payload is compressed at most once per encoding, not once per request).
 function sendLoadPayload(req, res, cache){
@@ -2651,7 +2638,7 @@ function applyDiff(blob, diff){
 // ═══════════════ Per-entity REST API (v1) over operation_schemas ═══════════════
 // Generic CRUD for every top-level entity, driven by the os_repo PLAN. One record (+ its nested
 // children) per request via the same assemble/decompose engine, scoped to that entity's subtree.
-// Requires DATA_BACKEND=relational (operation_schemas is the store). Auth = session, writes = edit right.
+// operation_schemas is the store. Auth = session, writes = edit right.
 const REST_PLAN = osRepo._plan, REST_KIDS = osRepo._children;
 const REST_RES = {};                       // resourceName (appKey) -> { table, pkCol, container }
 for (const [t, pl] of Object.entries(REST_PLAN)) {
@@ -2900,21 +2887,14 @@ const server = http.createServer((req, res) => {
   if(u === '/api/load'){
     const s=session(req); if(!s) return J(res,401,{error:'login required'});
     if(!pool) return J(res,503,{error:'no database'});
-    if(DATA_BACKEND==='relational'){
-      relSyncB2CShared()
-        .then(() => pool.query('SELECT version,updated_by,updated_at FROM app_state WHERE id=$1',[STATE_KEY]))
-        .then(async r => {
-          const m = r.rows[0]||{}; const version = m.version||0;
-          if(_loadCache && _loadCache.version === version){ return sendLoadPayload(req,res,_loadCache); }
-          return sendLoadPayload(req, res, await buildLoadCache(version, m));
-        })
-        .catch(e=>{ console.error('[api/load] 500 —', e.message); J(res,500,{error:e.message}); });
-      return;
-    }
-    pool.query('SELECT data,version,updated_by,updated_at FROM app_state WHERE id=$1',[STATE_KEY])
-      .then(r => r.rows[0] ? JZ(req,res,200,{data:r.rows[0].data,version:r.rows[0].version,updated_by:r.rows[0].updated_by,updated_at:r.rows[0].updated_at})
-                           : J(res,200,{data:null,version:0}))
-      .catch(e=>J(res,500,{error:e.message}));
+    relSyncB2CShared()
+      .then(() => pool.query('SELECT version,updated_by,updated_at FROM app_state WHERE id=$1',[STATE_KEY]))
+      .then(async r => {
+        const m = r.rows[0]||{}; const version = m.version||0;
+        if(_loadCache && _loadCache.version === version){ return sendLoadPayload(req,res,_loadCache); }
+        return sendLoadPayload(req, res, await buildLoadCache(version, m));
+      })
+      .catch(e=>{ console.error('[api/load] 500 —', e.message); J(res,500,{error:e.message}); });
     return;
   }
   // Hard-reset the B2C-synced bookings: wipe every b2c_ row (+ child tables) then full re-sync.
@@ -2923,7 +2903,7 @@ const server = http.createServer((req, res) => {
   if(u === '/api/b2c/reset' && req.method === 'POST'){
     const s=session(req); if(!s) return J(res,401,{error:'login required'});
     if(!pool) return J(res,503,{error:'no database'});
-    if(DATA_BACKEND!=='relational' || !b2cPool) return J(res,400,{error:'B2C sync not configured'});
+    if(!b2cPool) return J(res,400,{error:'B2C sync not configured'});
     (async () => {
       const CHILD = ['sb_bookings__trips','sb_bookings__passengers','sb_bookings__addons',
         'sb_bookings__adjustments','sb_bookings__feeitems','sb_bookings__history',
@@ -3037,12 +3017,10 @@ const server = http.createServer((req, res) => {
      ⚠ คืน "ใบเต็ม" ไม่ใช่เฉพาะช่องเช็คอิน · ใบที่เพิ่งเกิดใหม่ต้องมีข้อมูลพอจะวาดแถวได้
        และไคลเอนต์ต้องเทียบชุด id ได้ว่าวันนั้นมีใบอะไรบ้าง ตรงกับของตัวเองไหม
        ไม่ตรงเมื่อไหร่ (ใบเกิด/ย้ายวัน/ยกเลิก) ไคลเอนต์จะถอยไปดึงก้อนเต็มเอง
-     ⚠ โหมด blob ตอบ 501 · ไคลเอนต์ถือเป็น "ทางนี้ใช้ไม่ได้" แล้วถอยไปทางเดิม
-       ปล่อยให้ deploy ไคลเอนต์ก่อนเซิร์ฟเวอร์ได้โดยไม่พัง */
+     ⚠ 501 (schema without bookings/trips) → the client treats this route as unavailable and falls back */
   if(u === '/api/ck'){
     const s=session(req); if(!s) return J(res,401,{error:'login required'});
     if(!pool) return J(res,503,{error:'no database'});
-    if(DATA_BACKEND!=='relational') return J(res,501,{error:'ck needs DATA_BACKEND=relational'});
     const date=String(new URLSearchParams(q).get('date')||'');
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return J(res,400,{error:'date=YYYY-MM-DD required'});
     const T='sb_bookings', TRIPS='sb_bookings__trips';
@@ -3073,29 +3051,16 @@ const server = http.createServer((req, res) => {
     readBody(req, body => {
       let payload; try{ payload=JSON.parse(body); }catch(e){ return J(res,400,{error:'invalid JSON'}); }
       const base = (payload.baseVersion==null ? -1 : payload.baseVersion);
-      if(DATA_BACKEND==='relational'){
-        // visibility: normal saves go through /api/v1/_batch (per-entity). Landing here means the legacy
-        // whole-blob rewrite path was used — seed, old client, or MAPPING DRIFT (a key /api/v1 doesn't know).
-        try{ const d=payload.diff||{}; console.warn('[save] LEGACY whole-blob path · user='+s.username
-          +(payload.full?' · FULL seed':' · diff sets=['+Object.keys(d.sets||{}).join(',')+'] cols=['+Object.keys(d.cols||{}).join(',')+'] objs=['+Object.keys(d.objs||{}).join(',')+']')
-          +' — check data-model/tables against the client keys if this repeats'); }catch(e){}
-        relApplyAndSave(payload, s.username, base)
-          .then(({version,behind})=>{ J(res,200,{ok:true,version,behind}); sseBroadcast({version, updated_by:s.username}); })
-          .catch(e=> e.code==='SHRINK_GUARD'
-            ? J(res,409,{error:'save_would_delete_data', code:'SHRINK_GUARD', detail:e.detail})
-            : J(res,500,{error:e.message}));
-        return;
-      }
-      pool.query('SELECT data,version FROM app_state WHERE id=$1',[STATE_KEY]).then(r=>{
-        const curVer = r.rows[0] ? r.rows[0].version : 0;
-        let blob={}; if(r.rows[0] && r.rows[0].data){ try{ blob=JSON.parse(r.rows[0].data); }catch(e){ blob={}; } }
-        const behind = (base !== -1 && base < curVer);   // others saved since this client loaded → recommend refresh
-        if(payload.full && typeof payload.full==='string'){ try{ blob=JSON.parse(payload.full); }catch(e){ return J(res,400,{error:'bad full'}); } }   // seed/first push
-        else { try{ applyDiff(blob, payload.diff||{}); }catch(e){ return J(res,400,{error:'bad diff: '+e.message}); } }
-        const nv = curVer+1, out = JSON.stringify(blob);
-        pool.query('INSERT INTO app_state(id,data,version,updated_by,updated_at) VALUES($1,$2,$3,$4,now()) ON CONFLICT(id) DO UPDATE SET data=excluded.data, version=$3, updated_by=$4, updated_at=now()',[STATE_KEY,out,nv,s.username])
-          .then(()=>{ J(res,200,{ok:true,version:nv,behind:behind,bytes:out.length}); sseBroadcast({version:nv, updated_by:s.username}); }).catch(e=>J(res,500,{error:e.message}));
-      }).catch(e=>J(res,500,{error:e.message}));
+      // visibility: normal saves go through /api/v1/_batch (per-entity). Landing here means the legacy
+      // whole-blob rewrite path was used — seed, old client, or MAPPING DRIFT (a key /api/v1 doesn't know).
+      try{ const d=payload.diff||{}; console.warn('[save] LEGACY whole-blob path · user='+s.username
+        +(payload.full?' · FULL seed':' · diff sets=['+Object.keys(d.sets||{}).join(',')+'] cols=['+Object.keys(d.cols||{}).join(',')+'] objs=['+Object.keys(d.objs||{}).join(',')+']')
+        +' — check data-model/tables against the client keys if this repeats'); }catch(e){}
+      relApplyAndSave(payload, s.username, base)
+        .then(({version,behind})=>{ J(res,200,{ok:true,version,behind}); sseBroadcast({version, updated_by:s.username}); })
+        .catch(e=> e.code==='SHRINK_GUARD'
+          ? J(res,409,{error:'save_would_delete_data', code:'SHRINK_GUARD', detail:e.detail})
+          : J(res,500,{error:e.message}));
     }); return;
   }
 
@@ -3212,7 +3177,6 @@ const server = http.createServer((req, res) => {
   if(u === '/api/v1' || u.startsWith('/api/v1/')){
     const s=session(req); if(!s) return J(res,401,{error:'login required'});
     if(!pool) return J(res,503,{error:'no database'});
-    if(DATA_BACKEND!=='relational') return J(res,503,{error:'REST API requires DATA_BACKEND=relational'});
     const seg = u === '/api/v1' ? [] : u.slice('/api/v1/'.length).split('/').filter(Boolean).map(decodeURIComponent);
     const resName = seg[0], id = seg.length>1 ? seg[1] : null, m = req.method;
     const done=e=>J(res,500,{error:e.message});
@@ -3280,7 +3244,6 @@ const server = http.createServer((req, res) => {
     if (!B2C_API_KEY || (req.headers['x-api-key'] || '') !== B2C_API_KEY)
       return J(res, 401, { error: 'invalid or missing X-Api-Key' });
     if (!pool) return J(res, 503, { error: 'no database' });
-    if (DATA_BACKEND !== 'relational') return J(res, 503, { error: 'requires relational backend' });
     const routeId    = (q.match(/route=([^&]*)/)    || [])[1] ? decodeURIComponent((q.match(/route=([^&]*)/)||[])[1]) : null;
     const dateFrom   = (q.match(/dateFrom=([^&]*)/) || [])[1] ? decodeURIComponent((q.match(/dateFrom=([^&]*)/)||[])[1]) : null;
     const dateTo     = (q.match(/dateTo=([^&]*)/)   || [])[1] ? decodeURIComponent((q.match(/dateTo=([^&]*)/)||[])[1]) : null;
@@ -3454,7 +3417,7 @@ const server = http.createServer((req, res) => {
   // never reach it. See b2c-catalog.js for the variant/family/pricing model.
   if (b2cCat.matches(u)) {
     return b2cCat.handle(req, res, u, q, {
-      pool, fqt, qic, J, readBody, restTxn, sseBroadcast, dataBackend: DATA_BACKEND,
+      pool, fqt, qic, J, readBody, restTxn, sseBroadcast,
     });
   }
 

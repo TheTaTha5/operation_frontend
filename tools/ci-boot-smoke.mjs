@@ -3,7 +3,7 @@
 //
 // Nothing in the repo caught S1-01 (os-backend deleted wholesale in 094dde1: server.js:34-35
 // `require('./os-backend/src/mapping/os_repo.js')` is unconditional top-level code, so it breaks
-// `require('./server.js')` in EVERY mode, not just DATA_BACKEND=relational). This script is the
+// `require('./server.js')` on every boot). This script is the
 // guard: it spawns the real `server.js` against a scratch Postgres, logs in, and inspects
 // `/api/version` for the two other silent-data-loss classes documented in
 // allotment_v2/docs/workflows/07-data-persistence-api.md §10 (invariants 5, 7, 18):
@@ -90,7 +90,7 @@ async function loginWithRetry() {
   throw new Error(
     `could not log in as ${ADMIN_USER} within ${LOGIN_TIMEOUT_MS}ms (last error: ${lastErr && lastErr.message}). ` +
     'If this is a fresh scratch DB, check whether db/migrations/ exists and applied cleanly — ' +
-    'DATA_BACKEND=relational needs the operation_schemas.* tables migrations create before the admin ' +
+    'server.js needs the operation_schemas.* tables migrations create before the admin ' +
     'user seed step runs (server.js initDb(), ~:1572-1750).'
   );
 }
@@ -126,14 +126,13 @@ async function main() {
 
   const env = {
     ...process.env,
-    DATA_BACKEND: process.env.DATA_BACKEND || 'relational',
     PORT: String(PORT),
     ADMIN_USER,
     ADMIN_PASS,
     SESSION_SECRET: process.env.SESSION_SECRET || 'ci-boot-smoke-secret',
   };
 
-  log(`spawning: node server.js (PORT=${PORT}, DATA_BACKEND=${env.DATA_BACKEND})`);
+  log(`spawning: node server.js (PORT=${PORT})`);
   const child = spawn(process.execPath, ['server.js'], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.on('data', d => process.stdout.write(`[server] ${d}`));
   child.stderr.on('data', d => process.stderr.write(`[server] ${d}`));
