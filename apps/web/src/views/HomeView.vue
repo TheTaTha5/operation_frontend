@@ -31,6 +31,10 @@ const sections = computed(() =>
   <section v-else>
     <h1>New pages</h1>
     <div class="card new">
+      <RouterLink to="/bookings">Bookings</RouterLink>
+      <span class="muted"> · all bookings by travel month, and each booking's detail. Read-only, from operation-backend.</span>
+    </div>
+    <div class="card new">
       <RouterLink to="/calendar">Calendar</RouterLink>
       <span class="muted"> · seats free per route and day, from operation-backend.</span>
     </div>

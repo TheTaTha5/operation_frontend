@@ -100,3 +100,19 @@ The backend's production database held one booking on 2026-08-26
 (`todo/live-correctness-charter-seats.md`). Legacy Boat Ops and bookings still write only to the
 legacy database. Needed: an import plus a sync (or dual-write) for the transition, or every page
 above shows empty days.
+
+## Bookings (`/app/bookings`, legacy "All bookings" tab `bkV2RenderTab3`)
+
+Built on `GET /v1/bookings?from=&to=` (a travel month, all pages) and `GET /v1/bookings/:id`.
+
+1. **Agent catalogue** (same as Travel Summary 2). The list and detail show `agent_id` (`a01`) where
+   legacy shows the agent's name and rate-type code.
+2. **Search, status filter and counts on the list.** Legacy searches every month at once and shows a
+   count per status; the API has neither, so the page loads one month and narrows it client-side,
+   and search covers that month only. Wanted: `q` (BK number, voucher, lead name, phone),
+   `status` (repeatable), and per-status counts.
+3. **`booking_date` is shifted a day by the import.** A booking made on 2026-09-24 has
+   `booking_date = 2026-09-23T17:00:00Z`: the legacy `YYYY-MM-DD` was read as local midnight
+   (+07:00) and stored as a UTC timestamp. It should be a date (or the local date kept as-is).
+4. **FOC approval state** (`focApproval.status`) is not in the model; the Pending FOC tile relies
+   on `status = pending_foc` alone.

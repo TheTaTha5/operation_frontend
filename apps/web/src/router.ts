@@ -6,6 +6,8 @@ export const routes = [
   { path: "/", name: "home", component: HomeView },
   { path: "/login", name: "login", component: () => import("@/views/LoginView.vue") },
   { path: "/health", name: "health", component: () => import("@/views/HealthView.vue") },
+  { path: "/bookings", name: "bookings", component: () => import("@/features/bookings/BookingsView.vue") },
+  { path: "/bookings/:id", name: "booking", component: () => import("@/features/bookings/BookingDetailView.vue") },
   { path: "/calendar", name: "calendar", component: () => import("@/features/calendar/CalendarView.vue") },
   {
     path: "/travel-summary",
