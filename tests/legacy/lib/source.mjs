@@ -18,10 +18,18 @@ export const HTML_PATH = path.resolve(__dirname, '../../../allotment_v2/allotmen
 let _cached = null;
 export function getSource() {
   if (_cached === null) {
-    // allotment_v2.html is saved with CRLF line endings. Normalize to LF so every
-    // marker string used by extractBetween() can be written as a plain JS template
-    // literal (with '\n') without silently failing to match on Windows checkouts.
-    _cached = fs.readFileSync(HTML_PATH, 'utf8').replace(/\r\n/g, '\n');
+    // Files are saved with CRLF line endings. Normalize to LF so every marker string used by
+    // extractBetween() can be written as a plain JS template literal (with '\n') without silently
+    // failing to match on Windows checkouts.
+    const read = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+    const html = read(HTML_PATH);
+    // §jsSplit (2026-08-27): the app JS moved out of the HTML into allotment_v2/js/*.js. Append every
+    // local <script src> in tag order so the extract helpers see the same code the browser runs.
+    const dir = path.dirname(HTML_PATH);
+    const scripts = [...html.matchAll(/<script\b[^>]*\bsrc="([^"?#]+)[^"]*"/g)]
+      .map((m) => m[1])
+      .filter((src) => !/^(https?:)?\/\//.test(src) && fs.existsSync(path.join(dir, src)));
+    _cached = [html, ...scripts.map((src) => read(path.join(dir, src)))].join('\n');
   }
   return _cached;
 }

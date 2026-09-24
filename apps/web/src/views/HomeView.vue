@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { RouterLink } from "vue-router";
 
 import { groupBySection, legacyUrl, legacyViews } from "@/lib/legacy";
 import { useSessionStore } from "@/stores/session";
@@ -29,6 +30,11 @@ const sections = computed(() =>
   </section>
 
   <section v-else>
+    <h1>New pages</h1>
+    <div class="card new">
+      <RouterLink to="/travel-summary">Travel Summary</RouterLink>
+      <span class="muted"> · phase 1, read-only: day overview and manifest. Penalty decisions, on-site money and printing are still on the <a :href="legacyUrl('travelsum')">legacy page</a>.</span>
+    </div>
     <h1>Pages</h1>
     <p class="muted">These pages still open in the legacy app. They move here one at a time.</p>
     <div class="sections">

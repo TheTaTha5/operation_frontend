@@ -3203,6 +3203,16 @@ const server = http.createServer((req, res) => {
           });
       }); return;
     }
+    // GET /api/v1/_meta/<key> · one top-level scalar from app_meta (the read side of _batch's {op:'meta'}),
+    // so a page can read e.g. ops_stranded without pulling the whole /api/load blob. null = key not set.
+    if(resName==='_meta'){
+      if(m!=='GET') return J(res,405,{error:'method not allowed'});
+      if(id==null) return J(res,400,{error:'key required'});
+      pool.query(`SELECT ${qic('value')} AS v FROM ${fqt('app_meta')} WHERE ${qic('key')}=$1`, [id])
+        .then(r=>{ let v=null; if(r.rows[0] && r.rows[0].v!=null){ try{ v=JSON.parse(r.rows[0].v); }catch(e){ v=r.rows[0].v; } } J(res,200,{key:id, value:v}); })
+        .catch(done);
+      return;
+    }
     if(m==='GET'){ restGet(res,resName,id).catch(done); return; }
     if(!canWrite) return J(res,403,{error:'view only · ไม่มีสิทธิ์แก้ไข'});
     const one = op => restTxn(s.username, -1, [op])

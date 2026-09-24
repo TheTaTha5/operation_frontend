@@ -51,3 +51,4 @@ main { max-width: 1200px; margin: 0 auto; padding: 16px; }
 .details { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
 .details dt { color: var(--muted); }
 .details dd { margin: 0; }
+.card.new { margin-bottom: 16px; }
