@@ -116,3 +116,27 @@ Built on `GET /v1/bookings?from=&to=` (a travel month, all pages) and `GET /v1/b
    (+07:00) and stored as a UTC timestamp. It should be a date (or the local date kept as-is).
 4. **FOC approval state** (`focApproval.status`) is not in the model; the Pending FOC tile relies
    on `status = pending_foc` alone.
+
+## By trip · date (`/app/bookings/trips`, legacy `bkV2RenderTab2` / `bkV2T2RouteHtml`)
+
+Built on `GET /v1/bookings?from=D&to=D` (one row per trip on D), `GET /v1/routes?from=D&to=D`
+(open / not running and why), `GET /v1/availability?from=D&to=D` (seats and boats per trip),
+`GET /v1/seat-locks?date=D` and `GET /v1/boats`.
+
+1. **Trip dispatch in the booking response** — Travel Summary item 1. Without it the Time, Boat
+   and van columns are empty, boats show `—/cap` (who rides which boat is unknown), and the Van /
+   Boat / Re-confirm modes and the "not fully arranged" notice cannot be built. Also needed from
+   the same rows: `pickup_time_final`, `van_group` / `van_sequence` (the van grouping bands),
+   `reconfirm_*`, `vanSplits` / `boatSplits` (split rows) and check-in (no-show badges).
+2. **Per-trip amount.** Legacy shows each trip's subtotal (`tsTripAmount`); the backend only has the
+   booking `total`, so a multi-trip booking's Total cell is blank.
+3. **Overnight legs** — Travel Summary item 7. A charter staying overnight keeps a "hold" row on
+   the days in between (`ovn` / `ovnReturnDate`), and the return leg shows no pickup.
+4. **Lock draws per booking.** Locks are listed per holder, but "highlight the bookings drawn from
+   this lock" needs which booking drew from which lock (`booking_trip_lock_draws` exists; the API
+   does not expose it). Lock holder names need the agent catalogue.
+5. **Agent catalogue** (Travel Summary item 2) for the Agency column's name and colour.
+6. **Add-ons, cancellation charge, reschedule history** (Travel Summary 5, 6 and 13): the Add-on
+   column, the charge on cancelled rows, and the "rescheduled away" ghost rows.
+7. **Route kind** (Calendar item 6): legacy puts land programmes (transfer / city tour) in their
+   own section below the boat trips.

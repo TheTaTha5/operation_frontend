@@ -116,6 +116,28 @@ export interface ObBooking {
   notes?: string; note?: string;
 }
 
+/** Why a route runs or not on a date (the same rule names as legacy getDayStatus). */
+export type ObDaySource = 'override' | 'season' | 'outside-season' | 'no-seasons';
+
+/** GET /v1/routes?from=&to=: the catalogue with each route's calendar resolved per date. */
+export interface ObRouteDays extends ObRoute {
+  days: Record<string, { open: boolean; source: ObDaySource }>;
+}
+
+/** GET /v1/seat-locks. A lock still holds `pax - drawn_pax` seats. */
+export interface ObSeatLock {
+  id: string;
+  route_id: string;
+  service_date: string;
+  pax: number;
+  agent_id?: string;
+  status: 'active' | 'released';
+  created_at: string;
+  updated_at: string;
+  released_at?: string;
+  drawn_pax?: number;
+}
+
 /** The API pages at most 100 bookings per call. */
 const PAGE = 100;
 
@@ -143,4 +165,9 @@ export const ob = {
     return out;
   },
   booking: (id: string) => getJson<ObBooking>(`${OB}/v1/bookings/${encodeURIComponent(id)}`),
+  /** Both ends inclusive; the backend caps the range at 400 days. */
+  routesBetween: (from: string, to: string) =>
+    getJson<{ routes: ObRouteDays[] }>(`${OB}/v1/routes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`).then((r) => r.routes),
+  seatLocks: (date: string) =>
+    getJson<{ seat_locks: ObSeatLock[] }>(`${OB}/v1/seat-locks?date=${encodeURIComponent(date)}`).then((r) => r.seat_locks),
 };
