@@ -5,6 +5,7 @@
   "description": "LOVE Andaman · allotment_v2 ops app (static + cloud-sync via Postgres on Railway)",
   "scripts": {
     "start": "node server.js",
+    "build": "npm --prefix apps/web ci --include=dev && npm --prefix apps/web run build",
     "dev": "node --env-file=.env server.js",
     "safari": "node tools/safari-smoke.js",
     "ci:boot-smoke": "node tools/ci-boot-smoke.mjs",
@@ -42,7 +43,7 @@
     "pg": "^8.13.1"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12"
   },
   "devDependencies": {
     "acorn": "^8.18.0",

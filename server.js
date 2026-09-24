@@ -13,6 +13,8 @@ try {
 } catch(e){ console.warn('[db] pg not installed'); }
 
 const ROOT   = __dirname;
+const APP_DIST   = path.join(ROOT, 'apps', 'web', 'dist');   // Vue app build output, served at /app/ (§vueApp)
+const APP_ASSETS = path.join(APP_DIST, 'assets');
 const PORT   = process.env.PORT || 3000;
 const DB_URL = process.env.DATABASE_URL || '';
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'); // set SESSION_SECRET to keep logins across redeploys
@@ -3502,9 +3504,27 @@ const server = http.createServer((req, res) => {
     return res.end();
   }
 
-  let p = decodeURIComponent(u);
-  const fp = path.normalize(path.join(ROOT,p));
-  if(!fp.startsWith(ROOT)){ res.writeHead(403); return res.end('Forbidden'); }
+  // §vueApp (2026-09-24) · /app/* is the Vue app (apps/web), built into apps/web/dist at deploy time by
+  // the root `npm run build`. Paths without a file extension are client-side routes → index.html; a
+  // missing asset stays a 404. Same origin as /api, so the app shares the `sess` cookie.
+  if(u === '/app'){ res.writeHead(301,{Location:'/app/'+(q?'?'+q:''),'Cache-Control':'no-store'}); return res.end(); }
+  let fp;
+  if(u.startsWith('/app/')){
+    const rel = decodeURIComponent(u.slice('/app/'.length));
+    fp = path.normalize(path.join(APP_DIST, rel));
+    if(fp !== APP_DIST && !fp.startsWith(APP_DIST + path.sep)){ res.writeHead(403); return res.end('Forbidden'); }
+    if(!path.extname(fp)) fp = path.join(APP_DIST, 'index.html');
+    if(!fs.existsSync(path.join(APP_DIST, 'index.html'))){
+      res.writeHead(503,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'});
+      return res.end('The Vue app is not built. Run `npm run build` in the repo root.');
+    }
+  } else {
+    const p = decodeURIComponent(u);
+    fp = path.normalize(path.join(ROOT,p));
+    if(!fp.startsWith(ROOT)){ res.writeHead(403); return res.end('Forbidden'); }
+  }
+  // Vite puts a content hash in every file name under assets/, so those never change once served.
+  const cacheCtl = fp.startsWith(APP_ASSETS + path.sep) ? 'public, max-age=31536000, immutable' : 'no-cache';
   fs.readFile(fp,(err,data)=>{ if(err){ res.writeHead(404,{'Content-Type':'text/plain; charset=utf-8'}); return res.end('Not found'); }
     /* §assetVer · ติดหมายเลขรุ่นก่อนคิด etag · etag จึงขยับตามรุ่นไปด้วย
        และ _gzCache ที่ผูกกับ etag ก็จะไม่คืนของเก่าให้ */
@@ -3517,9 +3537,9 @@ const server = http.createServer((req, res) => {
        ไม่ใช่กับ .js/.css ที่หน้านั้นโหลดตาม · ต้องติดกับ 304 ด้วย เพราะเบราว์เซอร์
        ใช้หัวของรอบที่ 304 ตอบมา ไม่ได้ใช้ของที่แคชไว้ทั้งชุด */
     const sec = ext==='.html' ? {'Content-Security-Policy':FRAME_ANCESTORS} : null;
-    if((req.headers['if-none-match']||'') === etag){ res.writeHead(304,Object.assign({'ETag':etag,'Cache-Control':'no-cache'},sec)); return res.end(); }
+    if((req.headers['if-none-match']||'') === etag){ res.writeHead(304,Object.assign({'ETag':etag,'Cache-Control':cacheCtl},sec)); return res.end(); }
     const ctype = MIME[ext]||'application/octet-stream';
-    const head=(enc)=>{ const h={'Content-Type':ctype,'ETag':etag,'Cache-Control':'no-cache','Vary':'Accept-Encoding'};
+    const head=(enc)=>{ const h={'Content-Type':ctype,'ETag':etag,'Cache-Control':cacheCtl,'Vary':'Accept-Encoding'};
       if(sec) Object.assign(h,sec);
       if(enc) h['Content-Encoding']=enc; return h; };
     const enc = (GZIP_EXT.has(ext) && data.length > 1024) ? pickEncoding(req) : null;

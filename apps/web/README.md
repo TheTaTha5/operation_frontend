@@ -11,6 +11,13 @@ It does not import or modify the legacy app. The two are joined by plain links:
 To move a page: add a route in `src/router.ts`, delete its entry from `legacyViews`, and point the
 legacy sidebar item at `/app/<route>`.
 
+## Deployment
+
+`server.js` serves `apps/web/dist/` at `/app/` (client routes fall back to `index.html`; files under
+`assets/` are cached as immutable). `dist/` is not committed: Railway (Nixpacks) runs the root
+`npm run build`, which installs and builds this app on every deploy. `VITE_*` values are baked in at
+build time, so changing one means redeploying.
+
 ## Requirements
 
 Node.js 22.22+ (CI uses 24).

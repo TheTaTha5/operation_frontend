@@ -17,7 +17,7 @@ Staff web app for LOVE Andaman (Phuket marine tours: Similan, Surin, Phi Phi, Ph
 - New and converted screens use `laDelegate(host, actions)` (`08-app.js`) instead of inline handlers.
 - `js/10-embed.js` must stay the **first** script in `<head>`. It powers `/embed/*` iframes, which are read-only UX, not a permission boundary. Details are in the comments at `EMBED_ORIGINS` / `EMBED_TOKEN_SECRET` in `server.js`.
 - Off by default: `api-proxy.js` (forwards `API_PROXY_ROUTES` to another backend) and `auth/oidc.js` (Authentik SSO, active only when `AUTH_OIDC_*` is set).
-- `apps/web/` — the new frontend: **Vue 3 + Vite + TypeScript** (Vue Router, Pinia), served under `/app/`, replacing `allotment_v2` page by page. Unmoved pages open via `allotment_v2.html?view=<data-view>` (`_laRestoreView`); both share the `sess` cookie. See `apps/web/README.md`.
+- `apps/web/` — the new frontend: **Vue 3 + Vite + TypeScript** (Vue Router, Pinia), served by `server.js` at `/app/` from `apps/web/dist` (built at deploy time by the root `npm run build`; never committed), replacing `allotment_v2` page by page. Unmoved pages open via `allotment_v2.html?view=<data-view>` (`_laRestoreView`); both share the `sess` cookie. See `apps/web/README.md`.
 - `data-model/` is **live** — `server.js` requires it at boot. `tables/<entity>.js` describes every persisted table and column and where it sits in the blob; `os_repo.js` converts blob ↔ rows from it. It replaced `os-backend/`'s two JSON files. `npm run gen:models` regenerates the Vue types in `apps/web/src/models/generated.ts`. See `data-model/README.md`.
 
 ## Working in the code
