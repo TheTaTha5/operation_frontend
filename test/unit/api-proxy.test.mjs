@@ -23,6 +23,13 @@ const UPSTREAM = `http://127.0.0.1:${UP_PORT}`;
 const ALL = `http://127.0.0.1:${ALL_PORT}`;       // API_PROXY_ROUTES unset  → every /api route
 const SOME = `http://127.0.0.1:${SOME_PORT}`;     // API_PROXY_ROUTES=/api/v1/rate-types
 const DEAD = `http://127.0.0.1:${DEAD_PORT}`;     // points at a port nothing listens on
+const BL_PORT = 8848;
+const BL = `http://127.0.0.1:${BL_PORT}`;         // AUTH_BACKEND_LOGIN + /api/v1/bookings=/v1/bookings
+
+// Shaped like operation-backend's HS256 token; only the payload is read on our side.
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const FAKE_TOKEN = b64({ alg: 'HS256' }) + '.' + b64({ sub: 'ops', preferred_username: 'ops', groups: ['admin'],
+  exp: Math.floor(Date.now() / 1000) + 3600 }) + '.sig';
 
 let upstream, seen = [], kids = [];
 
@@ -47,6 +54,13 @@ test.before(async () => {
     q.on('data', (d) => (body += d));
     q.on('end', () => {
       seen.push({ method: q.method, url: q.url, body, headers: q.headers });
+      if (q.url === '/v1/login') {                      // operation-backend's password login
+        const b = JSON.parse(body || '{}');
+        const ok = b.username === 'ops' && b.password === 'pw';
+        s.writeHead(ok ? 200 : 401, { 'Content-Type': 'application/json' });
+        return s.end(JSON.stringify(ok ? { access_token: FAKE_TOKEN, token_type: 'Bearer', expires_in: 3600 }
+                                         : { statusCode: 401, message: 'Invalid username or password' }));
+      }
       s.writeHead(201, { 'Content-Type': 'application/json', 'X-Upstream': 'yes',
                          'Set-Cookie': 'from_upstream=1; Path=/' });
       s.end(JSON.stringify({ hello: 'from the new backend', saw: q.url }));
@@ -56,6 +70,8 @@ test.before(async () => {
   await boot(ALL_PORT,  { API_PROXY_URL: UPSTREAM });
   await boot(SOME_PORT, { API_PROXY_URL: UPSTREAM, API_PROXY_ROUTES: '/api/v1/rate-types' });
   await boot(DEAD_PORT, { API_PROXY_URL: `http://127.0.0.1:1` });
+  await boot(BL_PORT, { API_PROXY_URL: UPSTREAM, AUTH_BACKEND_LOGIN: 'true',
+                        API_PROXY_ROUTES: '/api/v1/bookings=/v1/bookings' });
 });
 test.after(() => { kids.forEach((c) => c.kill()); upstream?.close(); });
 
@@ -116,4 +132,39 @@ test('the switch is off unless API_PROXY_URL is set', async () => {
   assert.ok(!log.includes('[proxy]'), 'an unconfigured proxy must not announce itself');
   const r = await fetch('http://127.0.0.1:8847/api/me');
   assert.equal(r.status, 401, 'and /api/me is answered locally, exactly as before');
+});
+
+test('AUTH_BACKEND_LOGIN signs in at the backend and proxies with its Bearer token', async () => {
+  seen = [];
+  const bad = await get(BL, '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'ops', password: 'nope' }) });
+  assert.equal(bad.status, 401, 'a wrong password is a 401, not a 502');
+
+  const r = await get(BL, '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'ops', password: 'pw' }) });
+  assert.equal(r.status, 200, 'login needs no DATABASE_URL in this mode');
+  assert.equal((await r.json()).role, 'admin', 'the admin group maps to role admin');
+  const jar = r.headers.getSetCookie().map((c) => c.split(';')[0]);
+  assert.ok(jar.some((c) => c.startsWith('sess=')), 'a local sess cookie is minted');
+  assert.ok(jar.includes('ob_at=' + FAKE_TOKEN), 'the backend token is kept in ob_at');
+  assert.deepEqual(seen.map((h) => h.url), ['/v1/login', '/v1/login']);
+  const Cookie = jar.join('; ');
+
+  const me = await get(BL, '/api/me', { headers: { Cookie } });
+  assert.equal(me.status, 200, '/api/me stays local and reads the minted sess');
+  assert.equal((await me.json()).username, 'ops');
+
+  seen = [];
+  const bk = await get(BL, '/api/v1/bookings/b1/cancel?why=x', { method: 'POST', headers: { Cookie } });
+  assert.equal(bk.headers.get('x-upstream'), 'yes');
+  assert.equal(seen[0].url, '/v1/bookings/b1/cancel?why=x', 'the prefix is rewritten, the rest kept');
+  assert.equal(seen[0].headers.authorization, 'Bearer ' + FAKE_TOKEN, 'the token rides as Bearer');
+
+  seen = [];
+  const local = await get(BL, '/api/v1/sb_bookings', { headers: { Cookie } });
+  assert.notEqual(local.headers.get('x-upstream'), 'yes', 'a route without a rule stays local');
+  assert.equal(seen.length, 0);
+
+  const out = await get(BL, '/api/logout', { method: 'POST', headers: { Cookie } });
+  assert.ok(out.headers.getSetCookie().some((c) => /^ob_at=;/.test(c)), 'logout clears the backend token too');
 });

@@ -2397,6 +2397,38 @@ async function oidcResolveUser(claims){
   return ins.rows[0];
 }
 function session(req){ return verify(cookies(req).sess||''); }
+// ── Password login against operation-backend (AUTH_BACKEND_LOGIN, 2026-09-24) ──
+// The backend's POST /v1/login owns the users and returns its own 12h HS256 token. That token goes
+// in the ob_at cookie for api-proxy.js to send as Bearer; a `sess` cookie is minted from its claims
+// so /api/me and every session(req) check keep working unchanged, and both expire together.
+// The backend has groups, not our perms/edit_areas: admin → role admin, any `*:write` group → can
+// edit, and perms stays null (every menu). Needs no DATABASE_URL.
+function backendPasswordLogin(req, res){
+  readBody(req, body => {
+    let b={}; try{ b=JSON.parse(body); }catch(e){}
+    apiProxy.backendLogin(String(b.username||'').trim(), String(b.password||''))
+      .then(({token, expiresIn, claims}) => {
+        const groups = Array.isArray(claims.groups) ? claims.groups.filter(g => typeof g === 'string') : [];
+        const username = String(claims.preferred_username || claims.sub || b.username);
+        const role = groups.includes('admin') ? 'admin' : 'staff';
+        const canEdit = role === 'admin' || groups.some(g => /:write$/.test(g));
+        const EXP = claims.exp ? claims.exp*1000 : Date.now() + (expiresIn||3600)*1000;
+        const tok = sign({uid:null, username, name:username, role, perms:null, edit:canEdit, editAreas:null, salesId:null, iat:Date.now(), exp:EXP});
+        const age = Math.max(60, Math.floor((EXP-Date.now())/1000));
+        console.log('[auth] signed in '+username+' via operation-backend');
+        J(res,200,{username, name:username, role, perms:null, canEdit, editAreas:null, salesId:null}, {'Set-Cookie':[
+          `sess=${tok}; HttpOnly; Path=/; SameSite=Lax; Secure; Max-Age=${age}`,
+          `${apiProxy.TOKEN_COOKIE}=${encodeURIComponent(token)}; HttpOnly; Path=/api; SameSite=Lax; Secure; Max-Age=${age}`,
+        ]});
+      })
+      .catch(e => {
+        // Logged because the backend also answers 401 when its password login is not configured.
+        if(e.status === 401 || e.status === 400){ console.warn('[auth] backend login rejected:', e.message); return J(res,401,{error:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'}); }
+        console.error('[auth] backend login failed:', e.message);
+        J(res,502,{error:'login backend failed: '+e.message});
+      });
+  });
+}
 // Daily session reset (2026-07-08): sessions expire at the next 03:00 ICT so every user re-logs in each morning → fresh data on login.
 const ICT_OFFSET_MS = 7*3600e3, DAILY_RESET_HOUR = 3;
 function nextDailyExpiry(){ const nowIct = Date.now()+ICT_OFFSET_MS; const d = new Date(nowIct); d.setUTCHours(DAILY_RESET_HOUR,0,0,0); let exp = d.getTime(); if(exp <= nowIct) exp += 864e5; return exp - ICT_OFFSET_MS; }
@@ -2846,6 +2878,7 @@ const server = http.createServer((req, res) => {
 
   // ───── AUTH ─────
   if(u === '/api/login' && req.method === 'POST'){
+    if(apiProxy.backendLoginEnabled()) return backendPasswordLogin(req, res);
     if(!pool) return J(res,503,{error:'no database'});
     readBody(req, body => {
       let b={}; try{ b=JSON.parse(body); }catch(e){}
@@ -2880,7 +2913,8 @@ const server = http.createServer((req, res) => {
     // hit the SSO redirect below, Authentik would still hold its own session, and the user would be
     // signed straight back in — a sign-out button that visibly does nothing.
     J(res,200,{ok:true, ssoLogout: oidc.enabled() ? '/auth/logout' : null},
-      {'Set-Cookie':'sess=; HttpOnly; Path=/; SameSite=Lax; Secure; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0'});
+      {'Set-Cookie':['sess=; HttpOnly; Path=/; SameSite=Lax; Secure; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0',
+                     apiProxy.TOKEN_COOKIE+'=; HttpOnly; Path=/api; SameSite=Lax; Secure; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0']});
     return;
   }
   if(u === '/api/me'){ const s=session(req); return s ? J(res,200,{username:s.username,name:s.name,role:s.role,perms:(s.perms!==undefined?s.perms:null),canEdit:(s.edit!==false),editAreas:(s.editAreas!==undefined?s.editAreas:null),salesId:(s.salesId!==undefined?s.salesId:null)}) : J(res,401,{error:'not logged in'}); }
