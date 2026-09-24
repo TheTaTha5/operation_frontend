@@ -161,6 +161,14 @@ test('AUTH_BACKEND_LOGIN signs in at the backend and proxies with its Bearer tok
   assert.equal(seen[0].headers.authorization, 'Bearer ' + FAKE_TOKEN, 'the token rides as Bearer');
 
   seen = [];
+  await get(BL, '/api/ob/v1/availability?from=2026-09-01&to=2026-09-30', { headers: { Cookie } });
+  assert.equal(seen[0].url, '/v1/availability?from=2026-09-01&to=2026-09-30', '/api/ob/* reaches the backend with the prefix stripped');
+  assert.equal(seen[0].headers.authorization, 'Bearer ' + FAKE_TOKEN);
+
+  const me2 = await (await get(BL, '/api/me', { headers: { Cookie } })).json();
+  assert.equal(me2.legacyData, false, '/api/me tells the Vue app the legacy app has no data here');
+
+  seen = [];
   const local = await get(BL, '/api/v1/sb_bookings', { headers: { Cookie } });
   assert.notEqual(local.headers.get('x-upstream'), 'yes', 'a route without a rule stays local');
   assert.equal(seen.length, 0);
