@@ -28,6 +28,9 @@ a { color: var(--accent); }
 .topbar {
   position: sticky;
   top: 0;
+  /* Above page content (the By-trip table pins cells at z-index 12–36); below full-screen drawers
+     (Calendar's day drawer is 320/321). Same value as the legacy #topbar. */
+  z-index: 300;
   display: flex;
   align-items: center;
   gap: 16px;
