@@ -51,8 +51,8 @@ export interface MonthView {
   /** Leading blank cells so the 1st lands under its weekday (weeks start on Sunday). */
   pad: number;
   cells: DayCell[];
-  /** Routes that appear this month under the pier filter, with their route-day count. */
-  routes: { id: string; name: string; color: string; pier: Pier; trips: number }[];
+  /** Routes that appear this month under the pier filter, with their route-day count and seats free across those days. */
+  routes: { id: string; name: string; color: string; pier: Pier; trips: number; free: number }[];
   /** Piers whose every route is closed on every day of the month. */
   closedAllMonth: Pier[];
   stats: { trips: number; free: number; cap: number; pctSold: number };
@@ -111,6 +111,7 @@ export function buildMonth(
   const closedAllMonth = piersShown.filter((p) => dates.every((d) => pierClosed(byDate.get(d) || [], p)));
 
   const routeTrips = new Map<string, number>();
+  const routeFree = new Map<string, number>();
   let trips = 0, free = 0, cap = 0;
   const cells: DayCell[] = dates.map((date) => {
     const list = byDate.get(date) || [];
@@ -119,6 +120,7 @@ export function buildMonth(
       // Legacy shows a route only on days a boat runs it, and never on a closed day.
       if (!d.open || d.deployments.length === 0 || !inPier(d.route_id)) continue;
       routeTrips.set(d.route_id, (routeTrips.get(d.route_id) || 0) + 1);
+      routeFree.set(d.route_id, (routeFree.get(d.route_id) || 0) + Math.max(0, d.available_seats));
       if (f.hidden.has(d.route_id)) continue;
       const r = routeById.get(d.route_id);
       const full = d.deployed_capacity > 0 && d.available_seats <= 0;
@@ -153,7 +155,7 @@ export function buildMonth(
     cells,
     routes: routes
       .filter((r) => routeTrips.has(r.id))
-      .map((r) => ({ id: r.id, name: r.name, color: r.color || '#8b909c', pier: pierOf(r), trips: routeTrips.get(r.id)! })),
+      .map((r) => ({ id: r.id, name: r.name, color: r.color || '#8b909c', pier: pierOf(r), trips: routeTrips.get(r.id)!, free: routeFree.get(r.id) || 0 })),
     closedAllMonth,
     stats: { trips, free, cap, pctSold: pct(cap, free) },
   };
