@@ -13,6 +13,8 @@ export type Me = {
   canEdit: boolean;
   editAreas: string[] | null;
   salesId: string | null;
+  /** false = server.js has no DATABASE_URL, so every legacy page fails to load. */
+  legacyData?: boolean;
 };
 
 type Status = "idle" | "loading" | "signed-in" | "signed-out" | "error";

@@ -16,7 +16,6 @@ export type LegacyView = {
 export const legacyViews: readonly LegacyView[] = [
   // Overview
   { view: "dashboard", label: "Dashboard", section: "Overview" },
-  { view: "calendar", label: "Calendar", section: "Overview" },
   { view: "daily", label: "Daily Availability", section: "Overview" },
   { view: "actionboard", label: "Action Board", section: "Overview" },
 

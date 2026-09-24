@@ -6,6 +6,7 @@ export const routes = [
   { path: "/", name: "home", component: HomeView },
   { path: "/login", name: "login", component: () => import("@/views/LoginView.vue") },
   { path: "/health", name: "health", component: () => import("@/views/HealthView.vue") },
+  { path: "/calendar", name: "calendar", component: () => import("@/features/calendar/CalendarView.vue") },
   {
     path: "/travel-summary",
     name: "travel-summary",

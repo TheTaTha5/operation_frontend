@@ -2917,7 +2917,7 @@ const server = http.createServer((req, res) => {
                      apiProxy.TOKEN_COOKIE+'=; HttpOnly; Path=/api; SameSite=Lax; Secure; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0']});
     return;
   }
-  if(u === '/api/me'){ const s=session(req); return s ? J(res,200,{username:s.username,name:s.name,role:s.role,perms:(s.perms!==undefined?s.perms:null),canEdit:(s.edit!==false),editAreas:(s.editAreas!==undefined?s.editAreas:null),salesId:(s.salesId!==undefined?s.salesId:null)}) : J(res,401,{error:'not logged in'}); }
+  if(u === '/api/me'){ const s=session(req); return s ? J(res,200,{username:s.username,name:s.name,role:s.role,perms:(s.perms!==undefined?s.perms:null),canEdit:(s.edit!==false),editAreas:(s.editAreas!==undefined?s.editAreas:null),salesId:(s.salesId!==undefined?s.salesId:null),legacyData:!!pool}) : J(res,401,{error:'not logged in'}); }   // legacyData: false = no DATABASE_URL, the legacy app cannot load
 
   // ───── DATA (require login) ─────
   if(u === '/api/load'){

@@ -31,12 +31,21 @@ const sections = computed(() =>
   <section v-else>
     <h1>New pages</h1>
     <div class="card new">
+      <RouterLink to="/calendar">Calendar</RouterLink>
+      <span class="muted"> · seats free per route and day, from operation-backend.</span>
+    </div>
+    <!-- Phase 1 still reads the legacy data (/api/ck), so it cannot load without the legacy database. -->
+    <div v-if="session.me?.legacyData !== false" class="card new">
       <RouterLink to="/travel-summary">Travel Summary</RouterLink>
       <span class="muted"> · phase 1, read-only: day overview and manifest. Penalty decisions, on-site money and printing are still on the <a :href="legacyUrl('travelsum')">legacy page</a>.</span>
     </div>
     <h1>Pages</h1>
-    <p class="muted">These pages still open in the legacy app. They move here one at a time.</p>
-    <div class="sections">
+    <p v-if="session.me?.legacyData === false" class="muted">
+      These pages still live in the legacy app, which has no database on this deployment, so they are
+      not listed. They move here one at a time.
+    </p>
+    <p v-else class="muted">These pages still open in the legacy app. They move here one at a time.</p>
+    <div v-if="session.me?.legacyData !== false" class="sections">
       <div v-for="[section, views] in sections" :key="section" class="card">
         <h2>{{ section }}</h2>
         <ul>

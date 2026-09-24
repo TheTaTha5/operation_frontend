@@ -24,6 +24,8 @@
  *                        whose paths differ from ours: `/api/v1/bookings=/v1/bookings` sends
  *                        `/api/v1/bookings/b1/cancel` to `/v1/bookings/b1/cancel`. The longest
  *                        matching `from` wins; an unrewritten route keeps its path as-is.
+ *                        `/api/ob/*` is always forwarded with the prefix stripped: the namespace
+ *                        the Vue app uses for operation-backend's own `/v1/*` and `/operations/*`.
  *   API_PROXY_TIMEOUT_MS default 30000.
  *   AUTH_BACKEND_LOGIN   `true` = sign in against the upstream's `POST /v1/login` (operation-backend's
  *                        HS256 password login) instead of the local users table. server.js keeps
@@ -53,6 +55,10 @@ const ROUTES = RAW_ROUTES.split(',').map(s => s.trim()).filter(Boolean).map(s =>
            to:   i < 0 ? null : s.slice(i + 1).trim().replace(/\/+$/, '') };
 });
 const ALL = ROUTES.length === 0 || ROUTES.some(r => r.from === '*');
+// Built-in namespace for pages written against operation-backend's own contract: /api/ob/<path>
+// is <path> upstream (/api/ob/v1/availability -> /v1/availability), so a new page needs no
+// API_PROXY_ROUTES change. Pushed after ALL is computed so it cannot turn "*" off.
+ROUTES.push({ from: '/api/ob', to: '' });
 
 function enabled(){ return !!TARGET; }
 function backendLoginEnabled(){ return !!TARGET && BACKEND_LOGIN; }
