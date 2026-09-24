@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
-import { ApiError, getJson } from "@/lib/api";
+import { ApiError, getJson, postJson } from "@/lib/api";
 
 /** Shape of server.js `/api/me`. */
 export type Me = {
@@ -34,5 +34,19 @@ export const useSessionStore = defineStore("session", () => {
     }
   }
 
-  return { me, status, isAdmin, load };
+  /** POST /api/login. server.js sets the `sess` cookie; throws ApiError with the server's message. */
+  async function signIn(username: string, password: string): Promise<void> {
+    me.value = await postJson<Me>("/api/login", { username, password });
+    status.value = "signed-in";
+  }
+
+  /** POST /api/logout. Clears local state even if the request fails: the user asked to leave. */
+  async function signOut(): Promise<void> {
+    try { await postJson("/api/logout", {}); } finally {
+      me.value = null;
+      status.value = "signed-out";
+    }
+  }
+
+  return { me, status, isAdmin, load, signIn, signOut };
 });

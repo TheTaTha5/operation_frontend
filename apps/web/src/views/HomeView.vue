@@ -20,8 +20,7 @@ const sections = computed(() =>
 
   <section v-else-if="session.status === 'signed-out'" class="card">
     <h1>ยังไม่ได้เข้าสู่ระบบ</h1>
-    <p>Sign in through the legacy app, then come back here.</p>
-    <a class="button" :href="legacyUrl()">Sign in</a>
+    <RouterLink class="button" to="/login">Sign in</RouterLink>
   </section>
 
   <section v-else-if="session.status === 'error'" class="card">

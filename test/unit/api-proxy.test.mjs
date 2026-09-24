@@ -165,6 +165,10 @@ test('AUTH_BACKEND_LOGIN signs in at the backend and proxies with its Bearer tok
   assert.notEqual(local.headers.get('x-upstream'), 'yes', 'a route without a rule stays local');
   assert.equal(seen.length, 0);
 
+  const root = await get(BL, '/');
+  assert.equal(root.headers.get('location'), '/app/', 'the root opens the Vue app, not the data-less legacy app');
+  assert.equal((await get(ALL, '/')).headers.get('location'), '/allotment_v2/allotment_v2.html', 'unchanged otherwise');
+
   const out = await get(BL, '/api/logout', { method: 'POST', headers: { Cookie } });
   assert.ok(out.headers.getSetCookie().some((c) => /^ob_at=;/.test(c)), 'logout clears the backend token too');
 });

@@ -3477,7 +3477,12 @@ const server = http.createServer((req, res) => {
   // Redirecting instead of rewriting means the document URL is always the real path, so relative
   // references resolve correctly here AND under allotment_v2/start_server.command (whose web root is
   // allotment_v2/ itself). 302, not 301: a permanent redirect is cached hard and painful to undo.
-  if(u==='/'||u===''){ res.writeHead(302,{Location:'/allotment_v2/allotment_v2.html'+(q?('?'+q):''),'Cache-Control':'no-store'}); return res.end(); }
+  // With AUTH_BACKEND_LOGIN the legacy app has no data source (its /api/load needs DATABASE_URL),
+  // so the root opens the Vue app, which signs in on its own /app/login page.
+  if(u==='/'||u===''){
+    const home = apiProxy.backendLoginEnabled() ? '/app/' : '/allotment_v2/allotment_v2.html';
+    res.writeHead(302,{Location:home+(q?('?'+q):''),'Cache-Control':'no-store'}); return res.end();
+  }
 
   /* §embedRoute (2026-09-19) · ที่อยู่สั้น ๆ ให้บริการอื่นเอาไปใส่ <iframe>
        /embed/calendar                  → ปฏิทินของหน้า Booking

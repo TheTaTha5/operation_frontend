@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
-import { RouterLink, RouterView } from "vue-router";
+import { RouterLink, RouterView, useRouter } from "vue-router";
 
 import { legacyUrl } from "@/lib/legacy";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
+const router = useRouter();
 onMounted(() => session.load());
+
+async function signOut(): Promise<void> {
+  await session.signOut();
+  await router.push("/login");
+}
 </script>
 
 <template>
@@ -17,7 +23,10 @@ onMounted(() => session.load());
       <RouterLink to="/health">Health</RouterLink>
       <a :href="legacyUrl()">Legacy app</a>
     </nav>
-    <span v-if="session.me" class="user">{{ session.me.name || session.me.username }}</span>
+    <span v-if="session.me" class="user">
+      {{ session.me.name || session.me.username }}
+      <button type="button" class="linklike" @click="signOut">Sign out</button>
+    </span>
   </header>
   <main>
     <RouterView />
