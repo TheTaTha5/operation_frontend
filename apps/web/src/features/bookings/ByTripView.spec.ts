@@ -7,8 +7,24 @@ import ByTripView from './ByTripView.vue';
 
 const D = '2026-09-24';
 
-/** Answers the page's /api/ob/* requests the way operation-backend would. */
-function stubApi() {
+/** GET /operations/van-board for D: BK-1 in group 1 on Van 7, the charter left unassigned. */
+const VAN_BOARD = {
+  date: D,
+  vans: [{ id: 'v7', name: 'Van 7', plate: 'นข 1234', capacity: 12, usable: true, route_ids: ['r3'], driver: 'Somchai', driver_phone: '0812345678' }],
+  trips: [{
+    route_id: 'r3', pool: { outbound: ['v7'] }, totals: { unassigned_pax: 0, self_arrive_pax: 0 },
+    groups: [{ id: 'vg1', number: 1, zone: 'PK', van_id: 'v7', return_van_id: null, pickup_time: '06:40', pax: 2, capacity: 12,
+      over_capacity: false, round: null, round_warning: null }],
+    allocations: [{ booking_id: 'lg_BK-1', booking_trip_id: 't1', idx: 0, split: false, status: 'confirmed', zone: 'PK', leg: 'out',
+      pax: { ad: 2, chd: 0, inf: 0, foc: 0, total: 2 }, group_id: 'vg1', sequence: null,
+      pickup: { hotel: 'Kata Beach Resort', time_booked: '06:30-06:45', time_final: '06:40' },
+      return: { needed: false, self: false, same_van: false, van_id: null, alert: false, pool: [] } }],
+  }],
+  warnings: { no_outbound_van: [{ route_id: 'r10', bookings: 1, pax: 12 }], no_return_van: [], van_on_two_routes: [] },
+};
+
+/** Answers the page's /api/ob/* requests the way operation-backend would. `vanBoard: null` = the backend lacks it (404). */
+function stubApi(opts: { vanBoard?: object | null } = {}) {
   const calls: string[] = [];
   const trip = (id: string, route_id: string, pax: Record<string, number>, extra = {}) =>
     ({ id, seq: 1, route_id, service_date: D, booking_mode: 'seat', pax, pax_total: 0, ...extra });
@@ -36,7 +52,11 @@ function stubApi() {
   };
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     calls.push(url);
-    const b = body[url.split('?')[0]!];
+    const path = url.split('?')[0]!;
+    if (path === '/api/ob/operations/van-board') {
+      return opts.vanBoard === null ? new Response('{"message":"Not Found"}', { status: 404 }) : new Response(JSON.stringify(opts.vanBoard ?? VAN_BOARD), { status: 200 });
+    }
+    const b = body[path];
     return b ? new Response(JSON.stringify(b), { status: 200 }) : new Response('{"error":"unexpected"}', { status: 500 });
   }));
   return calls;
@@ -84,5 +104,40 @@ describe('ByTripView', () => {
     await flushPromises();
     expect(w.text()).not.toContain('V-100');
     expect(w.text()).toContain('V-300');
+  });
+
+  it('van mode: swaps the columns, groups the rows under their van and shows the day warning', async () => {
+    const calls = stubApi();
+    const { w, router } = await mountAt({ date: D });
+    expect(calls).toContain(`/api/ob/operations/van-board?date=${D}`);
+    expect(w.find('.t2-hd-warnchip--van').text()).toContain('12');          // the charter has no outbound van
+    expect(w.find('.bt-mc.warn .n').text()).toBe('1');
+    expect(w.findAll('thead th').map((th) => th.text())).toContain('Pay');
+
+    await w.find('button.bt-mc').trigger('click');                          // Van
+    await flushPromises();
+    expect(router.currentRoute.value.query.mode).toBe('van');
+    const heads = w.findAll('thead th').map((th) => th.text());
+    expect(heads).not.toContain('Pay');
+    expect(heads).not.toContain('Add-on');
+    expect(heads).not.toContain('Total');
+    expect(heads).toContain('✓ กลุ่ม');
+    expect(w.find('.t2-mtbl').classes()).toContain('t2-van');
+    expect(w.find('#vg-vg1').text()).toContain('กรุ๊ป 1');
+    expect(w.find('#vg-vg1').text()).toContain('2/12 pax');
+    expect(w.find('#vg-vg1').text()).toContain('Somchai');
+    expect(w.text()).toContain('06:40');
+    expect(w.text()).toContain('ยังไม่ assign · 1 booking · 12 pax');       // the charter row, in its own zone
+    expect(w.find('.bt-vans').text()).toContain('Van 7');
+    expect(w.findAll('.bt-vans select, .t2-mtbl select').every((s) => s.attributes('disabled') !== undefined)).toBe(true);
+  });
+
+  it('van mode without the backend endpoint: says so and keeps the plain manifest', async () => {
+    stubApi({ vanBoard: null });
+    const { w } = await mountAt({ date: D, mode: 'van' });
+    expect(w.find('.bt-vans').text()).toContain('Van assignment is not in operation-backend yet');
+    expect(w.find('.bt-mc .s').text()).toBe('not in backend yet');
+    expect(w.findAll('tr.t2-row')).toHaveLength(2);
+    expect(w.find('.van-group-head').exists()).toBe(false);
   });
 });

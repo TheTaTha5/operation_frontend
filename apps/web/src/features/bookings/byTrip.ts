@@ -166,6 +166,17 @@ export interface Filters {
   sort: { col: SortCol; dir: 'asc' | 'desc' };
 }
 
+/** The Agency / Zone column sort; 0 when no column is picked. */
+export function rowCmp(sort: Filters['sort']): (a: Row, b: Row) => number {
+  const agentKey = (r: Row) => (isB2C(r.b) ? 'b2c' : r.b.agent_id || '').toLowerCase();
+  return (a, b) => {
+    if (!sort.col) return 0;
+    const va = sort.col === 'agency' ? agentKey(a) : (a.b.pickup_area || '').toLowerCase();
+    const vb = sort.col === 'agency' ? agentKey(b) : (b.b.pickup_area || '').toLowerCase();
+    return va < vb ? (sort.dir === 'desc' ? 1 : -1) : va > vb ? (sort.dir === 'desc' ? -1 : 1) : 0;
+  };
+}
+
 export interface Seats { booked: number; cap: number; free: number; locked: number; cls: 'ok' | 'low' | 'full'; boats: number; hasBoats: boolean }
 export interface Variant { rid: string; sub: string; dep: string; pier: string; open: boolean; on: boolean; seats: Seats }
 export interface FamRow { fam: Family; pax: number; on: boolean; nRun: number; nOff: number; variants: Variant[] }
@@ -327,13 +338,7 @@ export function buildDay(
     return { lang: Object.entries(lang).sort((a, b) => b[1] - a[1]), veg, vegan, halal, allerg };
   };
 
-  const agentKey = (r: Row) => (isB2C(r.b) ? 'b2c' : r.b.agent_id || '').toLowerCase();
-  const cmp = (a: Row, b: Row) => {
-    if (!f.sort.col) return 0;
-    const va = f.sort.col === 'agency' ? agentKey(a) : (a.b.pickup_area || '').toLowerCase();
-    const vb = f.sort.col === 'agency' ? agentKey(b) : (b.b.pickup_area || '').toLowerCase();
-    return va < vb ? (f.sort.dir === 'desc' ? 1 : -1) : va > vb ? (f.sort.dir === 'desc' ? -1 : 1) : 0;
-  };
+  const cmp = rowCmp(f.sort);
   const trips: Trip[] = routeIds.map((rid) => {
     const grp = groups.get(rid) || [];
     // Charter bookings get their own pseudo-zone, shown first.

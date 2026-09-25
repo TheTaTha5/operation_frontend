@@ -5,14 +5,19 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import logoUrl from '@/assets/la-logo-full.png';
 import { ApiError } from '@/lib/api';
 import { addDays, isYmd, localYmd } from '@/lib/date';
-import { ob, type ObAvailabilityDay, type ObBoat, type ObBooking, type ObRouteDays, type ObSeatLock } from '@/lib/ob';
+import { ob, type ObAvailabilityDay, type ObBoat, type ObBooking, type ObRouteDays, type ObSeatLock, type ObVanAllocation } from '@/lib/ob';
+import { useVanBoardStore } from '@/stores/vanBoard';
 
 import BookingTabs from './BookingTabs.vue';
 import {
   agentColor, boatColor, boatInitials, buildDay, contrastInk, langColors, langs, PIER_BTN, PIERS, type PierF, type Row,
-  type SortCol, tint,
+  rowCmp, type SortCol, tint, type Trip, type ZoneBlock,
 } from './byTrip';
-import { displayCode, fmtDate, isB2C } from './model';
+import { displayCode, fmtDate, isB2C, type PaxSplit } from './model';
+import VanCell from './VanCell.vue';
+import VanGroupHead from './VanGroupHead.vue';
+import { type VanGroupView, vanWarnings, vanZone } from './vanMode';
+import VansCard from './VansCard.vue';
 
 // "By trip · date" (legacy bkV2RenderTab2): the day's manifest, one table per trip, grouped by
 // pickup zone, under a header of programmes / boats / search / seat locks. Read-only.
@@ -27,6 +32,8 @@ const routeF = computed(() => (typeof route.query.route === 'string' ? route.que
 const q = computed(() => (typeof route.query.q === 'string' ? route.query.q : ''));
 const sortCol = computed<SortCol>(() => (route.query.sort === 'agency' || route.query.sort === 'zone' ? route.query.sort : ''));
 const sortDir = computed<'asc' | 'desc'>(() => (route.query.dir === 'desc' ? 'desc' : 'asc'));
+/** Van mode (legacy _bkV2.vanAssignMode) lives in the URL so a reload or a shared link keeps it. */
+const vanOn = computed(() => route.query.mode === 'van');
 
 function setQuery(patch: Record<string, string | undefined>) {
   const next: Record<string, string> = {};
@@ -40,6 +47,7 @@ const setPier = (p: PierF) => setQuery({ pier: p === 'all' ? undefined : p, fam:
 const setFam = (id: string) => setQuery({ fam: id || undefined, route: undefined });
 const setRoute = (rid: string) => setQuery({ route: rid || undefined });
 const clearFilters = () => setQuery({ pier: undefined, fam: undefined, route: undefined, q: undefined });
+const toggleVan = () => setQuery({ mode: vanOn.value ? undefined : 'van' });
 function setSort(col: 'agency' | 'zone') {
   if (sortCol.value === col) setQuery({ dir: sortDir.value === 'asc' ? 'desc' : undefined });
   else setQuery({ sort: col, dir: undefined });
@@ -87,6 +95,55 @@ async function load() {
   }
 }
 watch(date, load, { immediate: true });
+
+// ── Van mode (phase 1 of apps/web/docs/porting/van-mode.md: read-only) ──
+// The board also feeds the Van button's count and the day warnings, so it loads in every mode.
+const vans = useVanBoardStore();
+watch(date, (d) => vans.load(d), { immediate: true });
+const vanWarn = computed(() => vanWarnings(vans.board));
+/** Legacy _btMode('Van', …) (booking.js:9967): bookings with no outbound van, else ✓. */
+const vanBtn = computed(() => {
+  if (vans.status === 'missing') return { sub: 'not in backend yet', n: '—', kind: '' };
+  if (vans.status !== 'ready') return { sub: vans.status === 'error' ? 'could not load' : 'loading…', n: '…', kind: '' };
+  const n = vanWarn.value.outbound.bookings;
+  return n > 0 ? { sub: 'not assigned', n: String(n), kind: 'warn' } : { sub: 'all assigned', n: '✓', kind: 'ok' };
+});
+/** Legacy COLN (booking.js:8645): van mode hides Add-on / Pay / Total / VC and adds the group column. */
+const colN = computed(() => (vanOn.value ? 15 : 18));
+
+type RowItem = { kind: 'row'; key: string; r: Row; pax: PaxSplit; first: boolean; alloc: ObVanAllocation | null;
+  g: VanGroupView | null; cls: string; style: Record<string, string> };
+type Item = RowItem | { kind: 'unassigned'; key: string; n: number; pax: number } | { kind: 'group'; key: string; g: VanGroupView };
+const plain = (r: Row): RowItem => ({ kind: 'row', key: r.key, r, pax: r.pax, first: true, alloc: null, g: null, cls: '', style: {} });
+/** A zone's table rows: the plain manifest, or in van mode the unassigned block then one block per group. */
+function zoneItems(t: Trip, z: ZoneBlock): Item[] {
+  if (!vanOn.value || vans.status !== 'ready') return z.rows.map(plain);
+  const vz = vanZone(z, vans.tripOf(t.rid), vans.board?.vans || [], rowCmp({ col: sortCol.value, dir: sortDir.value }));
+  const out: Item[] = [];
+  if (vz.unassigned.length) {
+    out.push({ kind: 'unassigned', key: `${z.zone}-un`, n: vz.unassigned.length, pax: vz.unassignedPax });
+    for (const v of vz.unassigned) out.push({ ...plain(v.row), key: v.key, pax: v.pax, first: v.first, alloc: v.alloc });
+  }
+  for (const g of vz.groups) {
+    out.push({ kind: 'group', key: g.group.id, g });
+    g.rows.forEach((v, i) => out.push({
+      ...plain(v.row), key: v.key, pax: v.pax, first: v.first, alloc: v.alloc, g,
+      // Legacy t2-novan (booking.js:9007): a group with no van is framed red as one box.
+      cls: g.van ? '' : 't2-novan' + (i === g.rows.length - 1 ? ' t2-novan-last' : ''),
+      style: g.van ? { background: g.colors[0], boxShadow: `inset 4px 0 0 ${g.colors[1]}` } : {},
+    }));
+  }
+  return out;
+}
+const vanName = (id: string | null) => (id ? vans.board?.vans.find((v) => v.id === id)?.name || id : '');
+/** Legacy bkV2ScrollToVan (booking.js:3010): scroll to the van's first group and flash it. */
+function scrollToGroup(_rid: string, groupId: string) {
+  const el = root.value?.querySelector<HTMLElement>(`#vg-${CSS.escape(groupId)}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('t2-flash');
+  setTimeout(() => el.classList.remove('t2-flash'), 1400);
+}
 
 const view = computed(() => (loadedDate.value !== date.value ? null : buildDay(
   { date: date.value, bookings: bookings.value, routes: routes.value, boats: boats.value, days: days.value, locks: locks.value },
@@ -183,6 +240,16 @@ watch(view, async () => {
               <span v-if="isToday" class="bt-today">TODAY</span>
               <button v-else type="button" class="bt-today gh" @click="pickDay(today)">Go to today</button>
               <button type="button" class="bt-arw" title="Next day" @click="shiftDay(1)">&rsaquo;</button>
+              <!-- Day van warnings (legacy booking.js:9740-9742): a click opens van mode -->
+              <span v-if="vans.status === 'ready'" class="bt-hdwarn">
+                <button v-if="vanWarn.outbound.bookings" type="button" class="t2-hd-warnchip t2-hd-warnchip--van" :title="`ยังไม่จัดรถ(ขาไป) ${vanWarn.outbound.bookings} booking · ${vanWarn.outbound.pax} pax`"
+                        @click="vanOn || toggleVan()">Van &middot; <b>{{ vanWarn.outbound.pax }}</b> pax</button>
+                <button v-if="vanWarn.ret.bookings" type="button" class="t2-hd-warnchip t2-hd-warnchip--ret" :title="`ยังไม่จัดรถกลับ (ส่งคนละที่) ${vanWarn.ret.bookings} booking · ${vanWarn.ret.pax} pax`"
+                        @click="vanOn || toggleVan()">รถกลับ &middot; <b>{{ vanWarn.ret.pax }}</b> pax</button>
+                <button v-for="w in vanWarn.twoRoutes" :key="w.van_id" type="button" class="t2-hd-warnchip t2-hd-warnchip--mixed"
+                        :title="`${vanName(w.van_id)} is on ${w.route_ids.length} programmes today: check the pickup times`"
+                        @click="vanOn || toggleVan()">{{ vanName(w.van_id) }} &middot; <b>{{ w.route_ids.length }}</b> โปรแกรม</button>
+              </span>
               <span class="bt-brand">{{ view?.selFam ? view.selFam.name : 'LOVE ANDAMAN' }}</span>
             </div>
 
@@ -274,7 +341,10 @@ watch(view, async () => {
               <div class="bt-col3">
                 <div class="bt-pair">
                   <div class="bt-c"><div class="bt-mrow">
-                    <button v-for="m in [{ nm: 'Van', col: '#0F6E56' }, { nm: 'Boat', col: '#185FA5' }, { nm: 'Re-confirm', col: '#7A4A00' }]" :key="m.nm"
+                    <button type="button" class="bt-mc" :class="[vanBtn.kind, { on: vanOn }]" style="--mc:#0F6E56" :aria-pressed="vanOn" title="Van" @click="toggleVan">
+                      <span class="tx"><span class="t">Van</span><span class="s">{{ vanBtn.sub }}</span></span><span class="n">{{ vanBtn.n }}</span><span v-if="vanOn" class="x">&times;</span>
+                    </button>
+                    <button v-for="m in [{ nm: 'Boat', col: '#185FA5' }, { nm: 'Re-confirm', col: '#7A4A00' }]" :key="m.nm"
                             type="button" class="bt-mc dis" :style="{ '--mc': m.col }" disabled title="Not moved yet">
                       <span class="tx"><span class="t">{{ m.nm }}</span><span class="s">not in backend yet</span></span><span class="n">&mdash;</span>
                     </button>
@@ -286,7 +356,9 @@ watch(view, async () => {
                     <span v-if="q" class="bt-shit">{{ view.hits }} rows</span>
                   </div></div>
                 </div>
-                <div class="bt-pair2">
+                <VansCard v-if="vanOn" class="bt-vans" :trips="view.trips.map((t) => ({ rid: t.rid, name: t.name, dep: t.dep, color: t.color }))"
+                          :board="vans.board" :status="vans.status" :error="vans.error" @scroll-to="scrollToGroup" @retry="vans.load(date, true)" />
+                <div v-else class="bt-pair2">
                   <div class="bt-c bt-lockc">
                     <div class="bt-ct">Seat Lock<span class="sp" />
                       <span v-if="lockLeft > 0" class="bt-lkbadge">{{ lockLeft }} left</span><span v-else class="bt-cnt">none left</span>
@@ -348,100 +420,121 @@ watch(view, async () => {
 
                 <div v-if="!t.hasRows && !t.pend.length" class="t2-nobk">No bookings yet &middot; seats held by lock above</div>
                 <div v-else-if="t.zones.length" class="t2-tblscroll">
-                  <table class="t2-mtbl">
+                  <table class="t2-mtbl" :class="{ 't2-van': vanOn }">
                     <thead><tr>
                       <th class="t2-vc">Voucher</th>
                       <th class="t2-ag" style="cursor:pointer;user-select:none" title="Sort by agency" @click="setSort('agency')">Agency{{ arrow('agency') }}</th>
                       <th class="t2-cu">Customer (lead)</th>
                       <th class="t2-c">AD</th><th class="t2-c">CHD</th><th class="t2-c">INF</th><th class="t2-c">FOC</th>
-                      <th>Time</th><th class="t2-pk">Pickup</th><th class="t2-c">Room</th>
+                      <th>Time</th><th v-if="vanOn" class="t2-c t2-gwrap" title="ติ๊กแถวที่จะไปด้วยกัน แล้วกดจับกลุ่ม">&#10003; กลุ่ม</th><th class="t2-pk">Pickup</th><th class="t2-c">Room</th>
                       <th class="t2-zn" style="cursor:pointer;user-select:none" title="Sort by pickup area" @click="setSort('zone')">Zone{{ arrow('zone') }}</th>
-                      <th>Send back</th><th>Add-on</th><th>Special request</th><th>Pay</th><th class="t2-r">Total</th><th class="t2-c" /><th class="t2-c">&#128676; Boat</th>
+                      <th>Send back</th><th v-if="!vanOn">Add-on</th><th>Special request</th><template v-if="!vanOn"><th>Pay</th><th class="t2-r">Total</th><th class="t2-c" /></template><th class="t2-c">&#128676; Boat</th>
                     </tr></thead>
                     <tbody>
                       <!-- Programme band (§btBand) -->
-                      <tr class="t2-pband" :style="{ '--pc': t.color }"><td colspan="18"><div class="pw">
+                      <tr class="t2-pband" :style="{ '--pc': t.color }"><td :colspan="colN"><div class="pw">
                         <span class="pd" /><span class="pn">{{ t.name }}</span>
                         <span class="pt">{{ t.dep }}{{ t.pier ? ' · ' + t.pier : '' }}</span>
                         <span v-if="t.seats.boats" class="pb">{{ t.seats.boats }} boat{{ t.seats.boats === 1 ? '' : 's' }}</span>
                         <span class="ps">{{ t.seats.booked }}/{{ t.seats.cap }}<em :class="t.seats.cls">{{ t.seats.free <= 0 ? 'full' : t.seats.free + ' free' }}</em></span>
                       </div></td></tr>
                       <template v-for="z in t.zones" :key="z.zone">
-                        <tr v-if="z.charter" class="t2-zband t2-zband-ch"><td colspan="18"><div class="zw">
+                        <tr v-if="z.charter" class="t2-zband t2-zband-ch"><td :colspan="colN"><div class="zw">
                           <span class="zkind">เหมาลำ</span><span class="znm">&#128676; CHARTER</span>
                           <span class="zsub">{{ z.rows.length }} booking &middot; {{ z.pax }} pax &middot; ทั้งลำ</span>
                           <span v-if="z.charterItems.length" class="zboats"><span v-for="(it, i) in z.charterItems" :key="i" class="zb"><b>&#128676; {{ it.bn || 'ยังไม่ระบุเรือ' }}</b><s>{{ it.cap ? it.px + '/' + it.cap : it.px + ' pax' }}</s></span></span>
                         </div></td></tr>
-                        <tr v-else class="t2-zband"><td colspan="18" :style="{ '--zc': z.color }"><div class="zw">
+                        <tr v-else class="t2-zband"><td :colspan="colN" :style="{ '--zc': z.color }"><div class="zw">
                           <span class="zkind">โซน</span><span class="znm">{{ z.label }}</span>
                           <span class="zsub">{{ z.rows.length }} booking &middot; {{ z.pax }} pax</span>
                         </div></td></tr>
-                        <template v-for="r in z.rows" :key="r.key">
-                          <tr class="t2-row">
+                        <template v-for="it in zoneItems(t, z)" :key="it.key">
+                          <VanGroupHead v-if="it.kind === 'group'" :id="`vg-${it.g.group.id}`" :group="it.g" :colspan="colN" />
+                          <VanGroupHead v-else-if="it.kind === 'unassigned'" :group="null" :colspan="colN" :unassigned-n="it.n" :unassigned-pax="it.pax" />
+                          <template v-else>
+                          <tr class="t2-row" :class="it.cls" :style="it.style">
                             <td>
-                              <span v-if="voucherTxt(r)" class="t2-mono t2-vch" :title="r.b.voucher_ref">{{ voucherTxt(r) }}</span><span v-else class="t2-dim">—</span>
-                              <div v-if="isB2C(r.b)" style="margin-top:3px"><span class="b2c-tag">Love Andaman</span></div>
+                              <span v-if="voucherTxt(it.r)" class="t2-mono t2-vch" :title="it.r.b.voucher_ref">{{ voucherTxt(it.r) }}</span><span v-else class="t2-dim">—</span>
+                              <div v-if="isB2C(it.r.b)" style="margin-top:3px"><span class="b2c-tag">Love Andaman</span></div>
                             </td>
-                            <td class="t2-ag" :style="r.b.agent_id ? 'padding:0' : ''">
-                              <div v-if="r.b.agent_id && isB2C(r.b)" class="ag-b2c" title="Love Andaman · ขายเอง (B2C)"><img :src="logoUrl" alt="Love Andaman" /></div>
-                              <div v-else-if="r.b.agent_id" class="ag-box" :style="{ background: agentColor(r.b.agent_id), color: contrastInk(agentColor(r.b.agent_id)) }"
-                                   :title="`${r.b.agent_id} · agent name not in operation-backend yet`">{{ r.b.agent_id }}</div>
+                            <td class="t2-ag" :style="it.r.b.agent_id ? 'padding:0' : ''">
+                              <div v-if="it.r.b.agent_id && isB2C(it.r.b)" class="ag-b2c" title="Love Andaman · ขายเอง (B2C)"><img :src="logoUrl" alt="Love Andaman" /></div>
+                              <div v-else-if="it.r.b.agent_id" class="ag-box" :style="{ background: agentColor(it.r.b.agent_id), color: contrastInk(agentColor(it.r.b.agent_id)) }"
+                                   :title="`${it.r.b.agent_id} · agent name not in operation-backend yet`">{{ it.r.b.agent_id }}</div>
                               <span v-else class="t2-agency">—</span>
                             </td>
                             <td class="t2-cu">
-                              <span class="t2-lead">{{ r.b.lead_pax || '—' }}</span>
-                              <button v-if="r.b.passengers.length" type="button" class="t2-more" @click="togglePax(r.key)"><span style="display:inline-block">{{ openPax.has(r.key) ? '▴' : '▾' }}</span> +{{ r.b.passengers.length }}</button>
+                              <span class="t2-lead">{{ it.r.b.lead_pax || '—' }}</span>
+                              <button v-if="it.r.b.passengers.length" type="button" class="t2-more" @click="togglePax(it.r.key)"><span style="display:inline-block">{{ openPax.has(it.r.key) ? '▴' : '▾' }}</span> +{{ it.r.b.passengers.length }}</button>
                               <span v-else class="t2-dim t2-leadonly">lead only</span>
                             </td>
                             <td v-for="k in (['ad', 'chd', 'inf', 'foc'] as const)" :key="k" class="t2-c t2-mono">
-                              <template v-if="r.pax[k]"><span v-if="k === 'foc'" style="color:#A32D2D">{{ r.pax[k] }}</span><template v-else>{{ r.pax[k] }}</template></template>
+                              <template v-if="it.pax[k]"><span v-if="k === 'foc'" style="color:#A32D2D">{{ it.pax[k] }}</span><template v-else>{{ it.pax[k] }}</template></template>
                               <span v-else class="t2-dim">0</span>
                             </td>
-                            <td class="t2-mono"><span class="t2-dim" title="Pickup time is in trip operations, which operation-backend does not return yet">—</span></td>
+                            <td v-if="it.alloc && (it.alloc.pickup.time_final || it.alloc.pickup.time_booked)" class="t2-mono">
+                              <!-- Legacy §เวลารับที่แก้แล้ว: the final time on top, the booked one small underneath when they differ -->
+                              <b v-if="it.alloc.pickup.time_final">{{ it.alloc.pickup.time_final }}</b>
+                              <div v-if="it.alloc.pickup.time_booked && it.alloc.pickup.time_booked !== it.alloc.pickup.time_final"
+                                   :class="it.alloc.pickup.time_final ? 't2-tmold' : ''">{{ it.alloc.pickup.time_booked }}</div>
+                            </td>
+                            <td v-else class="t2-mono"><span class="t2-dim" :title="vanOn ? 'No pickup time yet' : 'Pickup times show in Van mode'">—</span></td>
+                            <td v-if="vanOn" class="t2-c t2-gwrap"><VanCell :r="{ key: it.key, row: it.r, alloc: it.alloc, pax: it.pax, first: it.first }" :zone="it.alloc?.zone || it.r.zone" :group="it.g" :vans="vans.board?.vans || []" /></td>
                             <td class="t2-pk">
-                              <span v-if="r.b.hotel_name" class="t2-pickcell" :title="r.b.hotel_name">{{ r.b.hotel_name }}</span>
+                              <span v-if="it.alloc?.split && it.alloc.pickup.hotel" class="t2-pickcell t2-altpick" :title="it.alloc.pickup.hotel">&#128652; {{ it.alloc.pickup.hotel }}</span>
+                              <span v-else-if="it.r.b.hotel_name" class="t2-pickcell" :title="it.r.b.hotel_name">{{ it.r.b.hotel_name }}</span>
                               <span v-else class="t2-needpickup" title="ยังไม่ได้ระบุจุดรับ">&#9888; no pickup</span>
                             </td>
-                            <td class="t2-c"><span v-if="r.b.room_number" class="t2-mono t2-room">{{ r.b.room_number }}</span><span v-else class="t2-dim">—</span></td>
-                            <td><span v-if="r.b.pickup_area" class="t2-zonetag">{{ r.b.pickup_area }}</span><span v-else class="t2-dim">—</span></td>
+                            <td class="t2-c"><span v-if="it.r.b.room_number" class="t2-mono t2-room">{{ it.r.b.room_number }}</span><span v-else class="t2-dim">—</span></td>
+                            <td><span v-if="it.r.b.pickup_area" class="t2-zonetag">{{ it.r.b.pickup_area }}</span><span v-else class="t2-dim">—</span></td>
                             <td>
-                              <span v-if="r.b.dropoff_same === false && (r.b.dropoff_hotel_name || r.b.dropoff_area)" class="t2-sb" :title="r.b.dropoff_hotel_name || r.b.dropoff_area">{{ r.b.dropoff_hotel_name || r.b.dropoff_area }}</span>
+                              <span v-if="it.r.b.dropoff_same === false && (it.r.b.dropoff_hotel_name || it.r.b.dropoff_area)" class="t2-sb" :title="it.r.b.dropoff_hotel_name || it.r.b.dropoff_area">{{ it.r.b.dropoff_hotel_name || it.r.b.dropoff_area }}</span>
                               <span v-else class="t2-dim">—</span>
+                              <!-- Legacy bkV2RetInfo chips (booking.js:8946-8956), from the van board -->
+                              <template v-if="it.alloc?.return.needed">
+                                <br /><span v-if="it.alloc.return.self" class="t2-rb t2-ret-self" title="จุดส่งกลับเป็นท่าเรือ self-arrive · ลูกค้าเดินทางกลับเอง ไม่ต้องจัดรถ">&#8617; ลูกค้ากลับเอง</span>
+                                <span v-else-if="it.alloc.return.van_id" class="t2-rb t2-ret-ok" :title="`รถกลับ: ${vanName(it.alloc.return.van_id)}`">&#8617; {{ vanName(it.alloc.return.van_id) }}</span>
+                                <span v-else-if="it.alloc.return.same_van" class="t2-rb t2-ret-same" title="รถขาไปพากลับ · ส่งจุดใหม่">&#8617; กลับคันเดิม &#10003;</span>
+                                <span v-else-if="it.alloc.return.alert" class="t2-rb t2-ret-alert" title="ส่งกลับคนละที่กับตอนรับ · ยังไม่จัดรถกลับ">&#9888; ยังไม่จัดรถกลับ</span>
+                              </template>
                             </td>
-                            <td class="t2-req"><span class="t2-dim" title="Add-ons are not in operation-backend yet">—</span></td>
+                            <td v-if="!vanOn" class="t2-req"><span class="t2-dim" title="Add-ons are not in operation-backend yet">—</span></td>
                             <td class="t2-req">
-                              <div v-if="r.b.special_meals_veg || r.b.special_meals_vegan || r.b.special_meals_halal || r.b.large_luggage || langs(r.b).length" class="t2-rbwrap">
-                                <span v-if="r.b.special_meals_veg" class="t2-rb" style="background:#EAF3DE;color:#3B6D11">{{ r.b.special_meals_veg }} veg</span>
-                                <span v-if="r.b.special_meals_vegan" class="t2-rb" style="background:#EAF3DE;color:#3B6D11">{{ r.b.special_meals_vegan }} vegan</span>
-                                <span v-if="r.b.special_meals_halal" class="t2-rb" style="background:#E1F5EE;color:#0F6E56">{{ r.b.special_meals_halal }} halal</span>
-                                <span v-if="r.b.large_luggage" class="t2-rb" style="background:#FAEEDA;color:#854F0B">{{ r.b.large_luggage }} bag</span>
-                                <span v-for="code in langs(r.b)" :key="code" class="t2-rb" :style="{ background: langColors(code)[0], color: langColors(code)[1] }">{{ code }}</span>
+                              <div v-if="it.r.b.special_meals_veg || it.r.b.special_meals_vegan || it.r.b.special_meals_halal || it.r.b.large_luggage || langs(it.r.b).length" class="t2-rbwrap">
+                                <span v-if="it.r.b.special_meals_veg" class="t2-rb" style="background:#EAF3DE;color:#3B6D11">{{ it.r.b.special_meals_veg }} veg</span>
+                                <span v-if="it.r.b.special_meals_vegan" class="t2-rb" style="background:#EAF3DE;color:#3B6D11">{{ it.r.b.special_meals_vegan }} vegan</span>
+                                <span v-if="it.r.b.special_meals_halal" class="t2-rb" style="background:#E1F5EE;color:#0F6E56">{{ it.r.b.special_meals_halal }} halal</span>
+                                <span v-if="it.r.b.large_luggage" class="t2-rb" style="background:#FAEEDA;color:#854F0B">{{ it.r.b.large_luggage }} bag</span>
+                                <span v-for="code in langs(it.r.b)" :key="code" class="t2-rb" :style="{ background: langColors(code)[0], color: langColors(code)[1] }">{{ code }}</span>
                               </div>
-                              <div v-if="(r.b.special_meals_allergies || '').trim()" class="t2-allerg" :title="`Allergy: ${r.b.special_meals_allergies}`">Allergy: {{ r.b.special_meals_allergies }}</div>
-                              <div v-if="(r.b.notes || r.b.note || '').trim()" class="t2-note" :title="r.b.notes || r.b.note">{{ r.b.notes || r.b.note }}</div>
-                              <span v-if="!(r.b.special_meals_veg || r.b.special_meals_vegan || r.b.special_meals_halal || r.b.large_luggage || langs(r.b).length || (r.b.special_meals_allergies || '').trim() || (r.b.notes || r.b.note || '').trim())" class="t2-dim">—</span>
+                              <div v-if="(it.r.b.special_meals_allergies || '').trim()" class="t2-allerg" :title="`Allergy: ${it.r.b.special_meals_allergies}`">Allergy: {{ it.r.b.special_meals_allergies }}</div>
+                              <div v-if="(it.r.b.notes || it.r.b.note || '').trim()" class="t2-note" :title="it.r.b.notes || it.r.b.note">{{ it.r.b.notes || it.r.b.note }}</div>
+                              <span v-if="!(it.r.b.special_meals_veg || it.r.b.special_meals_vegan || it.r.b.special_meals_halal || it.r.b.large_luggage || langs(it.r.b).length || (it.r.b.special_meals_allergies || '').trim() || (it.r.b.notes || it.r.b.note || '').trim())" class="t2-dim">—</span>
                             </td>
-                            <td><div class="t2-paywrap"><span class="t2-pay" :style="payChip(r.b).style">{{ payChip(r.b).txt }}</span><span v-if="cotTxt(r.b)" class="t2-cot" title="Cash on tour · เก็บเงินสดวันเดินทาง">{{ cotTxt(r.b) }}</span></div></td>
-                            <td v-if="r.amount != null" class="t2-r t2-mono">{{ thb(r.amount) }}</td>
-                            <td v-else class="t2-r t2-mono t2-dim" title="Multi-trip booking: operation-backend has no per-trip subtotal yet">—</td>
-                            <td class="t2-c"><RouterLink class="t2-vcbtn" :to="`/bookings/${encodeURIComponent(r.b.id)}`" title="Voucher · ดูรายละเอียด booking" aria-label="Voucher">VC</RouterLink></td>
+                            <template v-if="!vanOn">
+                              <td><div class="t2-paywrap"><span class="t2-pay" :style="payChip(it.r.b).style">{{ payChip(it.r.b).txt }}</span><span v-if="cotTxt(it.r.b)" class="t2-cot" title="Cash on tour · เก็บเงินสดวันเดินทาง">{{ cotTxt(it.r.b) }}</span></div></td>
+                              <td v-if="it.r.amount != null" class="t2-r t2-mono">{{ thb(it.r.amount) }}</td>
+                              <td v-else class="t2-r t2-mono t2-dim" title="Multi-trip booking: operation-backend has no per-trip subtotal yet">—</td>
+                              <td class="t2-c"><RouterLink class="t2-vcbtn" :to="`/bookings/${encodeURIComponent(it.r.b.id)}`" title="Voucher · ดูรายละเอียด booking" aria-label="Voucher">VC</RouterLink></td>
+                            </template>
                             <td class="t2-c">
-                              <span v-if="r.charterBoatId" class="boatcell" title="เรือที่ขึ้น">
-                                <span class="av" :style="{ background: boatColor(r.charterBoatId, boats) }">{{ boatInitials(boats.find((b) => b.id === r.charterBoatId)?.name || r.charterBoatId) }}</span>
-                                <span class="bn">{{ boats.find((b) => b.id === r.charterBoatId)?.name || r.charterBoatId }}</span>
+                              <span v-if="it.r.charterBoatId" class="boatcell" title="เรือที่ขึ้น">
+                                <span class="av" :style="{ background: boatColor(it.r.charterBoatId, boats) }">{{ boatInitials(boats.find((b) => b.id === it.r.charterBoatId)?.name || it.r.charterBoatId) }}</span>
+                                <span class="bn">{{ boats.find((b) => b.id === it.r.charterBoatId)?.name || it.r.charterBoatId }}</span>
                               </span>
                               <span v-else class="t2-dim" title="Boat assignment is in trip operations, which operation-backend does not return yet">—</span>
                             </td>
                           </tr>
-                          <tr v-if="openPax.has(r.key)" class="t2-paxrow"><td colspan="18">
-                            <div class="t2-paxttl">Passengers &middot; {{ r.b.passengers.length + 1 }}</div>
+                          <tr v-if="it.first && openPax.has(it.r.key)" class="t2-paxrow"><td :colspan="colN">
+                            <div class="t2-paxttl">Passengers &middot; {{ it.r.b.passengers.length + 1 }}</div>
                             <div class="t2-paxlist">
-                              <span><b>{{ r.b.lead_pax || '—' }}</b> <span class="t2-natl">lead</span></span>
-                              <span v-for="p in r.b.passengers" :key="p.seq">{{ p.name }} <span v-if="p.nationality" class="t2-natl">{{ p.nationality }}</span></span>
+                              <span><b>{{ it.r.b.lead_pax || '—' }}</b> <span class="t2-natl">lead</span></span>
+                              <span v-for="p in it.r.b.passengers" :key="p.seq">{{ p.name }} <span v-if="p.nationality" class="t2-natl">{{ p.nationality }}</span></span>
                             </div>
                           </td></tr>
+                          </template>
                         </template>
-                        <tr v-if="z.charter" class="t2-zgap"><td colspan="18" /></tr>
+                        <tr v-if="z.charter" class="t2-zgap"><td :colspan="colN" /></tr>
                       </template>
                     </tbody>
                   </table>
@@ -486,6 +579,12 @@ watch(view, async () => {
   --r: 16px; --r-sm: 11px; --r-lg: 18px;
   --coral: #3A6FF7; --coral-light: #EEF3FF; --coral-soft: #EEF3FF;
   --bg: #F6F7F9; --ink-faint: #94A3B8; --border-2: #EEF0F3; --white: #ffffff;
+  /* Van mode (legacy BKV2_T2_CSS + van-mode inline styles). This page has no dark theme yet. */
+  --van: #0F6E56; --van-soft: #F1FBF6; --van-soft-2: #DCF0E7;
+  --sel: #185FA5; --sel-soft: #EEF5FC;
+  --van-missing: #E05B5B; --van-missing-soft: #FCEDED;
+  --van-mixed: #7A1FA2; --van-mixed-soft: #F3E0F7;
+  --van-ret: #534AB7;
   color: var(--ink);
   border-radius: 16px; padding: 14px 16px 18px;
 }
@@ -742,6 +841,45 @@ table.t2-mtbl tr.t2-row:hover td { background: #fcfcfd; }
 .bt-mc .s { font-size: 9.5px; color: #8a7f78; white-space: nowrap; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; }
 .bt-mc .n { margin-left: auto; flex: none; font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 800; line-height: 1; border-radius: 8px; padding: 5px 7px; background: #F3EFEB; color: #5a504a; }
 .bt-mc.dis { opacity: 0.45; cursor: not-allowed; }
+/* Mode button states (legacy booking.js:8429-8442). */
+.bt-mc.warn .n { background: #FBEFD8; color: #8A5B00; }
+.bt-mc.ok .n { background: #E4F3EA; color: #0F6E56; font-size: 13px; }
+.bt-mc.on { background: var(--mc); border-color: var(--mc); box-shadow: 0 2px 7px rgba(0, 0, 0, 0.16); }
+.bt-mc.on::before { background: rgba(255, 255, 255, 0.55); }
+.bt-mc.on .t { color: #fff; font-size: 13px; }
+.bt-mc.on .s { display: none; }
+.bt-mc.on .n { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.bt-mc .x { width: 16px; height: 16px; border-radius: 50%; background: rgba(255, 255, 255, 0.22); color: #fff; font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; flex: none; }
+
+/* ── Van mode (legacy BKV2_T2_CSS, booking.js:7719-7721, 8138-8150) ── */
+.bt-col3 > .bt-vans { flex: 1 1 auto; }
+.bt-hdwarn { margin-left: auto; display: inline-flex; gap: 5px; flex-wrap: wrap; position: relative; z-index: 1; }
+.t2-hd-warnchip { font-size: 10.5px; font-weight: 600; color: #fff; background: #C0392B; border: 0; border-radius: 6px; padding: 3px 9px; cursor: pointer;
+  font-family: inherit; transition: filter 0.12s; }
+.t2-hd-warnchip:hover { filter: brightness(1.08); }
+.t2-hd-warnchip b { font-family: 'DM Mono', monospace; font-size: 11px; }
+/* One-off chip colours (booking.js:9740-9741). */
+.t2-hd-warnchip--van { background: #E07C24; }
+.t2-hd-warnchip--ret { background: #B8860B; }
+.t2-hd-warnchip--mixed { background: var(--van-mixed); }
+.t2-mtbl.t2-van .t2-more, .t2-mtbl.t2-van .t2-leadonly { display: none; }
+.t2-mtbl.t2-van td.t2-cu { width: 186px; max-width: 186px; }
+.t2-mtbl th.t2-gwrap, .t2-mtbl td.t2-gwrap { width: 184px; max-width: 184px; }
+.t2-mtbl th.t2-gwrap { color: #0C6B47; background: var(--van-soft-2); }
+.t2-mtbl td.t2-gwrap { background: #F3FBF7; }
+.t2-mtbl tr.t2-novan > td:first-child { border-left: 2px solid var(--van-missing); }
+.t2-mtbl tr.t2-novan > td:last-child { border-right: 2px solid var(--van-missing); }
+.t2-mtbl tr.t2-novan-last > td { border-bottom: 2px solid var(--van-missing); }
+.t2-tmold { font-size: 10px; color: #a8a49c; }
+.t2-altpick { color: #5B289A; font-weight: 600; }
+.t2-ret-self { background: #EDEFF2; color: #5F6B7A; white-space: nowrap; }
+.t2-ret-ok { background: #E1F5EE; color: var(--van); white-space: nowrap; }
+.t2-ret-same { background: #EAF1FA; color: #2C5F94; white-space: nowrap; }
+.t2-ret-alert { background: #FBE3E1; color: #C0392B; font-weight: 700; white-space: nowrap; }
+/* bkV2ScrollToVan's flash on the group header row. */
+.t2-flash { animation: t2-flash 1.4s ease-out; }
+@keyframes t2-flash { 0%, 40% { filter: brightness(0.86); } 100% { filter: none; } }
 .bt-srow { display: flex; gap: 7px; padding: 9px 10px 10px; align-items: stretch; }
 .bt-sbox { flex: 1; display: flex; align-items: center; gap: 7px; border: 1px solid #E4DCD5; border-radius: 10px; padding: 4px 10px; background: #fff; min-width: 0; }
 .bt-sbox .ic { font-size: 12px; color: #a49c94; flex: none; }
@@ -782,7 +920,7 @@ table.t2-mtbl tr.t2-row:hover td { background: #fcfcfd; }
   .bt-hgrid > div:nth-child(3) { grid-column: 1 / -1; }
   .bt-col3 { flex-direction: row; align-items: stretch; }
   .bt-col3 > .bt-pair { flex: 1 1 46%; }
-  .bt-col3 > .bt-pair2 { flex: 1 1 54%; }
+  .bt-col3 > .bt-pair2, .bt-col3 > .bt-vans { flex: 1 1 54%; }
 }
 @media (max-width: 1150px) {
   .bt-hgrid { grid-template-columns: minmax(0, 1fr); }

@@ -138,6 +138,85 @@ export interface ObSeatLock {
   drawn_pax?: number;
 }
 
+// ── Van assignment (GET /operations/van-board). Contract drafted in apps/web/docs/handoff/van-endpoints.md
+//    §3.1; operation-backend has not shipped it yet, so until it does the endpoint answers 404. ──
+
+/** A van as the board sees it on one day: catalogue fields plus that day's matrix, status and driver. */
+export interface ObVanOnDay {
+  id: string;
+  name: string;
+  plate?: string;
+  capacity: number;
+  color?: string;
+  ownership?: 'own' | 'partner';
+  zone_base?: string;
+  /** Active and not off / in maintenance that day. */
+  usable: boolean;
+  /** Programmes the month matrix gives this van on the day. */
+  route_ids: string[];
+  driver?: string;
+  driver_phone?: string;
+  /** The driver / phone / plate is a per-day override, not the van's default. */
+  driver_overridden?: boolean;
+}
+
+/** One outbound van run: the passengers that ride one van together. */
+export interface ObVanGroup {
+  id: string;
+  /** Display number, one sequence per date + route. */
+  number: number;
+  zone: string;
+  /** null = no van picked yet. */
+  van_id: string | null;
+  /** Group default return van; null = back on the same van. */
+  return_van_id: string | null;
+  pickup_time: string | null;
+  pax: number;
+  capacity: number | null;
+  over_capacity: boolean;
+  /** Set when the van runs this route more than once that day. */
+  round: { no: number; of: number; time: string | null } | null;
+  /** Round n > 1 with no time, or the same time as the round before. */
+  round_warning: 'no_time' | 'same_time' | null;
+}
+
+/** A booking's share of one trip-day. An unsplit booking has one allocation, idx 0. */
+export interface ObVanAllocation {
+  booking_id: string;
+  booking_trip_id: string;
+  idx: number;
+  split: boolean;
+  status: ObBookingStatus;
+  /** Effective zone (a private-van add-on moves a NoTransfer seat into that van's zone). */
+  zone: string;
+  leg: 'out' | 'ret' | 'hold';
+  pax: { ad: number; chd: number; inf: number; foc: number; total: number };
+  group_id: string | null;
+  /** Manual pickup order inside the group; null = by pickup time. */
+  sequence: number | null;
+  pickup: { hotel?: string; area?: string; room?: string; time_booked?: string; time_final?: string };
+  return: { needed: boolean; self: boolean; same_van: boolean; van_id: string | null; alert: boolean; pool: string[] };
+}
+
+export interface ObVanTrip {
+  route_id: string;
+  pool: { outbound: string[] };
+  groups: ObVanGroup[];
+  allocations: ObVanAllocation[];
+  totals: { unassigned_pax: number; self_arrive_pax: number };
+}
+
+export interface ObVanBoard {
+  date: string;
+  vans: ObVanOnDay[];
+  trips: ObVanTrip[];
+  warnings: {
+    no_outbound_van: { route_id: string; bookings: number; pax: number }[];
+    no_return_van: { route_id: string; bookings: number; pax: number }[];
+    van_on_two_routes: { van_id: string; route_ids: string[] }[];
+  };
+}
+
 /** The API pages at most 100 bookings per call. */
 const PAGE = 100;
 
@@ -170,4 +249,6 @@ export const ob = {
     getJson<{ routes: ObRouteDays[] }>(`${OB}/v1/routes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`).then((r) => r.routes),
   seatLocks: (date: string) =>
     getJson<{ seat_locks: ObSeatLock[] }>(`${OB}/v1/seat-locks?date=${encodeURIComponent(date)}`).then((r) => r.seat_locks),
+  /** Everything van mode shows for one day. Cancelled bookings are already left out. */
+  vanBoard: (date: string) => getJson<ObVanBoard>(`${OB}/operations/van-board?date=${encodeURIComponent(date)}`),
 };
