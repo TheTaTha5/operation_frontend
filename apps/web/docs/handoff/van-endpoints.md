@@ -16,7 +16,7 @@ All legacy citations below are `allotment_v2/js/<file>:<line>` in `operation_fro
    - "Sent to driver" (`VANJOB_SENT`, `vans.js:1260`, `08-app.js:2757`) is a timestamp that is displayed but never enforced.
    - The Traveling Summary "FREEZE" exists only in `OPERATIONS_PIPELINE_DESIGN.md:12,126-129`.
 
-   §6 drafts a lock as a **new feature**. It needs a product decision before anyone builds it.
+   **Decided 2026-09-25: no lock.** Don't build one.
 2. **Migration 013 as written loses van data on every booking edit.**
    - `writeTrips` deletes and re-inserts all `booking_trips` rows of a booking (`src/domain/postgres-operations.ts:236-250`).
    - It runs on every `PATCH /v1/bookings/:id`, header-only ones included (`:322`), and on `partial-cancel` (`:349`).
@@ -116,16 +116,29 @@ A group is "the passengers that ride one outbound van together on one run".
 
 ### 2.1 Fix the cascade first
 
-Pick one. **(a)** is the smallest change:
+**Preferred (decided 2026-09-25): (b), diff the trips.** It follows the project-wide rule in `apps/web/docs/partial-updates.md`: a write touches only what changed. It fixes van data and every future trip-attached table at once.
 
-- **(a) Carry ops across trip rewrites.** In `writeTrips`, before the `DELETE`:
-  - Read the ops, groups and allocations keyed by `(seq, route_id, service_date)`.
-  - After the insert, restore them for every trip whose three values are unchanged. Drop the rest; this is R15.
+- **(b) Diff instead of delete-all.** In `writeTrips` (and the in-memory store's equivalent, shared as a pure `diffTrips(old, new)` in `src/domain/`, per `CLAUDE.md:56-63`):
+  - **Match** old and new trips by `(route_id, service_date)`. This is unique per booking once `POST`/`PATCH` reject duplicates (Q answers, item 3).
+  - **Matched:** keep the row and its `id`. Update `seq`, `booking_mode` and `charter_boat_id` in place. Rewrite that trip's `booking_trip_pax` and `booking_trip_lock_draws` only if they changed.
+  - **New:** insert with a fresh id (`trip_<uuid>`). Don't reuse `trip_<booking>_<seq>`, because positions shift.
+  - **Removed or moved** (route or date changed): delete. The cascade drops its van data, which is R15.
+  - **`seq` reorders** collide with `UNIQUE (booking_id, seq)` (`007:13`). Make the constraint `DEFERRABLE INITIALLY DEFERRED`, or write the moves through temporary negative values.
+  - **Don't call it** when the amendment has no `trips` (a header-only `PATCH`, `postgres-operations.ts:322`).
+  - `partialCancel` (`:349`) updates the one trip's pax rows only.
+- **(a) Fallback, if (b) can't land first: carry ops across the rewrite.** In `writeTrips`, before the `DELETE`:
+  - Read the ops, groups and allocations keyed by `(route_id, service_date)`.
+  - After the insert, restore them for every trip whose key is unchanged.
   - Legacy's B2C sync does the same by `(sb_bookings_id, idx)` (`server.js:1588-1616`).
-  - The in-memory store needs the same helper, as a pure function in `src/domain/` (`CLAUDE.md:56-63`).
-- **(b)** Make `writeTrips` diff the trips (update in place, insert new, delete removed) instead of delete-all. It is cleaner, but touches capacity and lock-draw code.
+  - Every later trip-attached table would need the same code, which is why (b) is preferred.
 
-Add a test: "`PATCH` header-only keeps the van group", plus "moving a trip's date clears its van".
+Tests:
+- a header-only `PATCH` keeps the van group and the trip ids
+- changing one trip's pax keeps the other trips' ids and van data
+- moving a trip's date clears its van
+- removing the first trip keeps the second trip's id and van data
+
+The last test fails today, because ids are rebuilt from position.
 
 ### 2.2 Tables
 
@@ -361,26 +374,97 @@ Van check-in (`ops_vancheckin`, JSON, per-split under `_s[i]`, `checkin.js:406-4
 
 ---
 
-## 6. Lock-in (new feature; decide before building)
+## 6. Additions from the frontend plan (2026-09-25)
 
-Legacy has no lock. If ops wants one, here is the smallest design consistent with the above:
+The Vue van assign plan (`apps/web/docs/porting/van-mode.md` §4a.7) needs these on top of §3:
 
-- `van_days.locked_at TIMESTAMPTZ, locked_by TEXT`, locking **one van's work for one day**. It naturally follows "job order sent to driver" (`sent_at`).
-  - `POST /operations/van-days/:service_date/:van_id/lock` / `…/unlock`
-- While locked, any write that changes an allocation on that van (group van, members, order, disband, split, return van, pickup time, clear-route) → **423 `van_locked`**.
-- The same for a `PATCH /v1/bookings/:id` that would drop or move a trip with an allocation on a locked van. Either refuse, or accept and flag the board with `warnings.changed_after_lock`. Product must pick one.
-- The board returns `locked_at` / `locked_by` per van.
+| # | Addition | Why |
+|---|---|---|
+| G1 | `groups[].return_pool: string[]` on the board | The group return select needs the group's pool: outbound pool ∪ zone pool (R3). A group can mix allocations whose pools differ. |
+| G2 | Every van write returns `{ trip, warnings }` | The header chips and the Van count are day-wide. Without this, each write costs a second full board fetch. |
+| G4 | Error bodies **must** carry `code`: `van_over_capacity`, `van_in_other_group`, `van_not_in_pool`, `zone_mismatch`, `self_arrive`, `cancelled` | The UI shows a different Thai message and action per code. Fastify includes `code` in its default error body when the thrown error has one. |
+| G5 | `GET /operations/van-board/stream?date=YYYY-MM-DD` as **SSE**: `event: trip_changed`, `data: {date, route_id, trip?}` | Live updates for everyone looking at the day. Emit it after every van write **and** after any booking write (create / amend / cancel / partial-cancel / reschedule) that touches a trip on that date, since those change the board too. Send a heartbeat comment every 25 s. `api-proxy.js` already pipes streams. |
 
-`request.user` is set but never read (`src/auth.ts:98,106`), so there is no actor stamping yet. Adding `locked_by` is the first place it would be read.
+Implementation note for G5: one process can fan out from an in-memory emitter. If the service ever runs more than one instance, use Postgres `LISTEN/NOTIFY` so every instance hears every write.
+
+(G3, `/api/me` returning the backend's `groups`, is frontend `server.js` work.)
 
 ---
 
 ## 7. Open questions
 
-1. **Cut-over.** The import is a one-off, and legacy keeps writing `sb_bookings.ops_*` while staff use it. If the Vue van mode writes to operation-backend while anyone still uses legacy van mode, the two copies diverge. Should Vue van mode be read-only until legacy van mode is switched off for everyone, or does ops switch over on a set date?
-2. **Lock-in (§6):** wanted? Per van-day, per group, or per whole day?
+1. ~~Cut-over~~ **Decided 2026-09-25:** legacy is no longer reachable from the frontend. Nothing assigns vans in two systems, so the Vue writes go live as soon as §3 ships.
+2. ~~Lock-in~~ **Decided:** none.
 3. **Alternate pickups:** the backend has no `alt_pickups` on bookings. Model them (with auto-splits generated server-side) now, or keep them import-only for now?
 4. **Zone quirk:** legacy `bkV2VanGroupPax` uses the raw trip zone, so a NoTransfer seat with a private-van add-on counts as 0 pax (`booking.js:2374`). Fix it (use the effective zone everywhere)? Recommended: yes.
 5. **Van on two routes at once (R8):** legacy doesn't check. Warn only, or block when the pickup times overlap?
 6. **`pickup_time_final` format:** legacy stores free text (e.g. `06.30`, `07:30-07:45`). Validate `HH:MM`, or keep it as text?
 7. **013 status:** has `013_booking_trip_operations.sql` been applied to any shared database? This decides "replace 013" versus "add 015".
+
+---
+
+## 8. Acceptance checklist: has operation-backend shipped it?
+
+Run from the operation-backend repo (grep) and against a deployed backend (curl):
+
+```sh
+OB=https://<operation-backend host>
+TOKEN=$(curl -s -X POST $OB/v1/login -H 'Content-Type: application/json' \
+  -d '{"username":"…","password":"…"}' | jq -r .token)
+D=2026-10-02   # a day with bookings
+```
+
+Tick each box only when the check passes.
+
+### Step 0: booking model (vans depend on it)
+- [ ] **Trips carry `zone`, `pickup_time` and the OVN fields.**
+  `curl -s -H "Authorization: Bearer $TOKEN" "$OB/v1/bookings?service_date=$D" | jq '.bookings[0].trips[0]'` shows `zone`, `pickup_time`, `ovn`, `ovn_leg`, `ovn_of`, `ovn_return_date`.
+- [ ] **The import fills them.** `grep -n "zone\|pickuptime\|ovnleg" src/tools/import-legacy.ts` shows them mapped from `sb_bookings__trips`.
+- [ ] **Duplicate route + date in one booking is rejected.** `POST /v1/bookings` with two trips on the same `route_id` and `service_date` → **400**.
+
+### Step 1: trips keep their ids (§2.1)
+- [ ] **`writeTrips` no longer deletes all trips.** `grep -n "DELETE FROM booking_trips WHERE booking_id" src/domain/postgres-operations.ts` finds nothing, or finds only a delete of removed ids.
+- [ ] **A header-only edit keeps the ids.** Note `.trips[].id` → `PATCH /v1/bookings/:id` with `{"header":{"notes":"x"}}` → the same ids come back.
+- [ ] **Removing the first trip keeps the second trip's id.**
+- [ ] **Tests exist** for the four cases listed in §2.1.
+
+### Step 2: schema (§2.2)
+- [ ] **Migrations exist** for `vans`, `van_day_routes`, `van_days`, `van_groups`, `booking_trip_operations` and `booking_trip_van_allocations`: `ls migrations/`.
+- [ ] **They are applied.** On their database: `SELECT name FROM schema_migrations ORDER BY name;` lists them. This also answers the 013 question.
+- [ ] **The import loads vans and assignments.** After an import: `SELECT count(*) FROM vans; SELECT count(*) FROM van_groups; SELECT count(*) FROM booking_trip_van_allocations;` are all > 0, and the import log lists any mixed-van groups it left without a van (§5).
+
+### Step 3: reads
+- [ ] **`GET /operations/van-board?date=$D`** returns 200, with `vans[]`, `trips[].{pool,groups,allocations,totals}` and `warnings` in the §3.1 shape. The Vue page's types are `ObVanBoard` in `apps/web/src/lib/ob.ts`; a mismatch there breaks the page.
+- [ ] **`groups[].return_pool`** is present (G1).
+- [ ] **Cancelled bookings are absent** from `allocations` (R1).
+- [ ] **The Vue page picks it up with no frontend change.** Open `/app/bookings/trips?mode=van`: the Van button stops saying "not in backend yet".
+
+### Step 4: writes (§3.2–3.4)
+Check each for 2xx, plus the response shape `{ trip, warnings }` (G2):
+- [ ] `POST /operations/van-groups` (new group)
+- [ ] `POST /operations/van-groups/:id/members` (add), `DELETE …/members/:trip/:idx` (remove)
+- [ ] `PATCH /operations/van-groups/:id` with `van_id`, `return_van_id`, `pickup_time`
+- [ ] `PUT /operations/van-groups/:id/order` (ordered list, and `{clear:true}`)
+- [ ] `DELETE /operations/van-groups/:id` (disband: members ungrouped, `pickup_time_final` kept)
+- [ ] `POST /operations/van-board/clear`
+- [ ] `PATCH /operations/trip-ops/:trip` (`pickup_time_final`, `return_same_van`)
+- [ ] `PATCH /operations/van-allocations/:trip/:idx` (`return_van_id`)
+- [ ] `PUT /operations/van-days/:date/:van_id` (driver, phone, plate)
+
+### Step 5: rules and errors (§1.4, G4)
+Each must return the status **and** the `code` in the body:
+- [ ] Van smaller than the group's pax → **409** `van_over_capacity`
+- [ ] Van already in another group on the same trip → **409** `van_in_other_group`; the same call with `allow_second_round: true` → 200
+- [ ] Van outside the route's pool that day → **422** `van_not_in_pool`
+- [ ] Grouping a NoTransfer allocation → **422** `self_arrive`
+- [ ] An allocation from another zone → **422** `zone_mismatch`
+- [ ] A cancelled booking → **422** `cancelled`
+- [ ] A token without `operations:write` → **403**
+
+### Step 6: live updates (G5)
+- [ ] `curl -N -H "Authorization: Bearer $TOKEN" "$OB/operations/van-board/stream?date=$D"` stays open and prints a heartbeat within 30 s.
+- [ ] While it is open, a van write for `$D` prints `event: trip_changed`, and so does a `PATCH /v1/bookings/:id` on a booking travelling on `$D`.
+
+### Frontend side (our repo, not the backend)
+- [ ] G3: `/api/me` returns `groups` under backend login (`server.js:2410-2417`).
+- [ ] Then phase 2 of `apps/web/docs/porting/van-mode.md` §4a can start.

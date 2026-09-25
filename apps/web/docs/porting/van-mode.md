@@ -1,5 +1,13 @@
 # Porting spec: Van mode (By-trip · date tab)
 
+- **Revised 2026-09-25 (decisions):**
+  - Legacy is no longer reachable from the frontend, so there is no dual-write and no feature flag.
+  - Lock-in is dropped.
+  - Drag a row onto a group header, as well as ticking.
+  - `?mode=van` is kept.
+  - Live updates replace the 60 s refetch (G5).
+  - Still open: disband confirm (§5 Q4).
+- **Revised 2026-09-25 (later):** added §4a, the detailed plan for phase 2 (van assign: every write). Also recorded four contract gaps found while planning it, in §4a.7.
 - **Revised 2026-09-25:** phase 1 is built against the hand-off contract, before the backend has shipped it:
   - **Code:** `ob.vanBoard`, `stores/vanBoard.ts`, `features/bookings/vanMode.ts`, `vanColor.ts`, `VanCell.vue`, `VanGroupHead.vue`, `VansCard.vue`, plus the van-mode wiring in `ByTripView.vue` (`?mode=van`).
   - **While the backend answers 404:**
@@ -56,7 +64,7 @@
 ### Purpose
 On the By-trip tab for one date, ops staff group the passengers who ride one van together. For each group they pick the outbound van, a return van, a pickup time and the pickup order. They also enter the day's driver details. The mode flags bookings with no van, no return van, or mixed vans inside one group.
 
-**Legacy has no "lock-in" for vans.** "✓ Save" on a group only renumbers the pickup order (`bkV2VanGroupSave`, `booking.js:2413`). "Sent to driver" is a display-only timestamp on another page (`VANJOB_SENT`, `vans.js:1260`). A lock would be a new feature; it is drafted in the hand-off §6.
+**Legacy has no "lock-in" for vans.** "✓ Save" on a group only renumbers the pickup order (`bkV2VanGroupSave`, `booking.js:2413`). "Sent to driver" is a display-only timestamp on another page (`VANJOB_SENT`, `vans.js:1260`). A lock was considered and dropped (2026-09-25).
 
 ### Inputs
 | Source | What is read | Where |
@@ -288,7 +296,7 @@ Backend checked at `operation-backend@347a19b`. **operation-backend has nothing 
 - `apps/web/src/lib/api.ts` has only `getJson` / `postJson` (`api.ts:12, 26`). Add `patchJson`, `putJson` and `deleteJson` using the same `ApiError` pattern. Carry the server's `code` on `ApiError` so the UI can branch on `van_over_capacity` / `van_in_other_group`.
 
 ### Missing endpoints (hand-off to operation-backend)
-Drafted in full, with request/response JSON, rules R1–R18, tables, the cascade fix, the legacy import and the optional lock-in, in **`apps/web/docs/handoff/van-endpoints.md`**. It is not repeated here.
+Drafted in full, with request/response JSON, rules R1–R18, tables, the cascade fix and the legacy import, in **`apps/web/docs/handoff/van-endpoints.md`**. It is not repeated here.
 
 ---
 
@@ -297,7 +305,7 @@ Drafted in full, with request/response JSON, rules R1–R18, tables, the cascade
 The port is split by what the backend can deliver:
 - **Phase 1** (read-only van mode): needs `GET /operations/vans` + `GET /operations/van-board` + the import. It is safe while legacy still owns the writes (hand-off Q1).
 - **Phase 2** (group / van / return / time / order / disband / clear / driver writes): needs hand-off §3.2, §3.3 (except split) and `PUT van-days`, plus the cut-over decision.
-- **Phase 3** (split / unsplit modal, job-order print, lock-in if approved).
+- **Phase 3** (split / unsplit modal, job-order print).
 
 ### `useVanBoardStore` (`apps/web/src/stores/vanBoard.ts`)
 - **State:**
@@ -344,9 +352,149 @@ The port is split by what the backend can deliver:
 
 ---
 
+## 4a. Phase 2 in detail: van assign (writes)
+
+Phase 2 turns on every van-mode control except split / unsplit (phase 3). The phase 1 components already render the controls; phase 2 enables them and wires them to the store.
+
+### 4a.1 Before phase 2 can start
+| Needed | Who | Where |
+|---|---|---|
+| Per-trip `zone`, `pickup_time` and OVN fields on bookings, filled by the import | backend (booking model) | hand-off Q answers, `todo/booking-model.md:371,388` |
+| Keep van data across booking edits (the `writeTrips` cascade) | backend | hand-off §2.1 |
+| `GET /operations/van-board` | backend | hand-off §3.1 |
+| Group, trip-ops, allocation and clear-route writes | backend | hand-off §3.2, §3.3 (without split) |
+| `PUT /operations/van-days/:date/:van_id` (driver fields) | backend | hand-off §3.4 |
+| The five contract gaps in §4a.7 | backend + `server.js` | below |
+
+**No cut-over step and no feature flag.** Legacy is no longer reachable from the frontend (decided 2026-09-25), so no one assigns vans in two systems. The controls enable as soon as the board loads and the user has `operations:write` (G3). While the backend answers 404, they stay disabled as in phase 1.
+
+**The phase 1 "Edit on the legacy page" links are dead**, so phase 2 removes them:
+- the VANS card note and grouping bar
+- `NOT_MOVED` in `VanGroupHead`
+- the ✂ button title
+
+The 404 note keeps only "not in operation-backend yet". The other `legacyUrl()` links across `apps/web/src` (9 in total) need the same review, but that is outside this port.
+
+### 4a.2 Every write: control → store action → endpoint
+
+The allocation key is `${booking_trip_id}:${idx}`, replacing legacy's `bkId` / `bkId@i` (`booking.js:2288`).
+
+| Legacy handler | Vue control | Store action | Endpoint | Guard / confirm |
+|---|---|---|---|---|
+| `bkV2VanSelToggle` (`booking.js:2288`) | ✓ box in `VanCell` | `toggleSelect(key)` | — | Hidden for self-arrive, `leg: 'hold'` and pending rows |
+| `bkV2VanSelClear` (`2289`) | "ล้าง" in the grouping bar | `clearSelection()` | — | — |
+| `bkV2VanGroupSelected(…,'new')` (`2311`) | "👥 จับเป็นกรุ๊ปใหม่" | `groupSelected(rid, zone, 'new')` | `POST /operations/van-groups` | Sends only the ticked keys in the first-ticked zone, in tick order (legacy `_selTrip`, `booking.js:9381-9395`). The others stay ticked. |
+| `bkV2VanGroupSelected(…, g)` | "+ กรุ๊ป g" | `groupSelected(rid, zone, groupId)` | `POST /operations/van-groups/:id/members` | 409 `van_over_capacity` → legacy alert text "ที่นั่งไม่พอ … สร้างกรุ๊ปใหม่ · แยกคน (✂) · หรือเลือกรถใหญ่กว่า" |
+| — (new, §5 Q3) | drag a row (or every ticked row of its zone, if the dragged row is ticked) onto a group header or the unassigned header | `moveTo(keys, groupId \| null)` | `POST …/van-groups/:id/members`, or `DELETE …/members/:trip/:idx` per key for the unassigned header | Drop targets are only headers in the same trip and zone; any other target shows no-drop. Same 409 handling. Native HTML5 drag events on `tr`; there is no touch drag, so phones keep the tick flow. |
+| `bkV2VanGroupSetVan` (`2384`) | van `<select>` in `VanGroupHead` | `setGroupVan(id, vanId)` | `PATCH /operations/van-groups/:id {van_id}` | Options: `trip.pool.outbound`, plus the current van if it is outside the pool. Disabled " · ที่นั่งไม่พอ" when `capacity < group.pax`. Suffix "↻ รอบถัดไป (อยู่กรุ๊ป N · time)" when another group of the trip has that van (`booking.js:8849-8859`). 409 `van_in_other_group` → `confirm()` with the legacy text, then a retry with `allow_second_round: true` (`booking.js:2389-2405`). |
+| `bkV2VanGroupSetTime` (`2410`) | group time input | `setGroupTime(id, value)` | `PATCH …/van-groups/:id {pickup_time}` | Debounced 500 ms, flushed on blur |
+| `bkV2VanGroupSetReturn` (`2424`) | return `<select>` in `VanGroupHead` | `setGroupReturn(id, vanId \| null)` | `PATCH …/van-groups/:id {return_van_id}` | Pool: `groups[].return_pool` (gap G1) |
+| `vanJobsSetDriver` (`vans.js:1402`) | driver / phone / plate inputs | `setDriver(vanId, field, value)` | `PUT /operations/van-days/:date/:van_id` | Debounced 500 ms. Plate only for `ownership: 'partner'`. |
+| `bkV2VanGroupSave` (`2413`) | "✓ Save" | `saveOrder(id)` | `PUT …/van-groups/:id/order {allocations}` | Only when members of that group are ticked. Order = tick order, then the rest in their current order. Clears those ticks. |
+| `bkV2VanGroupClearSeq` (`2411`) | "↻ เรียงตามเวลา" | `clearOrder(id)` | `PUT …/van-groups/:id/order {clear: true}` | Shown only when a member has `sequence` |
+| `bkV2VanGroupDisband` (`2409`) | "ยกเลิกกรุ๊ป" | `disband(id)` | `DELETE /operations/van-groups/:id` | **New** `confirm()` "ยกเลิกกรุ๊ป N?": there is no undo (§5 Q4) |
+| `bkV2VanClearRoute` (`2279`) | "ล้าง" in the VANS card | `clearRoute(rid)` | `POST /operations/van-board/clear` | `confirm()`, as legacy |
+| `bkV2AssignVanReturn` / `…Split` (`2246`, `3246`) | row return `<select>` in `VanCell` (grouped rows only) | `setReturn(key, vanId \| null)` | `PATCH /operations/van-allocations/:trip/:idx` | Pool: `alloc.return.pool` |
+| `bkV2SetPickupFinal` (`3008`) | time `<input>` in the row | `setPickupTime(tripId, value)` | `PATCH /operations/trip-ops/:trip {pickup_time_final}` | Debounced 500 ms, flushed on blur. One value per trip, so every split row of the booking shows the same time (legacy does the same). |
+| `bkV2SetReturnSameVan` (`2248`) | "↩ กลับคันเดิม" / "✓" chip in Send back | `setReturnSameVan(tripId, bool)` | `PATCH …/trip-ops/:trip {return_same_van}` | — |
+| `bkV2VanSplit` / `bkV2VanUnsplit` (`2426`, `2525`) | ✂ / รวม | — | — | **Phase 3.** Stays a disabled button with a legacy link. |
+
+### 4a.3 After a write
+- Each write returns the changed trip (hand-off §3). The store replaces that trip in `board.trips`, so only that trip's table re-renders (root CLAUDE.md: re-render only the changed sub-region).
+- Day-wide `warnings` feed the header chips and the Van button, so write responses should carry them too (gap G2). Until they do, the store refetches the board 1 s after the last write settles.
+- **Keep the focused input stable.** A text input that has focus keeps its local draft while the returned trip is applied, so a response never overwrites what the user is typing. The input takes the saved value on blur.
+- **Selection:** successful grouping clears only the keys it sent. Any date change clears the whole selection. This fixes a legacy bug where ticks survived a date change (§1 State).
+- **Other users: live updates (G5).**
+  - While the By-trip tab is open, the store holds an `EventSource` on `/api/ob/operations/van-board/stream?date=`. `api-proxy.js:164` pipes responses, so the stream passes through.
+  - On a `trip_changed` event, it refetches that trip (or applies the trip in the event), unless a focused-input draft is pending for that trip; then it applies the event on blur.
+  - It reconnects with backoff, and refetches the whole board after a reconnect, since events may have been missed.
+  - The backend still has no versioning, so two people editing the same group at the same moment: last write wins, and both screens then show the result.
+  - Until G5 ships, the fallback is a refetch on window focus.
+
+### 4a.4 Errors and permissions
+- **`apps/web/src/lib/api.ts`:**
+  - Add `patchJson`, `putJson` and `deleteJson`.
+  - Give `ApiError` a `code` field.
+  - Take the message from the body's `message` before `error`. Fastify's default error body is `{statusCode, code?, error, message}`, and `error` is only the status text ("Conflict"), so `postJson` (`api.ts:26-35`) would show "Conflict" today.
+- **UI mapping:**
+  - 409 / 422 with a known `code` → the matching legacy Thai text, then reload that trip.
+  - 403 → "No permission to assign vans".
+  - Any other error → toast with the message, then reload the board.
+- **Permission:** the backend requires `operations:write` for `/operations/*` (`operation-backend/src/routes/operations.ts:148-155`). The Vue session cannot see it today:
+  - `server.js:2410-2417` turns the backend's groups into `canEdit`, and any `*:write` group counts, so a `booking:write`-only user looks allowed.
+  - Gap G3: `/api/me` should also return `groups`. The store then enables the controls only for `admin` or `operations:write`.
+  - A 403 is still handled in case the two disagree.
+
+### 4a.5 Store additions (`useVanBoardStore`)
+- **State:**
+  - `selection: Map<key, order>`, `tickN`
+  - `pending: Set<string>` (group ids / keys being saved), which disables the controls on screen for those
+  - `drafts: Map<inputId, string>` (focused text inputs)
+- **Getters:**
+  - `selectionSummary` → `{rid, zone, keys, pax, groups}` (legacy `_selTrip`)
+  - `canWrite`: board ready, and `admin` or `operations:write` (G3)
+  - `returnPool(group)` (G1)
+- **Actions:** as in §4a.2. Each one does these steps, in order:
+  1. mark pending
+  2. call `ob.*`
+  3. replace the trip
+  4. clear pending
+  5. schedule the warnings refetch (until G2)
+  - On error, it maps the code (§4a.4) and reloads the trip.
+- **`ob.ts`:** the eleven write methods listed in §3 "`ob.ts` additions" (all but split / unsplit), plus `ObVanWriteResult = { trip: ObVanTrip; warnings?: ObVanBoard['warnings'] }`.
+
+### 4a.6 Components
+- **`VanCell.vue`:**
+  - The tick box becomes a real `<button role="checkbox" aria-checked>`. Selected: `--sel` background.
+  - The return `<select>` is shown for grouped rows.
+  - ✂ stays disabled.
+- **`VanGroupHead.vue`:**
+  - Van / time / return / driver controls are enabled when `canWrite`.
+  - Adds "✓ Save", "↻ เรียงตามเวลา" and "ยกเลิกกรุ๊ป".
+  - `NOT_MOVED` titles are dropped when enabled.
+- **`VansCard.vue`:**
+  - The grouping bar becomes live: the count badge (legacy `.bkv2-selcount` pop, `booking.js:7837`), "👥 จับเป็นกรุ๊ปใหม่", "+ กรุ๊ป g" for groups in the first-ticked zone, and "ล้าง".
+  - "ล้าง" (clear route) is added per trip.
+  - The card gets `.act` while anything is ticked (`booking.js:8491`).
+- **`ByTripView.vue`:**
+  - The row time cell becomes an `<input>` in van mode (legacy `booking.js:9039`, 98 px, DM Mono).
+  - The Send-back chips "↩ กลับคันเดิม" / "✓" become buttons.
+  - The selected-row tint is `--sel-soft`.
+- **No new files.** Confirms use `window.confirm`, as legacy does. The confirm text is Thai UI text, which CLAUDE.md allows; the ASCII rule covers `alert()` / logs only.
+- **CSS:** `.bt-vans.act`, the `.van-cell__tick--on` state, `.van-groupbar--active`, and `@keyframes` for the count pop. All go in the existing scoped blocks, and the tokens already exist (§2 Tokens).
+
+### 4a.7 Contract gaps to send to the backend (add to the hand-off)
+| # | Gap | Why |
+|---|---|---|
+| G1 | `groups[].return_pool: string[]` | The group return select needs the group's pool: outbound pool ∪ zone pool (R3). Per-allocation `return.pool` exists, but a group can mix allocations whose pools differ. |
+| G2 | Write responses return `{ trip, warnings }` | Header chips and the Van count are day-wide; without it every write needs a second full board fetch. |
+| G3 | `/api/me` returns `groups` under backend login (`server.js:2410-2417`, frontend repo) | To tell `operations:write` from `booking:write`. |
+| G4 | Error bodies carry `code` (`van_over_capacity`, `van_in_other_group`, `van_not_in_pool`, `zone_mismatch`, `self_arrive`, `cancelled`) | Fastify includes `code` when the thrown error has one. The hand-off lists the codes but should say they are required. |
+| G5 | `GET /operations/van-board/stream?date=` (SSE): event `trip_changed {date, route_id, trip?}` after every van write, **and after any booking write that touches a trip on that date** | Live updates (§5 Q6). A new booking or a cancellation changes the board as much as a van edit does. |
+
+### 4a.8 Tests
+- **`stores/vanBoard.spec.ts`:**
+  - tick order and the date reset
+  - `groupSelected` sends only first-zone keys in tick order and clears only those
+  - 409 `van_in_other_group` → confirm → retry with `allow_second_round`
+  - `van_over_capacity` shows the alert and reloads the trip
+  - the trip is replaced from the response
+  - a focused draft is not overwritten
+  - debounce flushes on blur
+  - `canWrite` is false without `operations:write` or the flag
+- **`api.spec.ts`** (new, `src/lib/`): `ApiError` carries `code` and prefers `message`.
+- **`ByTripView.spec.ts`** (stub the write endpoints and assert each request):
+  - tick two rows → new group → `POST` body
+  - pick a van → `PATCH`
+  - disband asks first
+  - controls stay disabled with the flag off
+
+---
+
 ## 5. Open questions
-1. **Cut-over:** Vue writes and legacy writes cannot both be live (hand-off Q1). Phase 1 is read-only for this reason. When does phase 2 switch on, and does legacy van mode get switched off at the same time?
-2. **Lock-in:** legacy has none. Is it wanted, and at what grain (van-day / group / whole day)? See hand-off §6.
-3. **Tick → group flow:** keep legacy's "tick rows, then press a group button", or also allow dragging a row onto a group header? Recommended: keep ticks for phase 2.
-4. **Disband:** legacy has no confirm (`booking.js:2409`). Add one in the port?
-5. **Mode persistence:** legacy restores van mode on reload from `sessionStorage`. `?mode=van` in the URL does the same and survives sharing a link. Is that OK?
+1. ~~Cut-over~~ **Decided:** legacy is no longer reachable from the frontend. There is no dual-write and no flag (§4a.1).
+2. ~~Lock-in~~ **Decided:** dropped; legacy has none.
+3. ~~Tick → group flow~~ **Decided:** ticks plus drag onto a group header (§4a.2).
+4. **Disband** ("ยกเลิกกรุ๊ป") breaks a group up. Every allocation in it goes back to "not yet assigned", and its van, return van and pickup order are cleared. The bookings themselves are untouched; they are not cancelled, and `pickup_time_final` / `return_same_van` stay. Legacy has no confirm (`booking.js:2409`). §4a.2 adds one because there is no undo. OK?
+5. ~~Mode persistence~~ **Decided:** `?mode=van`.
+6. ~~Other users' changes~~ **Decided:** live updates (§4a.3, G5).
