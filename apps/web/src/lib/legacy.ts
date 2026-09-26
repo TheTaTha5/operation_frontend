@@ -56,7 +56,6 @@ export const legacyViews: readonly LegacyView[] = [
   // Sales
   { view: "sales-board", label: "Sales Board", section: "Sales" },
   { view: "b2b-dash", label: "B2B Dashboard", section: "Sales" },
-  { view: "agents", label: "Agent List", section: "Sales" },
   { view: "rate-types", label: "Rate Types", section: "Sales" },
   { view: "rate-admin", label: "Rate Expiry", section: "Sales" },
   { view: "contract-tmpl", label: "Contract Templates", section: "Sales" },

@@ -38,6 +38,10 @@ const sections = computed(() =>
       <RouterLink to="/calendar">Calendar</RouterLink>
       <span class="muted"> · seats free per route and day, from operation-backend.</span>
     </div>
+    <div class="card new">
+      <RouterLink to="/agents">Agents</RouterLink>
+      <span class="muted"> · the agent list with each agent's terms, rate, programmes and recent bookings. Read-only, from operation-backend.</span>
+    </div>
     <!-- Phase 1 still reads the legacy data (/api/ck), so it cannot load without the legacy database. -->
     <div v-if="session.me?.legacyData !== false" class="card new">
       <RouterLink to="/travel-summary">Travel Summary</RouterLink>

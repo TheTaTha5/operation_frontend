@@ -217,6 +217,87 @@ export interface ObVanBoard {
   };
 }
 
+// ── Agents (GET /v1/agents …). Contract drafted in apps/web/docs/porting/agents.md §3; operation-backend
+//    has no agents yet, so until it ships these the endpoints answer 404. ──
+
+export type ObPayType = 'invoice' | 'proforma' | 'bt' | 'cot';
+export type ObVatMode = 'none' | 'include' | 'exclude';
+
+/** One row of GET /v1/agents: enough for the list, the filters and the header counts. */
+export interface ObAgentSummary {
+  id: string;
+  code: string;
+  name: string;
+  market_id: string | null;
+  sub_market?: string;
+  sales_id: string | null;
+  pay_type: ObPayType | null;
+  credit_limit?: number;
+  rate_type_id: string | null;
+  /** null = automatic colour. */
+  color?: string | null;
+  program_route_ids: string[];
+  contract_status?: string;
+  contract_end?: string | null;
+  /** At least one of email / phone / contact is set. */
+  has_contact: boolean;
+  /** a_walkin / a_staff / a_b2c: always present, cannot be deactivated. */
+  house: boolean;
+  active: boolean;
+}
+
+export interface ObAgentProgram {
+  route_id: string;
+  book_from?: string | null;
+  book_to?: string | null;
+  note?: string;
+  /** From the bound rate type's route validity; absent when the rate has no dates for the route. */
+  travel_from?: string | null;
+  travel_to?: string | null;
+}
+
+/** GET /v1/agents/:id. */
+export interface ObAgent extends ObAgentSummary {
+  vat_mode: ObVatMode | null;
+  credit_days?: number;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  note?: string;
+  contract_template_id?: string | null;
+  contract_version?: string;
+  contract_start?: string | null;
+  company: { legal_name?: string; tax_id?: string; tat_license?: string; address?: string; tel?: string; hotline?: string; fax?: string; website?: string };
+  signatory: { name?: string; designation?: string; tel?: string; signed_date?: string | null };
+  booking_channel: { method?: string; cutoff?: string; cancel_policy?: string; email?: string; phone?: string };
+  programs: ObAgentProgram[];
+  /** Rate by travel date; outside every season the bound rate applies. */
+  rate_seasons: { rate_type_id: string; from: string; to?: string | null }[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ObMarket { id: string; name: string; short?: string; color?: string; subs?: string[] }
+export interface ObSalesPerson { id: string; code?: string; name: string; full_name?: string; color?: string; active?: boolean }
+
+/** GET /v1/rate-types: the summary the agent screens need, not the prices. */
+export interface ObRateTypeSummary {
+  id: string;
+  code?: string;
+  name: string;
+  color?: string;
+  active: boolean;
+  /** Sales id; absent = shared. */
+  owner?: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  /** Routes with a seat rate: "priced" (legacy agRtRoutes), not merely listed. */
+  priced_routes: string[];
+  route_validity?: Record<string, { from?: string | null; to?: string | null }>;
+}
+
+export interface ObAgentActivity { at: string; by?: string; kind: string; text: string }
+
 /** The API pages at most 100 bookings per call. */
 const PAGE = 100;
 
@@ -251,4 +332,21 @@ export const ob = {
     getJson<{ seat_locks: ObSeatLock[] }>(`${OB}/v1/seat-locks?date=${encodeURIComponent(date)}`).then((r) => r.seat_locks),
   /** Everything van mode shows for one day. Cancelled bookings are already left out. */
   vanBoard: (date: string) => getJson<ObVanBoard>(`${OB}/operations/van-board?date=${encodeURIComponent(date)}`),
+
+  agents: () => getJson<{ agents: ObAgentSummary[] }>(`${OB}/v1/agents?active=true`).then((r) => r.agents),
+  agent: (id: string) => getJson<ObAgent>(`${OB}/v1/agents/${encodeURIComponent(id)}`),
+  markets: () => getJson<{ markets: ObMarket[] }>(`${OB}/v1/markets`).then((r) => r.markets),
+  salesPeople: () => getJson<{ sales: ObSalesPerson[] }>(`${OB}/v1/sales`).then((r) => r.sales),
+  rateTypes: () => getJson<{ rate_types: ObRateTypeSummary[] }>(`${OB}/v1/rate-types`).then((r) => r.rate_types),
+  agentActivity: (id: string) =>
+    getJson<{ activity: ObAgentActivity[] }>(`${OB}/v1/agents/${encodeURIComponent(id)}/activity?limit=50`).then((r) => r.activity),
+  /**
+   * One page of an agent's bookings, newest booking first. The rows are filtered by agent here too:
+   * a backend that does not know `agent_id` yet would ignore it and return everyone's bookings.
+   */
+  async agentBookings(id: string, cursor?: string): Promise<{ bookings: ObBooking[]; next_cursor?: string }> {
+    const q = `agent_id=${encodeURIComponent(id)}&sort=-booking_date&limit=15` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+    const page = await getJson<{ bookings: ObBooking[]; next_cursor?: string }>(`${OB}/v1/bookings?${q}`);
+    return { bookings: page.bookings.filter((b) => b.agent_id === id), next_cursor: page.next_cursor };
+  },
 };

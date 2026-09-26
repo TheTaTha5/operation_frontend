@@ -10,6 +10,8 @@ export const routes = [
   { path: "/bookings/trips", name: "booking-trips", component: () => import("@/features/bookings/ByTripView.vue") },
   { path: "/bookings/:id", name: "booking", component: () => import("@/features/bookings/BookingDetailView.vue") },
   { path: "/calendar", name: "calendar", component: () => import("@/features/calendar/CalendarView.vue") },
+  { path: "/agents", name: "agents", component: () => import("@/features/agents/AgentsView.vue") },
+  { path: "/agents/:id", name: "agent", component: () => import("@/features/agents/AgentsView.vue") },
   {
     path: "/travel-summary",
     name: "travel-summary",
