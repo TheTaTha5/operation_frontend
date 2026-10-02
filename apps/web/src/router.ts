@@ -8,6 +8,7 @@ export const routes = [
   { path: "/health", name: "health", component: () => import("@/views/HealthView.vue") },
   { path: "/bookings", name: "bookings", component: () => import("@/features/bookings/BookingsView.vue") },
   { path: "/bookings/trips", name: "booking-trips", component: () => import("@/features/bookings/ByTripView.vue") },
+  { path: "/bookings/locks", name: "booking-locks", component: () => import("@/features/seat-locks/SeatLocksView.vue") },
   { path: "/bookings/:id", name: "booking", component: () => import("@/features/bookings/BookingDetailView.vue") },
   { path: "/calendar", name: "calendar", component: () => import("@/features/calendar/CalendarView.vue") },
   { path: "/agents", name: "agents", component: () => import("@/features/agents/AgentsView.vue") },

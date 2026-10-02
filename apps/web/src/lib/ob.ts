@@ -1,7 +1,7 @@
 // Typed client for operation-backend, reached through server.js's /api/ob/* proxy namespace
 // (api-proxy.js strips the prefix and adds the Bearer token). Shapes follow operation-backend's
 // README; the backend does not publish JSON schemas yet, so these are written by hand.
-import { getJson } from "./api";
+import { getJson, patchJson, postJson } from "./api";
 
 const OB = "/api/ob";
 
@@ -72,6 +72,8 @@ export interface ObTrip {
   pax: Record<string, number>;
   pax_total: number;
   charter_boat_id?: string;
+  /** Seats this trip draws from seat locks, by lock id. Empty on a charter. */
+  lock_draws?: Record<string, number>;
 }
 
 export interface ObPassenger { seq: number; name: string; nationality?: string; type?: string; foc?: boolean }
@@ -328,12 +330,26 @@ export const ob = {
   /** Both ends inclusive; the backend caps the range at 400 days. */
   routesBetween: (from: string, to: string) =>
     getJson<{ routes: ObRouteDays[] }>(`${OB}/v1/routes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`).then((r) => r.routes),
-  seatLocks: (date: string) =>
-    getJson<{ seat_locks: ObSeatLock[] }>(`${OB}/v1/seat-locks?date=${encodeURIComponent(date)}`).then((r) => r.seat_locks),
+  /** A date string = that day's locks. No argument = every lock ever made, released ones included. */
+  seatLocks: (filter?: string | { route_id?: string; service_date?: string }) => {
+    const f: Record<string, string | undefined> = typeof filter === 'string' ? { date: filter } : filter ?? {};
+    const q = new URLSearchParams(Object.entries(f).filter((e): e is [string, string] => !!e[1])).toString();
+    return getJson<{ seat_locks: ObSeatLock[] }>(`${OB}/v1/seat-locks${q ? '?' + q : ''}`).then((r) => r.seat_locks);
+  },
+  /** 409 with the backend's message when the day has fewer free seats than `pax`. */
+  createSeatLock: (input: { route_id: string; service_date: string; pax: number; agent_id?: string }) =>
+    postJson<ObSeatLock>(`${OB}/v1/seat-locks`, input),
+  /** Capacity-checked on an active lock; 409 below `drawn_pax`. Does not reactivate a released lock. */
+  amendSeatLock: (id: string, changes: { pax?: number; agent_id?: string }) =>
+    patchJson<ObSeatLock>(`${OB}/v1/seat-locks/${encodeURIComponent(id)}`, changes),
+  /** Idempotent. Seats already drawn stay with their bookings. */
+  releaseSeatLock: (id: string) => postJson<ObSeatLock>(`${OB}/v1/seat-locks/${encodeURIComponent(id)}/release`, {}),
   /** Everything van mode shows for one day. Cancelled bookings are already left out. */
   vanBoard: (date: string) => getJson<ObVanBoard>(`${OB}/operations/van-board?date=${encodeURIComponent(date)}`),
 
-  agents: () => getJson<{ agents: ObAgentSummary[] }>(`${OB}/v1/agents?active=true`).then((r) => r.agents),
+  /** `'all'` includes inactive agents, e.g. to name the holder of an old seat lock. */
+  agents: (active: boolean | 'all' = true) =>
+    getJson<{ agents: ObAgentSummary[] }>(`${OB}/v1/agents?active=${active}`).then((r) => r.agents),
   agent: (id: string) => getJson<ObAgent>(`${OB}/v1/agents/${encodeURIComponent(id)}`),
   markets: () => getJson<{ markets: ObMarket[] }>(`${OB}/v1/markets`).then((r) => r.markets),
   salesPeople: () => getJson<{ sales: ObSalesPerson[] }>(`${OB}/v1/sales`).then((r) => r.sales),

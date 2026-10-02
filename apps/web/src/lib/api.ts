@@ -20,17 +20,21 @@ export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
- * POST JSON to a same-origin endpoint. On failure the ApiError message is the server's `error`
- * text when it sent one, so a form can show it as-is.
+ * Send JSON to a same-origin endpoint. On failure the ApiError message is the server's own text, so
+ * a form can show it as-is. operation-backend (Fastify) puts that text in `message` and only the
+ * status name ("Conflict") in `error`; server.js puts it in `error`.
  */
-export async function postJson<T>(path: string, body: unknown): Promise<T> {
+export async function sendJson<T>(method: "POST" | "PATCH", path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
-    method: "POST",
+    method,
     credentials: "same-origin",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
-  if (!res.ok) throw new ApiError(res.status, data?.error || `POST ${path} failed with ${res.status}`);
+  const data = (await res.json().catch(() => null)) as (T & { error?: string; message?: string }) | null;
+  if (!res.ok) throw new ApiError(res.status, data?.message || data?.error || `${method} ${path} failed with ${res.status}`);
   return data as T;
 }
+
+export const postJson = <T>(path: string, body: unknown): Promise<T> => sendJson<T>("POST", path, body);
+export const patchJson = <T>(path: string, body: unknown): Promise<T> => sendJson<T>("PATCH", path, body);

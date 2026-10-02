@@ -3,7 +3,8 @@
 
 /* .chip: status / count / label badges.
    Used by: features/agents/AgentList.vue, features/agents/AgentDetail.vue, features/agents/AgentInfoTab.vue,
-   features/agents/AgentBookingsTab.vue */
+   features/agents/AgentBookingsTab.vue, features/seat-locks/LockTable.vue, features/seat-locks/LockDayTable.vue,
+   features/seat-locks/LockKpis.vue */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -22,6 +23,8 @@
 .chip--warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-line); }
 .chip--info { color: var(--info); background: var(--info-bg); border-color: var(--info-line); }
 .chip--ok { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-line); }
+.chip--lock { color: var(--lock); background: var(--lock-bg); border-color: var(--lock-line); }
+.chip--bulk { color: var(--bulk); background: var(--bulk-bg); border-color: transparent; }
 button.chip { cursor: pointer; font-family: inherit; }
 .chip--on { color: #fff; background: var(--accent); border-color: var(--accent); }
 
@@ -45,8 +48,124 @@ button.chip { cursor: pointer; font-family: inherit; }
 .tabs__tab:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* .callout: a boxed note or state message (not found, not in the backend yet, …).
-   Used by: features/agents/AgentsView.vue, features/agents/AgentDetail.vue */
+   Used by: features/agents/AgentsView.vue, features/agents/AgentDetail.vue, features/seat-locks/SeatLocksView.vue,
+   features/seat-locks/LockCreateDialog.vue, features/seat-locks/LockSeatsDialog.vue, features/seat-locks/LockDetailDialog.vue */
 .callout { padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 13px; }
 .callout b { display: block; margin-bottom: 2px; }
 .callout--danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-line); }
 .callout--warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-line); }
+.callout--ok { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-line); }
+
+/* .btn: buttons. Base = quiet outline; tone modifiers fill or tint it; --sm for table rows.
+   Used by: features/seat-locks/SeatLocksView.vue, features/seat-locks/LockTable.vue,
+   features/seat-locks/LockDayTable.vue, features/seat-locks/LockCreateDialog.vue,
+   features/seat-locks/LockSeatsDialog.vue, features/seat-locks/LockDetailDialog.vue */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn--sm { min-height: 26px; padding: 3px 9px; font-size: 11px; border-radius: 7px; }
+.btn--lock { color: #fff; background: var(--lock); border-color: var(--lock); border-radius: 999px; }
+.btn--ok { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-line); }
+.btn--ok-solid { color: #fff; background: var(--ok); border-color: var(--ok); }
+.btn--danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-line); }
+.btn--danger-solid { color: #fff; background: var(--lock); border-color: var(--lock); }
+.btn--ok:hover:not(:disabled), .btn--danger:hover:not(:disabled) { color: inherit; border-color: currentColor; }
+.btn--lock:hover:not(:disabled), .btn--ok-solid:hover:not(:disabled), .btn--danger-solid:hover:not(:disabled) { color: #fff; filter: brightness(0.88); }
+@media (pointer: coarse) { .btn--sm { min-height: 36px; } }
+
+/* .seg: a segmented switch (2–4 options, one on).
+   Used by: features/seat-locks/LockFilters.vue, features/seat-locks/LockCreateDialog.vue */
+.seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); }
+.seg__btn {
+  padding: 4px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.seg__btn--on { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.seg__btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* .field: a labelled form control (input, select, or a read-only value box).
+   Used by: features/seat-locks/LockFilters.vue, features/seat-locks/LockCreateDialog.vue,
+   features/seat-locks/LockSeatsDialog.vue */
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field__label { font-size: 10px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+.field__hint { font-weight: 500; text-transform: none; letter-spacing: 0; }
+.field__input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.field__input:focus { outline: none; border-color: var(--lock); box-shadow: 0 0 0 3px var(--lock-bg); }
+.field__input--value { display: flex; align-items: center; font-family: var(--font-mono); font-weight: 700; }
+
+/* .meter: a thin progress bar; set the fill width with --pct (0–100).
+   Used by: features/seat-locks/LockTable.vue */
+.meter { height: 5px; margin-top: 4px; overflow: hidden; border-radius: 3px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); }
+.meter__fill { width: calc(var(--pct, 0) * 1%); height: 100%; background: var(--ok); }
+
+/* .stepper: − [n] + for a small count.
+   Used by: features/seat-locks/LockSeatsDialog.vue */
+.stepper { display: inline-flex; align-items: center; gap: 8px; }
+.stepper__btn { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.stepper__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.stepper__input { width: 84px; height: 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); text-align: center; font: inherit; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* .dialog: a modal box over a dimmed page, rendered by components/LaDialog.vue; width via --dialog-w.
+   Used by: components/LaDialog.vue (features/seat-locks/LockCreateDialog.vue, LockSeatsDialog.vue, LockDetailDialog.vue) */
+.dialog { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--overlay); }
+.dialog__box {
+  display: flex;
+  flex-direction: column;
+  width: var(--dialog-w, 440px);
+  max-width: 100%;
+  max-height: 90dvh;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.3);
+}
+.dialog__head { display: flex; align-items: flex-start; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.dialog__titles { flex: 1; min-width: 0; }
+.dialog__eyebrow { font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--lock); }
+.dialog__eyebrow--ok { color: var(--ok); }
+.dialog__title { margin: 2px 0 0; font-size: 15.5px; font-weight: 700; }
+.dialog__sub { margin-top: 2px; font-size: 11.5px; color: var(--muted); }
+.dialog__close { border: 0; background: transparent; color: var(--muted); font-size: 21px; line-height: 1; cursor: pointer; }
+.dialog__body { padding: 16px 18px; overflow: auto; }
+.dialog__foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); background: var(--surface-2); }
+@media (max-width: 560px) {
+  .dialog { align-items: flex-end; padding: 0; }
+  .dialog__box { width: 100%; max-height: 92dvh; border-radius: 14px 14px 0 0; }
+}

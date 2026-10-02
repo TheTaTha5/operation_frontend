@@ -362,7 +362,7 @@ watch(view, async () => {
                   <div class="bt-c bt-lockc">
                     <div class="bt-ct">Seat Lock<span class="sp" />
                       <span v-if="lockLeft > 0" class="bt-lkbadge">{{ lockLeft }} left</span><span v-else class="bt-cnt">none left</span>
-                      <button type="button" class="bt-lkbtn gh" disabled title="Not moved yet">All &rarr;</button></div>
+                      <RouterLink class="bt-lkbtn gh" to="/bookings/locks">All &rarr;</RouterLink></div>
                     <div class="bt-lkl">
                       <span v-for="a in view.locks" :key="a.nm" class="bt-lkr" :class="a.qty <= 0 ? 'gone' : a.left <= 0 ? 'done' : ''">
                         <i /><span class="nm">{{ a.nm }}</span>
@@ -887,7 +887,7 @@ table.t2-mtbl tr.t2-row:hover td { background: #fcfcfd; }
 .bt-sbox .clr { border: none; background: transparent; color: #a49c94; font-size: 15px; cursor: pointer; line-height: 1; padding: 0 2px; font-family: inherit; }
 .bt-shit { flex: none; align-self: center; font-size: 10.5px; font-weight: 800; color: #0C447C; background: #E7EEFA; border-radius: 7px; padding: 4px 9px; white-space: nowrap; }
 .bt-lkbadge { font-size: 10.5px; font-weight: 800; color: #fff; background: #C0392B; border-radius: 7px; padding: 2px 9px; letter-spacing: 0; }
-.bt-lkbtn { font-size: 10.5px; font-weight: 700; border-radius: 7px; padding: 3px 10px; border: 1px solid #BFE3CC; background: #fff; color: #0F6E56; cursor: pointer; font-family: inherit; letter-spacing: 0; }
+.bt-lkbtn { display: inline-block; text-decoration: none; font-size: 10.5px; font-weight: 700; border-radius: 7px; padding: 3px 10px; border: 1px solid #BFE3CC; background: #fff; color: #0F6E56; cursor: pointer; font-family: inherit; letter-spacing: 0; }
 .bt-lkbtn.gh { border-color: #E2D9D2; color: #5b6472; }
 .bt-lkbtn:disabled { opacity: 0.45; cursor: default; }
 .bt-lkl { display: flex; flex-direction: column; padding: 0 8px 8px; gap: 2px; overflow: auto; min-height: 0; max-height: 101px; }

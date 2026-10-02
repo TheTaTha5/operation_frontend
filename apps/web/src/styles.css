@@ -12,6 +12,12 @@
   --warn: #b54708; --warn-bg: #fffaeb; --warn-line: #fedf89;
   --info: #175cd3; --info-bg: #eff8ff; --info-line: #b2ddff;
   --ok: #067647; --ok-bg: #ecfdf3; --ok-line: #abefc6;
+  /* Seat-lock red and bulk purple (legacy #C0392B / #5B3FA5): Seat Locks and the By-trip lock card. */
+  --lock: #c0392b; --lock-bg: #fbeae6; --lock-line: #eac6bf;
+  --bulk: #5b3fa5; --bulk-bg: #f3eefb;
+  --text-faint: #94a3b8;
+  --overlay: rgba(15, 23, 42, 0.45);
+  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   color-scheme: light dark;
   font-family: system-ui, "Noto Sans Thai", sans-serif;
 }
@@ -29,6 +35,10 @@
     --warn: #fdb022; --warn-bg: #3a2a0c; --warn-line: #7a4a0a;
     --info: #53b1fd; --info-bg: #0f2a44; --info-line: #1d4a7a;
     --ok: #47cd89; --ok-bg: #0d2e1f; --ok-line: #1a5c3c;
+    --lock: #f07a6c; --lock-bg: #3a1f1c; --lock-line: #5c2e28;
+    --bulk: #b39cf0; --bulk-bg: #2a2140;
+    --text-faint: #6b7c84;
+    --overlay: rgba(0, 0, 0, 0.6);
   }
 }
 

@@ -8,11 +8,11 @@ import { useSessionStore } from '@/stores/session';
 // The legacy Booking page's topbar card (bkV2RenderTopbar): tab strip · meta · "+ New booking".
 // Tabs moved to this app are router links; the rest open the legacy page, but only where the legacy
 // app has its database — otherwise they show disabled.
-defineProps<{ active: 'bytrip' | 'all'; meta: string }>();
+defineProps<{ active: 'bytrip' | 'all' | 'locks'; meta: string }>();
 
 const session = useSessionStore();
 const legacyOn = computed(() => session.me?.legacyData !== false);
-const LEGACY_TABS = ['Seat Locks', 'รออนุมัติ', 'Cancellations'];
+const LEGACY_TABS = ['รออนุมัติ', 'Cancellations'];
 </script>
 
 <template>
@@ -23,6 +23,7 @@ const LEGACY_TABS = ['Seat Locks', 'รออนุมัติ', 'Cancellations
         <RouterLink class="bkv2-utab" to="/calendar">Calendar</RouterLink>
         <RouterLink class="bkv2-utab" :class="{ on: active === 'bytrip' }" to="/bookings/trips" role="tab" :aria-selected="active === 'bytrip'">By trip &middot; date</RouterLink>
         <RouterLink class="bkv2-utab" :class="{ on: active === 'all' }" to="/bookings" role="tab" :aria-selected="active === 'all'">All bookings</RouterLink>
+        <RouterLink class="bkv2-utab" :class="{ on: active === 'locks' }" to="/bookings/locks" role="tab" :aria-selected="active === 'locks'">Seat Locks</RouterLink>
         <template v-for="t in LEGACY_TABS" :key="t">
           <a v-if="legacyOn" class="bkv2-utab" :href="legacyUrl('booking')">{{ t }}</a>
           <button v-else type="button" class="bkv2-utab" disabled title="Not moved yet">{{ t }}</button>
