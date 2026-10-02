@@ -9,22 +9,32 @@ import LockCreateDialog from './LockCreateDialog.vue';
 import LockDayTable from './LockDayTable.vue';
 import LockDetailDialog from './LockDetailDialog.vue';
 import LockFilters from './LockFilters.vue';
+import LockGroupDialog from './LockGroupDialog.vue';
 import LockKpis from './LockKpis.vue';
 import LockSeatsDialog from './LockSeatsDialog.vue';
+import LockSubDialog from './LockSubDialog.vue';
 import LockTable from './LockTable.vue';
-import { canEditOperations } from './model';
+import { canEditOperations, type LockTarget } from './model';
 
-// The Booking page's Seat Locks tab (legacy bkV2RenderLocks, booking.js:623), phase 1: day locks on
-// operation-backend's /v1/seat-locks. Spec: apps/web/docs/porting/seat-locks.md.
+// The Booking page's Seat Locks tab (legacy bkV2RenderLocks, booking.js:623) on operation-backend's
+// /v1/seat-locks and /v1/seat-lock-groups. Spec: apps/web/docs/porting/seat-locks.md.
 const store = useSeatLocksStore();
 const session = useSessionStore();
 // Legacy saved nothing for a read-only user but still changed the screen; here the buttons are hidden.
 const canEdit = computed(() => canEditOperations(session.me));
 
-type Dialog = { kind: 'create' } | { kind: 'add' | 'release' | 'detail'; id: string } | null;
+type Dialog =
+  | { kind: 'create' }
+  | { kind: 'add' | 'release' | 'sub'; target: LockTarget }
+  | { kind: 'detail'; target: LockTarget }
+  | null;
 const dialog = ref<Dialog>(null);
-const open = (kind: 'add' | 'release' | 'detail', id: string) => { dialog.value = { kind, id }; };
-const dialogLock = computed(() => (dialog.value && dialog.value.kind !== 'create' ? store.byId(dialog.value.id) : undefined));
+const act = (kind: 'add' | 'release' | 'sub' | 'detail', target: LockTarget) => { dialog.value = { kind, target }; };
+const lockT = (id: string): LockTarget => ({ kind: 'lock', id });
+const groupT = (id: string): LockTarget => ({ kind: 'group', id });
+/** The dialog's target still exists (a refresh can drop it). */
+const present = (t: LockTarget) => (t.kind === 'lock' ? !!store.byId(t.id) : !!store.groupById(t.id));
+const fmtSkip = (date: string) => new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 
 const meta = computed(() => (store.status === 'ready' ? `${store.kpis.active} active lock${store.kpis.active === 1 ? '' : 's'}` : ''));
 
@@ -50,20 +60,32 @@ onMounted(() => store.load());
       </div>
       <div v-else-if="store.status !== 'ready'" class="seat-locks__loading">Loading seat locks…</div>
       <template v-else>
+        <div v-if="store.notice" class="callout seat-locks__notice" :class="store.notice.skipped.length ? 'callout--warn' : 'callout--ok'" role="status">
+          <div class="seat-locks__notice-head">
+            <b>{{ store.notice.text }}<template v-if="store.notice.skipped.length"> · ข้าม {{ store.notice.skipped.length }} รอบ</template></b>
+            <button type="button" class="btn btn--sm" aria-label="Dismiss" @click="store.notice = null">&times;</button>
+          </div>
+          <ul v-if="store.notice.skipped.length" class="seat-locks__skipped">
+            <li v-for="s in store.notice.skipped" :key="s.service_date"><span class="lock-mono">{{ fmtSkip(s.service_date) }}</span> · {{ s.message }}</li>
+          </ul>
+        </div>
         <LockKpis :kpis="store.kpis" />
-        <LockDayTable :date="store.day" :today="store.today" :offset="store.dayOffset" :locks="store.dayLocks" :lookup="store.lookup" :can-edit="canEdit"
-          @shift="store.dayOffset += $event" @jump="store.dayOffset = $event" @add="open('add', $event)" @detail="open('detail', $event)" />
+        <LockDayTable :can-edit="canEdit" @add="act('add', lockT($event))" @detail="act('detail', lockT($event))" />
         <LockFilters />
-        <LockTable :groups="store.groups" :group-by="store.filters.groupBy" :lookup="store.lookup" :can-edit="canEdit"
-          @add="open('add', $event)" @release="open('release', $event)" @detail="open('detail', $event)" />
+        <LockTable :can-edit="canEdit" @add="act('add', $event)" @release="act('release', $event)" @sub="act('sub', $event)" @detail="act('detail', $event)" />
       </template>
     </div>
 
     <LockCreateDialog v-if="dialog?.kind === 'create'" @close="dialog = null" />
-    <LockSeatsDialog v-else-if="dialogLock && (dialog?.kind === 'add' || dialog?.kind === 'release')" :key="`${dialog.kind}:${dialogLock.id}`"
-      :lock="dialogLock" :mode="dialog.kind" @close="dialog = null" />
-    <LockDetailDialog v-else-if="dialogLock && dialog?.kind === 'detail'" :lock="dialogLock" :can-edit="canEdit"
-      @close="dialog = null" @add="open('add', dialogLock.id)" @release="open('release', dialogLock.id)" />
+    <template v-else-if="dialog && present(dialog.target)">
+      <LockSeatsDialog v-if="dialog.kind === 'add' || dialog.kind === 'release'" :key="`${dialog.kind}:${dialog.target.id}`"
+        :target="dialog.target" :mode="dialog.kind" @close="dialog = null" />
+      <LockSubDialog v-else-if="dialog.kind === 'sub'" :target="dialog.target" @close="dialog = null" />
+      <LockDetailDialog v-else-if="dialog.target.kind === 'lock'" :key="dialog.target.id" :id="dialog.target.id" :can-edit="canEdit"
+        @close="dialog = null" @add="act('add', $event)" @release="act('release', $event)" @sub="act('sub', $event)" @group="act('detail', groupT($event))" />
+      <LockGroupDialog v-else :id="dialog.target.id" :can-edit="canEdit"
+        @close="dialog = null" @day="act('detail', lockT($event))" @add="act('add', $event)" @release="act('release', $event)" @sub="act('sub', $event)" />
+    </template>
   </section>
 </template>
 
@@ -76,6 +98,9 @@ onMounted(() => store.load());
 .seat-locks__new { margin-left: auto; }
 .seat-locks__loading { padding: 34px; text-align: center; color: var(--muted); }
 .seat-locks__retry { margin-top: 8px; }
+.seat-locks__notice-head { display: flex; align-items: center; gap: 10px; }
+.seat-locks__notice-head .btn { margin-left: auto; min-height: 24px; }
+.seat-locks__skipped { margin: 6px 0 0; padding-left: 18px; font-size: 11.5px; line-height: 1.7; }
 @media (max-width: 640px) { .seat-locks { padding: 10px 8px 24px; } }
 </style>
 
@@ -116,4 +141,8 @@ onMounted(() => store.load());
 .seat-locks .lock-route-bar { display: inline-block; width: 3px; height: 14px; margin-right: 7px; border-radius: 2px; vertical-align: -2px; }
 .seat-locks .lock-mono { font-family: var(--font-mono); font-size: 11.5px; }
 .seat-locks .lock-table .chip { font-size: 9.5px; padding: 0 7px; }
+/* Release time pill (legacy relHtml, booking.js:704-709). The bulk detail dialog is teleported, so this is not under .seat-locks. */
+.lock-release { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.lock-release--passed { padding: 2px 8px; border-radius: 6px; background: var(--surface-2); font-weight: 700; }
+.lock-release--soon { padding: 2px 8px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
 </style>

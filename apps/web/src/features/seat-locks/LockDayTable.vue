@@ -2,17 +2,21 @@
 import { computed } from 'vue';
 
 import type { ObSeatLock } from '@/lib/ob';
+import { useSeatLocksStore } from '@/stores/seatLocks';
 
-import { drawn, held, holderColor, holderName, routeColor, routeName, type Lookup } from './model';
+import { held, holderColor, holderName, isHolding, lockTree, releaseCountdown, routeColor, routeName } from './model';
 
-// "ล็อกของวัน": one day's active locks (legacy todayBox, booking.js:689-747). Opens on tomorrow.
-const props = defineProps<{ date: string; today: string; offset: number; locks: ObSeatLock[]; lookup: Lookup; canEdit: boolean }>();
-const emit = defineEmits<{ shift: [n: number]; jump: [offset: number]; add: [id: string]; detail: [id: string] }>();
+// "ล็อกของวัน": one day's active locks, single and bulk (legacy todayBox, booking.js:689-747). Opens on tomorrow.
+defineProps<{ canEdit: boolean }>();
+const emit = defineEmits<{ add: [id: string]; detail: [id: string] }>();
+const store = useSeatLocksStore();
 
 const label = computed(() =>
-  new Date(props.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }));
-const tag = computed(() => (props.date === props.today ? 'วันนี้' : props.offset === 1 ? 'พรุ่งนี้' : ''));
-const sum = (f: (l: ObSeatLock) => number) => props.locks.reduce((n, l) => n + f(l), 0);
+  new Date(store.day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }));
+const tag = computed(() => (store.day === store.today ? 'วันนี้' : store.dayOffset === 1 ? 'พรุ่งนี้' : ''));
+const usedOf = (l: ObSeatLock) => lockTree(l, store.kidsOf(l.id)).used;
+const heldOf = (l: ObSeatLock) => held(l, store.kidsOf(l.id));
+const sum = (f: (l: ObSeatLock) => number) => store.dayLocks.reduce((n, l) => n + f(l), 0);
 </script>
 
 <template>
@@ -23,13 +27,13 @@ const sum = (f: (l: ObSeatLock) => number) => props.locks.reduce((n, l) => n + f
         <div class="lock-day__date">{{ label }}<span v-if="tag" class="chip chip--lock">{{ tag }}</span></div>
       </div>
       <div class="lock-day__nav">
-        <button type="button" class="lock-day__step" title="วันก่อนหน้า" aria-label="Previous day" @click="emit('shift', -1)">&lsaquo;</button>
-        <button type="button" class="lock-day__step" title="วันถัดไป" aria-label="Next day" @click="emit('shift', 1)">&rsaquo;</button>
-        <button type="button" class="lock-day__jump" :class="{ 'lock-day__jump--on': offset === 0 }" @click="emit('jump', 0)">วันนี้</button>
-        <button type="button" class="lock-day__jump" :class="{ 'lock-day__jump--on': offset === 1 }" @click="emit('jump', 1)">พรุ่งนี้</button>
+        <button type="button" class="lock-day__step" title="วันก่อนหน้า" aria-label="Previous day" @click="store.dayOffset--">&lsaquo;</button>
+        <button type="button" class="lock-day__step" title="วันถัดไป" aria-label="Next day" @click="store.dayOffset++">&rsaquo;</button>
+        <button type="button" class="lock-day__jump" :class="{ 'lock-day__jump--on': store.dayOffset === 0 }" @click="store.dayOffset = 0">วันนี้</button>
+        <button type="button" class="lock-day__jump" :class="{ 'lock-day__jump--on': store.dayOffset === 1 }" @click="store.dayOffset = 1">พรุ่งนี้</button>
       </div>
-      <div v-if="locks.length" class="lock-day__summary">
-        {{ locks.length }} ล็อก · กันไว้ {{ sum((l) => l.pax) }} ที่ · ใช้ไป {{ sum(drawn) }} · เหลือ <b>{{ sum(held) }}</b>
+      <div v-if="store.dayLocks.length" class="lock-day__summary">
+        {{ store.dayLocks.length }} ล็อก · กันไว้ {{ sum((l) => l.pax) }} ที่ · ใช้ไป {{ sum(usedOf) }} · เหลือ <b>{{ sum(heldOf) }}</b>
       </div>
     </header>
     <div class="lock-day__scroll">
@@ -42,23 +46,25 @@ const sum = (f: (l: ObSeatLock) => number) => props.locks.reduce((n, l) => n + f
           </tr>
         </thead>
         <tbody>
-          <tr v-for="l in locks" :key="l.id">
+          <tr v-for="l in store.dayLocks" :key="l.id">
             <td class="lock-table__td lock-table__td--strong">
               <button type="button" class="lock-day__holder" @click="emit('detail', l.id)">
-                <span class="lock-dot" :style="{ background: holderColor(l, lookup) }" />{{ holderName(l, lookup) }}
+                <span class="lock-dot" :style="{ background: holderColor(l, store.lookup) }" />{{ holderName(l, store.lookup) }}
               </button>
             </td>
-            <td class="lock-table__td"><span class="lock-route-bar" :style="{ background: routeColor(l.route_id, lookup) }" />{{ routeName(l.route_id, lookup) }}</td>
-            <td class="lock-table__td"><span class="chip chip--info">รายวัน</span></td>
+            <td class="lock-table__td"><span class="lock-route-bar" :style="{ background: routeColor(l.route_id, store.lookup) }" />{{ routeName(l.route_id, store.lookup) }}</td>
+            <td class="lock-table__td"><span v-if="l.group_id" class="chip chip--bulk">Bulk</span><span v-else class="chip chip--info">รายวัน</span></td>
             <td class="lock-table__td lock-table__td--num lock-table__td--lock">{{ l.pax }}</td>
-            <td class="lock-table__td lock-table__td--num">{{ drawn(l) }}</td>
-            <td class="lock-table__td lock-table__td--num" :class="held(l) ? 'lock-table__td--ok' : 'lock-table__td--faint'">{{ held(l) }}</td>
-            <td class="lock-table__td lock-table__td--faint">—</td>
+            <td class="lock-table__td lock-table__td--num">{{ usedOf(l) }}</td>
+            <td class="lock-table__td lock-table__td--num" :class="isHolding(l) && heldOf(l) ? 'lock-table__td--ok' : 'lock-table__td--faint'">{{ isHolding(l) ? heldOf(l) : '—' }}</td>
+            <td class="lock-table__td">
+              <span class="lock-release" :class="`lock-release--${releaseCountdown(l.release_at, store.now).tone}`">{{ releaseCountdown(l.release_at, store.now).text }}</span>
+            </td>
             <td class="lock-table__td lock-table__td--end">
-              <button v-if="canEdit" type="button" class="btn btn--sm btn--ok" @click="emit('add', l.id)">+ ที่นั่ง</button>
+              <button v-if="canEdit && isHolding(l)" type="button" class="btn btn--sm btn--ok" @click="emit('add', l.id)">+ ที่นั่ง</button>
             </td>
           </tr>
-          <tr v-if="!locks.length"><td colspan="8" class="lock-table__empty">วันนี้ไม่มีล็อก</td></tr>
+          <tr v-if="!store.dayLocks.length"><td colspan="8" class="lock-table__empty">วันนี้ไม่มีล็อก</td></tr>
         </tbody>
       </table>
     </div>

@@ -17,6 +17,7 @@ function stubApi(reply: Record<string, [number, unknown]> = {}) {
   const locks = [lock('L1', { agent_id: 'a1', drawn_pax: 2 }), lock('L2', { pax: 4 }), lock('L3', { agent_id: 'a2', status: 'released', service_date: '2026-09-20' })];
   const body: Record<string, unknown> = {
     'GET /api/ob/v1/seat-locks': { seat_locks: locks },
+    'GET /api/ob/v1/seat-lock-groups': { seat_lock_groups: [] },
     'GET /api/ob/v1/routes': { routes: [{ id: 'r3', name: 'Similan Islands', color: '#185FA5' }] },
     'GET /api/ob/v1/agents': { agents: [{ id: 'a1', name: 'Sea Tours', code: 'ST', active: true }, { id: 'a2', name: 'Old Agent', code: 'OA', active: false }] },
     'GET /api/ob/v1/bookings': { bookings: [] },
@@ -168,6 +169,86 @@ describe('SeatLocksView', () => {
     await flushPromises();
     expect(body().querySelector('.lock-detail__voucher')?.textContent).toContain('BK-7 · 2');
     expect(body().querySelector('.lock-detail')?.textContent).toContain('ดึงจากล็อกครบ');
+    w.unmount();
+  });
+
+  it('keeps working on a backend without bulk locks, with Bulk switched off', async () => {
+    stubApi({ 'GET /api/ob/v1/seat-lock-groups': [404, { message: 'Route GET:/v1/seat-lock-groups not found' }] });
+    const w = await mountPage();
+    expect(w.findAll('.lock-group__name').map((g) => g.text())).toEqual(['Office / pool', 'Sea Tours']);
+    expect(w.findAll('.btn--sub')).toHaveLength(0);
+    await w.find('.seat-locks__new').trigger('click');
+    expect(button('Bulk · ช่วงวันที่')?.disabled).toBe(true);
+    w.unmount();
+  });
+
+  it('creates a bulk lock and lists the departures it skipped', async () => {
+    const G = { id: 'G1', route_id: 'r3', agent_id: 'a1', date_from: TMR, date_to: '2026-10-15', weekdays: [1, 4], pax: 5,
+      release_days_before: 1, release_time: '18:00', created_at: '', updated_at: '' };
+    const calls = stubApi({ 'POST /api/ob/v1/seat-lock-groups': [201, {
+      group: G, seat_locks: [lock('G1d', { agent_id: 'a1', group_id: 'G1', service_date: '2026-10-05', pax: 5 })],
+      skipped: [{ service_date: '2026-10-08', reason: 'insufficient_seats', message: '2 seats available, 5 needed' }],
+    }] });
+    const w = await mountPage();
+    await w.find('.seat-locks__new').trigger('click');
+    button('Bulk · ช่วงวันที่')!.click();
+    await flushPromises();
+    const set = (sel: string, v: string, ev = 'input') => { const el = body().querySelector<HTMLInputElement>(sel)!; el.value = v; el.dispatchEvent(new Event(ev)); };
+    set('.lock-form__route select', 'r3', 'change');
+    set('.lock-form__range-inputs input[aria-label="To"]', '2026-10-15');
+    set('.lock-form__agent input', 'ST');
+    set('.lock-form__qty input', '5');
+    for (const d of ['จ', 'พฤ']) [...body().querySelectorAll<HTMLButtonElement>('.lock-form__dow-day')].find((b) => b.textContent === d)!.click();
+    await flushPromises();
+    button('สร้างล็อก')!.click();
+    await flushPromises();
+    expect(calls.find((c) => c.method === 'POST')).toEqual({ method: 'POST', url: '/api/ob/v1/seat-lock-groups', body: {
+      route_id: 'r3', date_from: TMR, date_to: '2026-10-15', weekdays: [1, 4], pax: 5, agent_id: 'a1', release_days_before: 1, release_time: '18:00',
+    } });
+    expect(w.find('.seat-locks__notice').text()).toContain('ข้าม 1 รอบ');
+    expect(w.find('.seat-locks__skipped').text()).toContain('2 seats available, 5 needed');
+    expect(w.findAll('.lock-main .chip--bulk').some((c) => c.text() === 'Bulk')).toBe(true);
+    w.unmount();
+  });
+
+  it('shows a bulk lock as one row, and adds seats to every departure', async () => {
+    const G = { id: 'G1', route_id: 'r3', agent_id: 'a1', date_from: '2026-09-28', date_to: '2026-10-06', weekdays: [1], pax: 5, created_at: '', updated_at: '' };
+    const days = [lock('G1a', { agent_id: 'a1', group_id: 'G1', service_date: '2026-09-28', pax: 5, drawn_pax: 2 }), lock('G1b', { agent_id: 'a1', group_id: 'G1', service_date: '2026-10-05', pax: 5 })];
+    const calls = stubApi({
+      'GET /api/ob/v1/seat-locks': [200, { seat_locks: days }],
+      'GET /api/ob/v1/seat-lock-groups': [200, { seat_lock_groups: [G] }],
+      'PATCH /api/ob/v1/seat-lock-groups/G1': [200, { group: { ...G, pax: 8 }, seat_locks: days.map((d) => ({ ...d, pax: 8 })), skipped: [] }],
+    });
+    const w = await mountPage();
+    const rows = w.findAll('.lock-main .lock-row');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.text()).toContain('2026-09-28');
+    expect(rows[0]!.text()).toContain('ผ่านมา 1/2 รอบ');
+    await rows[0]!.find('.btn--ok').trigger('click');
+    const input = body().querySelector<HTMLInputElement>('.lock-seats__add input')!;
+    input.value = '3';
+    input.dispatchEvent(new Event('input'));
+    button('เพิ่มที่นั่ง')!.click();
+    await flushPromises();
+    expect(calls.find((c) => c.method === 'PATCH')).toEqual({ method: 'PATCH', url: '/api/ob/v1/seat-lock-groups/G1', body: { pax: 8 } });
+    expect(w.find('.lock-main .lock-row').text()).toContain('8');
+    w.unmount();
+  });
+
+  it('carves a sub-group out of a lock and lists it under the lock', async () => {
+    const calls = stubApi({ 'POST /api/ob/v1/seat-locks/L1/sub-groups': [201, lock('L1a', { agent_id: 'a1', parent_id: 'L1', sub_name: 'A', pax: 3 })] });
+    const w = await mountPage();
+    await w.findAll('.lock-main .btn--sub')[1]!.trigger('click');   // Sea Tours' L1: 10 seats, 2 drawn → 8 free
+    expect(body().querySelector('.lock-sub__summary')?.textContent).toContain('ยังไม่ได้แบ่ง 8 ที่');
+    const pax = body().querySelector<HTMLInputElement>('.lock-sub__pax input')!;
+    pax.value = '3';
+    pax.dispatchEvent(new Event('input'));
+    button('สร้างกรุ๊ปย่อย')!.click();
+    await flushPromises();
+    expect(calls.find((c) => c.method === 'POST')).toEqual({ method: 'POST', url: '/api/ob/v1/seat-locks/L1/sub-groups', body: { sub_name: 'A', pax: 3 } });
+    await w.find('.lock-row__toggle').trigger('click');
+    expect(w.find('.lock-row--child').text()).toContain('A');
+    expect(w.find('.lock-row--child').text()).toContain('แบ่งจาก Sea Tours');
     w.unmount();
   });
 });

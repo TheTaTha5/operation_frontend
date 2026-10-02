@@ -13,7 +13,7 @@ const sparkMax = computed(() => Math.max(1, ...props.kpis.spark));
     <div class="lock-kpi lock-kpi--lock">
       <div class="lock-kpi__label">ล็อกที่ใช้งานอยู่</div>
       <div class="lock-kpi__value"><b>{{ kpis.active }}</b><span>รายการ</span></div>
-      <div class="lock-kpi__foot"><span class="chip">รายวัน {{ kpis.active }}</span></div>
+      <div class="lock-kpi__foot"><span class="chip">รายวัน {{ kpis.activeDay }}</span><span class="chip chip--bulk">Bulk {{ kpis.activeBulk }}</span></div>
     </div>
     <div class="lock-kpi">
       <div class="lock-kpi__label">ที่นั่งกันไว้พรุ่งนี้</div>
@@ -31,10 +31,10 @@ const sparkMax = computed(() => Math.max(1, ...props.kpis.spark));
       <div class="lock-kpi__value"><b>{{ kpis.drawn }}</b><span>ที่</span></div>
       <div class="lock-kpi__foot"><span>อัตราการใช้ <b>{{ kpis.conversion }}%</b> ของที่เสนอไปแล้ว</span></div>
     </div>
-    <div class="lock-kpi lock-kpi--warn lock-kpi--off" title="Needs release cutoffs in operation-backend (spec draft C)">
+    <div class="lock-kpi lock-kpi--warn">
       <div class="lock-kpi__label">ใกล้ปล่อยคืน · 48 ชม.</div>
-      <div class="lock-kpi__value"><b>—</b><span>รอบ</span></div>
-      <div class="lock-kpi__foot"><span>ยังไม่มีเวลาปล่อยคืนในระบบใหม่</span></div>
+      <div class="lock-kpi__value"><b>{{ kpis.soon.rounds }}</b><span>รอบ</span></div>
+      <div class="lock-kpi__foot"><span class="chip chip--warn">{{ kpis.soon.seats }} ที่จะกลับเข้า pool</span></div>
     </div>
   </div>
 </template>
@@ -44,7 +44,6 @@ const sparkMax = computed(() => Math.max(1, ...props.kpis.spark));
 .lock-kpi { min-width: 0; padding: 11px 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .lock-kpi--lock { background: linear-gradient(180deg, var(--lock-bg), var(--surface)); }
 .lock-kpi--warn { background: linear-gradient(180deg, var(--warn-bg), var(--surface)); border-color: var(--warn-line); }
-.lock-kpi--off { opacity: 0.6; }
 .lock-kpi__label { font-size: 10px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
 .lock-kpi__value { display: flex; align-items: baseline; gap: 6px; margin-top: 5px; }
 .lock-kpi__value b { font-family: var(--font-mono); font-size: 26px; font-weight: 700; line-height: 1; letter-spacing: -0.03em; }

@@ -126,8 +126,14 @@ export interface ObRouteDays extends ObRoute {
   days: Record<string, { open: boolean; source: ObDaySource }>;
 }
 
-/** GET /v1/seat-locks. A lock still holds `pax - drawn_pax` seats. */
-export interface ObSeatLock {
+/** "N days before the departure at HH:MM" (+07:00). Both set, or neither. */
+export interface ObReleaseRule { release_days_before?: number; release_time?: string }
+
+/**
+ * GET /v1/seat-locks. A lock with no sub-groups still holds `pax - drawn_pax` seats. A sub-group
+ * (`parent_id`) divides its parent's seats; a bulk lock is one day lock per departure, with `group_id`.
+ */
+export interface ObSeatLock extends ObReleaseRule {
   id: string;
   route_id: string;
   service_date: string;
@@ -138,7 +144,34 @@ export interface ObSeatLock {
   updated_at: string;
   released_at?: string;
   drawn_pax?: number;
+  group_id?: string;
+  parent_id?: string;
+  sub_name?: string;
+  /** When the release rule gives the undrawn seats back. Absent without a rule. */
+  release_at?: string;
+  /** Active and before `release_at`. Absent from a backend older than bulk locks. */
+  holding?: boolean;
 }
+
+/** GET /v1/seat-lock-groups: a bulk lock as it was asked for. Its days are ordinary locks with `group_id`. */
+export interface ObSeatLockGroup extends ObReleaseRule {
+  id: string;
+  route_id: string;
+  agent_id?: string;
+  date_from: string;
+  date_to: string;
+  /** 0 = Sunday … 6 = Saturday; empty = every day. */
+  weekdays: number[];
+  /** Seats per departure as last set for the whole group. */
+  pax: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ObSkipReason = 'route_closed' | 'release_passed' | 'insufficient_seats' | 'below_floor' | 'no_room' | 'not_holding';
+/** A day a group write left out; the rest of the group went ahead. */
+export interface ObSkippedDay { service_date: string; reason: ObSkipReason; message: string }
+export interface ObLockGroupResult { group: ObSeatLockGroup; seat_locks: ObSeatLock[]; skipped: ObSkippedDay[] }
 
 // ── Van assignment (GET /operations/van-board). Contract drafted in apps/web/docs/handoff/van-endpoints.md
 //    §3.1; operation-backend has not shipped it yet, so until it does the endpoint answers 404. ──
@@ -337,8 +370,20 @@ export const ob = {
     return getJson<{ seat_locks: ObSeatLock[] }>(`${OB}/v1/seat-locks${q ? '?' + q : ''}`).then((r) => r.seat_locks);
   },
   /** 409 with the backend's message when the day has fewer free seats than `pax`. */
-  createSeatLock: (input: { route_id: string; service_date: string; pax: number; agent_id?: string }) =>
+  createSeatLock: (input: ObReleaseRule & { route_id: string; service_date: string; pax: number; agent_id?: string }) =>
     postJson<ObSeatLock>(`${OB}/v1/seat-locks`, input),
+  /** 409 beyond the parent's seats not yet in a sub-group. */
+  createSubGroup: (lockId: string, input: { sub_name: string; pax: number }) =>
+    postJson<ObSeatLock>(`${OB}/v1/seat-locks/${encodeURIComponent(lockId)}/sub-groups`, input),
+  seatLockGroups: () => getJson<{ seat_lock_groups: ObSeatLockGroup[] }>(`${OB}/v1/seat-lock-groups`).then((r) => r.seat_lock_groups),
+  /** Days that cannot take it come back in `skipped`; 409 only when none can. */
+  createSeatLockGroup: (input: ObReleaseRule & { route_id: string; date_from: string; date_to: string; weekdays: number[]; pax: number; agent_id?: string }) =>
+    postJson<ObLockGroupResult>(`${OB}/v1/seat-lock-groups`, input),
+  amendSeatLockGroup: (id: string, pax: number) => patchJson<ObLockGroupResult>(`${OB}/v1/seat-lock-groups/${encodeURIComponent(id)}`, { pax }),
+  releaseSeatLockGroup: (id: string) =>
+    postJson<ObSeatLockGroup & { seat_locks: ObSeatLock[] }>(`${OB}/v1/seat-lock-groups/${encodeURIComponent(id)}/release`, {}),
+  createGroupSubGroups: (id: string, input: { sub_name: string; pax: number }) =>
+    postJson<ObLockGroupResult>(`${OB}/v1/seat-lock-groups/${encodeURIComponent(id)}/sub-groups`, input),
   /** Capacity-checked on an active lock; 409 below `drawn_pax`. Does not reactivate a released lock. */
   amendSeatLock: (id: string, changes: { pax?: number; agent_id?: string }) =>
     patchJson<ObSeatLock>(`${OB}/v1/seat-locks/${encodeURIComponent(id)}`, changes),

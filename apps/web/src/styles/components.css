@@ -4,7 +4,7 @@
 /* .chip: status / count / label badges.
    Used by: features/agents/AgentList.vue, features/agents/AgentDetail.vue, features/agents/AgentInfoTab.vue,
    features/agents/AgentBookingsTab.vue, features/seat-locks/LockTable.vue, features/seat-locks/LockDayTable.vue,
-   features/seat-locks/LockKpis.vue */
+   features/seat-locks/LockKpis.vue, features/seat-locks/LockDetailDialog.vue, features/seat-locks/LockGroupDialog.vue */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -49,7 +49,8 @@ button.chip { cursor: pointer; font-family: inherit; }
 
 /* .callout: a boxed note or state message (not found, not in the backend yet, …).
    Used by: features/agents/AgentsView.vue, features/agents/AgentDetail.vue, features/seat-locks/SeatLocksView.vue,
-   features/seat-locks/LockCreateDialog.vue, features/seat-locks/LockSeatsDialog.vue, features/seat-locks/LockDetailDialog.vue */
+   features/seat-locks/LockCreateDialog.vue, features/seat-locks/LockSeatsDialog.vue, features/seat-locks/LockDetailDialog.vue,
+   features/seat-locks/LockSubDialog.vue */
 .callout { padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 13px; }
 .callout b { display: block; margin-bottom: 2px; }
 .callout--danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-line); }
@@ -59,7 +60,8 @@ button.chip { cursor: pointer; font-family: inherit; }
 /* .btn: buttons. Base = quiet outline; tone modifiers fill or tint it; --sm for table rows.
    Used by: features/seat-locks/SeatLocksView.vue, features/seat-locks/LockTable.vue,
    features/seat-locks/LockDayTable.vue, features/seat-locks/LockCreateDialog.vue,
-   features/seat-locks/LockSeatsDialog.vue, features/seat-locks/LockDetailDialog.vue */
+   features/seat-locks/LockSeatsDialog.vue, features/seat-locks/LockDetailDialog.vue, features/seat-locks/LockSubDialog.vue,
+   features/seat-locks/LockGroupDialog.vue */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -111,7 +113,7 @@ button.chip { cursor: pointer; font-family: inherit; }
 
 /* .field: a labelled form control (input, select, or a read-only value box).
    Used by: features/seat-locks/LockFilters.vue, features/seat-locks/LockCreateDialog.vue,
-   features/seat-locks/LockSeatsDialog.vue */
+   features/seat-locks/LockSeatsDialog.vue, features/seat-locks/LockSubDialog.vue */
 .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .field__label { font-size: 10px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
 .field__hint { font-weight: 500; text-transform: none; letter-spacing: 0; }
@@ -142,7 +144,8 @@ button.chip { cursor: pointer; font-family: inherit; }
 .stepper__input { width: 84px; height: 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); text-align: center; font: inherit; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* .dialog: a modal box over a dimmed page, rendered by components/LaDialog.vue; width via --dialog-w.
-   Used by: components/LaDialog.vue (features/seat-locks/LockCreateDialog.vue, LockSeatsDialog.vue, LockDetailDialog.vue) */
+   Used by: components/LaDialog.vue (features/seat-locks/LockCreateDialog.vue, LockSeatsDialog.vue, LockDetailDialog.vue,
+   LockSubDialog.vue, LockGroupDialog.vue) */
 .dialog { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--overlay); }
 .dialog__box {
   display: flex;

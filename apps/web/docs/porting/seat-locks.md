@@ -12,11 +12,31 @@
   - **Giving back every held seat:** a lock with draws is kept at `pax = drawn_pax` instead of being released (`releasePlan` in `model.ts`). This matches legacy, which marked such a lock `depleted`, not `released`. A lock with no draws calls `/release`.
   - **Write errors:** writes go through the new `sendJson` / `patchJson` in `lib/api.ts`. The error text is Fastify's `message` (e.g. "Insufficient available seats"), not its `error` ("Conflict").
   - **Agent colour:** `agentColor` and `CXL` are imported from `features/bookings/byTrip.ts`, following the Agents feature's existing cross-feature import, instead of being moved to `lib/`.
-  - **Filters:** the scope filter (day / bulk) is left out, since every lock is a day lock.
+  - **Filters:** phase 1 left out the scope filter (day / bulk), since every lock was a day lock. Phase 2 put it back.
   - **Buttons and status chips:**
     - "ประวัติ" is now "รายละเอียด", because there is no history to show yet.
     - Status chips use `.chip--ok` (active), base `.chip` (depleted) and `.chip--warn` (released).
   - **Agent picker:** the create form accepts an agent's name or code and refuses text that matches no agent. Legacy kept free text as the holder id.
+- **Built 2026-10-02 (phase 2): bulk locks, sub-groups and release times.**
+  - **Backend:** drafts A, B and C are built on operation-backend branch `feat/bulk-seat-locks` (`8c90c94`, not merged). The contract is in that repo's README, under "Agent seat locks".
+    - **A (bulk):** one ordinary day lock per departure plus a `seat_lock_groups` row. This is Option 1 below.
+    - **B (sub-groups):** `parent_id` + `sub_name`, one level deep.
+    - **C (release times):** `release_days_before` + `release_time`, worked out on read as `release_at` / `holding`.
+  - **Group writes go ahead day by day:**
+    - The backend lists days it could not do in `skipped`, and refuses with 409 only when no day can take it. The page shows `skipped` in a notice above the table.
+    - A sub-group on a bulk lock is made on every departure that has room.
+  - **Page changes:**
+    - **Main table:** one row per bulk lock (range, weekday chips, "ผ่านมา x/y รอบ"), as legacy shows it. A lock with sub-groups opens with ▸.
+    - **New dialogs:**
+      - "+ ย่อย" opens `LockSubDialog`.
+      - A bulk lock's "รายละเอียด" opens `LockGroupDialog`, which lists every departure; each departure opens its own detail.
+    - **KPIs and day table:** the 48h KPI and the day table's release countdown are live.
+  - **Working with an older backend:** if `/v1/seat-lock-groups` answers 404 (operation-backend without the branch), the page loads as in phase 1: Bulk and "+ ย่อย" stay disabled (`store.bulkReady`).
+  - **Changing one departure of a bulk lock:** its sub-groups' seats are changed through that departure's own detail. The bulk row lists sub-groups by name, but has no buttons for them.
+  - **Still open:**
+    - D (notes and history).
+    - F (enforce the lock's agent on draws).
+    - `import-legacy.ts` still skips legacy bulk locks and folds sub-groups into their parent; teaching it the new shape is a separate change.
 
 - **Legacy entry point:** `bkV2RenderLocks` (`allotment_v2/js/booking.js:623`). It is dispatched from `bkV2RenderTabBody` when `_bkV2.tab==='locks'` (`booking.js:6309`), mounted by `bkV2Render` into `#view-booking > #bkv2-host > .bkv2.bkv2-bodycard` (`booking.js:4620`). The tab is opened by `bkV2SwitchTab('locks')` (`booking.js:10328`).
 - **Helpers in scope:**

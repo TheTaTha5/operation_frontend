@@ -5,8 +5,7 @@ import { useSeatLocksStore } from '@/stores/seatLocks';
 
 import type { GroupBy, LockFilters } from './model';
 
-// The filter bar (legacy booking.js:775-785). Legacy's scope select (day / bulk) is left out: every
-// lock in operation-backend is a day lock until bulk locks land (spec draft A).
+// The filter bar (legacy booking.js:775-785).
 const store = useSeatLocksStore();
 const routes = computed(() => [...store.routes].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.name.localeCompare(b.name)));
 const STATUS: [LockFilters['status'], string][] = [['active', 'ใช้งานอยู่'], ['all', 'ทั้งหมด']];
@@ -23,6 +22,11 @@ const GROUP: [GroupBy, string][] = [['holder', 'เอเจ้น'], ['route', 
     <select v-model="store.filters.holder" class="field__input lock-filters__select" aria-label="Holder">
       <option value="">ทุกผู้ถือ</option>
       <option v-for="h in store.holders" :key="h.key" :value="h.key">{{ h.name }}</option>
+    </select>
+    <select v-model="store.filters.scope" class="field__input lock-filters__select" aria-label="Lock type">
+      <option value="">ทุกแบบ</option>
+      <option value="day">รายวัน</option>
+      <option value="bulk">Bulk ช่วงวันที่</option>
     </select>
     <span class="lock-filters__label">สถานะ</span>
     <span class="seg" role="group" aria-label="Status">
